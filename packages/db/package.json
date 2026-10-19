@@ -8,7 +8,12 @@
       "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./sqlite": {
+      "types": "./generated/sqlite/client/index.d.ts",
+      "default": "./generated/sqlite/client/index.js"
+    },
+    "./sqlite-tools": "./scripts/sqlite.mjs"
   },
   "scripts": {
     "postinstall": "prisma generate",
@@ -18,7 +23,8 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "db:sqlite": "node scripts/sqlite.mjs generate"
   },
   "dependencies": {
     "@prisma/client": "6.19.3"
