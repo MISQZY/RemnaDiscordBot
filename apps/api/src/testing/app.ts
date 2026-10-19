@@ -15,16 +15,17 @@ import { GuildSnapshotReader } from '@bot/discord';
 import { I18n } from '@bot/i18n';
 import { createLogger } from '@bot/logger';
 import { createTestDatabase, createTestRedis, type TestDatabase } from '@bot/testing';
-import { REST } from 'discord.js';
 import type { FastifyInstance } from 'fastify';
 import type { Redis } from 'ioredis';
 import type { ApiDeps } from '../deps.js';
 import { buildServer } from '../server.js';
 import { FakeDiscordOAuth, TEST_USER } from './fake-oauth.js';
+import { FakeRest } from './fake-rest.js';
 
 export interface TestApp {
   app: FastifyInstance;
   oauth: FakeDiscordOAuth;
+  rest: FakeRest;
   deps: ApiDeps;
   database: TestDatabase;
   redis: Redis;
@@ -43,6 +44,7 @@ export async function createTestApp({ modules = [], rateLimitPerMinute = 0 }: Te
   const logger = createLogger({ service: 'api-test', level: 'silent', pretty: false });
 
   const oauth = new FakeDiscordOAuth();
+  const rest = new FakeRest();
   const registry = new ModuleRegistry(modules);
   const i18n = new I18n('ru');
   registerCoreLocales(i18n);
@@ -63,7 +65,7 @@ export async function createTestApp({ modules = [], rateLimitPerMinute = 0 }: Te
       logger,
     }),
     scheduler: new Scheduler(database.db),
-    rest: new REST(),
+    rest: rest.asRest(),
     snapshots: new GuildSnapshotReader(redis),
     oauth,
     options: {
@@ -84,6 +86,7 @@ export async function createTestApp({ modules = [], rateLimitPerMinute = 0 }: Te
   return {
     app,
     oauth,
+    rest,
     deps,
     database,
     redis,
