@@ -27,10 +27,15 @@ function canonical(value: unknown): unknown {
   return Object.fromEntries(entries);
 }
 
-export function sameCommand(existing: Partial<APIApplicationCommand>, desired: CommandBody): boolean {
-  const pick = (command: object) => Object.fromEntries(COMPARED_KEYS.map((key) => [key, (command as Record<string, unknown>)[key]]));
+/** `guild` — guild commands: Discord does not store `contexts` for them, so it is not compared. */
+export function sameCommand(existing: Partial<APIApplicationCommand>, desired: CommandBody, scope: 'global' | 'guild' = 'global'): boolean {
+  const keys = scope === 'guild' ? COMPARED_KEYS.filter((key) => key !== 'contexts') : COMPARED_KEYS;
+  const pick = (command: object) => Object.fromEntries(keys.map((key) => [key, (command as Record<string, unknown>)[key]]));
   return JSON.stringify(canonical(pick(existing))) === JSON.stringify(canonical(pick(desired)));
 }
+
+/** Without this flag Discord omits `*_localizations`, and every localized command would look changed. */
+const WITH_LOCALIZATIONS = { query: new URLSearchParams({ with_localizations: 'true' }) };
 
 export interface SyncOptions {
   /** Dev guild: commands appear instantly; global ones are cleared to avoid duplicates. */
@@ -56,7 +61,7 @@ export async function syncCommands(rest: REST, body: CommandBody[], { guildId, a
   const result: SyncResult = { scope: guildId ? 'guild' : 'global', created: [], updated: [], clearedGlobal: false };
 
   if (!guildId) {
-    const existing = (await rest.get(globalRoute)) as APIApplicationCommand[];
+    const existing = (await rest.get(globalRoute, WITH_LOCALIZATIONS)) as APIApplicationCommand[];
     const byName = new Map(existing.map((c) => [c.name, c]));
     const changed = existing.length !== body.length || body.some((command) => !byName.has(command.name) || !sameCommand(byName.get(command.name)!, command));
     if (changed) {
@@ -68,13 +73,13 @@ export async function syncCommands(rest: REST, body: CommandBody[], { guildId, a
 
   // The guild also has custom commands — update one by one without touching anything else.
   const guildRoute = Routes.applicationGuildCommands(appId, guildId);
-  const existing = new Map(((await rest.get(guildRoute)) as APIApplicationCommand[]).map((c) => [c.name, c]));
+  const existing = new Map(((await rest.get(guildRoute, WITH_LOCALIZATIONS)) as APIApplicationCommand[]).map((c) => [c.name, c]));
   for (const command of body) {
     const current = existing.get(command.name);
     if (!current) {
       await rest.post(guildRoute, { body: command });
       result.created.push(command.name);
-    } else if (!sameCommand(current, command)) {
+    } else if (!sameCommand(current, command, 'guild')) {
       await rest.patch(Routes.applicationGuildCommand(appId, guildId, current.id), { body: command });
       result.updated.push(command.name);
     }

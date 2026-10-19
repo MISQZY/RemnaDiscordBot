@@ -31,23 +31,39 @@ describe('sameCommand', () => {
   });
 });
 
-/** In-memory Discord REST: stores commands by route. */
+/** Drops `*_localizations` at any depth — what Discord does without `with_localizations`. */
+function withoutLocalizations(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withoutLocalizations);
+  if (value === null || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value).filter(([key]) => !key.endsWith('_localizations')).map(([key, v]) => [key, withoutLocalizations(v)]));
+}
+
+/** In-memory Discord REST: stores commands by route and answers like Discord does. */
 function fakeDiscord(initial: { global?: object[]; guild?: object[] } = {}) {
+  const guildRoute = `/applications/${APP}/guilds/${GUILD}/commands`;
   const store = new Map<string, { id: string; name: string }[]>([
     [`/applications/${APP}/commands`, (initial.global ?? []) as never],
-    [`/applications/${APP}/guilds/${GUILD}/commands`, (initial.guild ?? []) as never],
+    [guildRoute, (initial.guild ?? []) as never],
   ]);
   const writes: string[] = [];
   let id = 0;
+  // Discord does not keep `contexts` on guild commands.
+  const stored = (route: string, command: object) => {
+    const { contexts, ...rest } = command as { contexts?: unknown };
+    return route === guildRoute ? rest : { ...rest, contexts };
+  };
   const rest = {
-    get: async (route: string) => store.get(route) ?? [],
+    get: async (route: string, options?: { query?: URLSearchParams }) => {
+      const commands = store.get(route) ?? [];
+      return options?.query?.get('with_localizations') === 'true' ? commands : withoutLocalizations(commands);
+    },
     put: async (route: string, { body }: { body: { name: string }[] }) => {
       writes.push(`put ${route} ${body.length}`);
-      store.set(route, body.map((c) => ({ ...c, id: String(++id) })));
+      store.set(route, body.map((c) => ({ ...stored(route, c), id: String(++id) }) as never));
     },
     post: async (route: string, { body }: { body: { name: string } }) => {
       writes.push(`post ${body.name}`);
-      store.get(route)!.push({ ...body, id: String(++id) });
+      store.get(route)!.push({ ...stored(route, body), id: String(++id) } as never);
     },
     patch: async (route: string) => void writes.push(`patch ${route}`),
   };
@@ -84,5 +100,18 @@ describe('syncCommands', () => {
     expect(result).toEqual({ scope: 'guild', created: ['help'], updated: ['ping'], clearedGlobal: true });
     expect(writes).toEqual([`patch /applications/${APP}/guilds/${GUILD}/commands/2`, 'post help', `put /applications/${APP}/commands 0`]);
     expect(store.get(`/applications/${APP}/guilds/${GUILD}/commands`)!.map((c) => c.name)).toContain('rules');
+  });
+
+  it.each([
+    ['global', undefined],
+    ['guild', GUILD],
+  ])('changes nothing on a second sync of the real %s commands', async (_, guildId) => {
+    const body = collectCommandPayloads(new ModuleRegistry(modules));
+    const { rest, writes } = fakeDiscord();
+    await syncCommands(rest, body, { applicationId: APP, guildId, logger });
+    writes.length = 0;
+
+    expect(await syncCommands(rest, body, { applicationId: APP, guildId, logger })).toMatchObject({ created: [], updated: [] });
+    expect(writes).toEqual([]);
   });
 });
