@@ -13,9 +13,11 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@bot/contracts": "workspace:*",
     "@bot/core": "workspace:*",
     "@bot/module-audit-log": "workspace:*",
     "@bot/module-autoroles": "workspace:*",
@@ -27,6 +29,7 @@
     "@bot/module-welcome": "workspace:*"
   },
   "devDependencies": {
-    "@bot/config": "workspace:*"
+    "@bot/config": "workspace:*",
+    "@bot/i18n": "workspace:*"
   }
 }

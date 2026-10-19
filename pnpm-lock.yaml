@@ -310,6 +310,9 @@ importers:
 
   packages/module-list:
     dependencies:
+      '@bot/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@bot/core':
         specifier: workspace:*
         version: link:../core
@@ -341,6 +344,9 @@ importers:
       '@bot/config':
         specifier: workspace:*
         version: link:../config
+      '@bot/i18n':
+        specifier: workspace:*
+        version: link:../i18n
 
   packages/modules/audit-log:
     dependencies:
