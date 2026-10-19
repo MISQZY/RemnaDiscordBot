@@ -24,7 +24,7 @@ function toState(id: string, resolved: ResolvedConfig): ModuleState {
 }
 
 export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): FastifyPluginAsyncZod {
-  const { registry, config, i18n, db } = deps;
+  const { registry, config, i18n, db, snapshots } = deps;
 
   const requireModule = (moduleId: string): AnyModule => {
     const module = registry.get(moduleId);
@@ -49,6 +49,20 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
     const patch = buildPatch(current);
     if (module.alwaysEnabled && patch.enabled === false) {
       throw ApiError.badRequest('This module cannot be disabled', [{ path: ['enabled'], message: 'Always enabled' }]);
+    }
+
+    if (module.validateConfig) {
+      const parsed = module.configSchema.parse(patch.config ?? current.config);
+      const issues = module.validateConfig(parsed, {
+        channels: (await snapshots.getChannels(guildId)) ?? [],
+        roles: (await snapshots.getRoles(guildId)) ?? [],
+      });
+      if (issues.length > 0) {
+        throw ApiError.badRequest(
+          'Config references unknown or unusable channels or roles',
+          issues.map((issue) => ({ path: ['config', ...issue.path], message: issue.message })),
+        );
+      }
     }
 
     const updated = await config.update(guildId, moduleId, patch, requireSession(request).userId);

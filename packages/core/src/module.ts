@@ -13,6 +13,7 @@ import type {
 import type { FastifyInstance } from 'fastify';
 import type { z } from 'zod';
 import type { ApiModuleContext, BotModuleContext } from './context.js';
+import type { ConfigIssue, GuildEntities } from './validation.js';
 
 /** Контекст interaction: контекст модуля + локаль пользователя. */
 export interface InteractionContext<TConfig> extends BotModuleContext<TConfig> {
@@ -61,6 +62,11 @@ export interface ModuleDefinition<TSchema extends z.ZodType = z.ZodType> {
   alwaysEnabled?: boolean;
   locales?: Partial<Record<Locale, Dictionary>>;
   bot?: BotFacet<z.output<TSchema>>;
+  /**
+   * Проверка ссылок конфига на каналы и роли гильдии — API вызывает её перед сохранением.
+   * Схема уже проверена; удобно собирать ошибки через `EntityChecker`.
+   */
+  validateConfig?: (config: z.output<TSchema>, guild: GuildEntities) => ConfigIssue[];
   /**
    * Роуты модуля в API, монтируются в `/v1/guilds/:guildId/modules/<id>`.
    * Доступ к гильдии уже проверен; `request.params.guildId` — ID гильдии.

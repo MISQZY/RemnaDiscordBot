@@ -1,7 +1,7 @@
-import { defineModule, subscribeConfigInvalidation } from '@bot/core';
+import { defineModule, EntityChecker, subscribeConfigInvalidation } from '@bot/core';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { createTestApp, GUILD_ID, login, seedGuildSnapshot, type TestApp } from '../testing/app.js';
+import { CHANNEL_ID, createTestApp, GUILD_ID, login, ROLE_ID, seedGuildSnapshot, type TestApp } from '../testing/app.js';
 
 const LevelingConfig = z.object({
   xpPerMessage: z.number().int().min(1).default(10),
@@ -30,6 +30,15 @@ const general = defineModule({
   alwaysEnabled: true,
 });
 
+const announcer = defineModule({
+  id: 'announcer',
+  configSchema: z.object({ channelId: z.string().nullable(), roleIds: z.array(z.string()) }),
+  defaultConfig: { channelId: null, roleIds: [] },
+  configVersion: 1,
+  validateConfig: (cfg, guild) =>
+    new EntityChecker(guild).textChannel(cfg.channelId, ['channelId']).roles(cfg.roleIds, ['roleIds'], { assignable: true }).issues,
+});
+
 describe('module routes', () => {
   let t: TestApp;
   let cookie: string;
@@ -38,7 +47,7 @@ describe('module routes', () => {
     t.app.inject({ method, url: path, headers: { cookie, ...headers }, ...(payload ? { payload } : {}) });
 
   beforeAll(async () => {
-    t = await createTestApp({ modules: [leveling, general] });
+    t = await createTestApp({ modules: [leveling, general, announcer] });
     t.oauth.guilds = [{ id: GUILD_ID, name: 'Managed', icon: null, owner: true, permissions: '0' }];
     await seedGuildSnapshot(t);
     cookie = await login(t);
@@ -130,6 +139,19 @@ describe('module routes', () => {
     expect(response.json().map((m: { id: string; enabled: boolean }) => [m.id, m.enabled])).toEqual([
       ['leveling', expect.any(Boolean)],
       ['general', true],
+      ['announcer', false],
+    ]);
+  });
+
+  it('validates channel and role references against the guild snapshot', async () => {
+    const ok = await send('PUT', url('/announcer'), { config: { channelId: CHANNEL_ID, roleIds: [ROLE_ID] } });
+    expect(ok.statusCode).toBe(200);
+
+    const bad = await send('PUT', url('/announcer'), { config: { channelId: '599999999999999999', roleIds: [GUILD_ID] } });
+    expect(bad.statusCode).toBe(400);
+    expect(bad.json().error.details).toEqual([
+      { path: ['config', 'channelId'], message: 'Channel 599999999999999999 not found' },
+      { path: ['config', 'roleIds', 0], message: 'The bot cannot assign role @everyone' },
     ]);
   });
 
