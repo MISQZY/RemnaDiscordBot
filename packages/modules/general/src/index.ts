@@ -1,5 +1,6 @@
 import { defineModule } from '@bot/core';
 import { help } from './commands/help.js';
+import { modules } from './commands/modules.js';
 import { ping } from './commands/ping.js';
 import { GeneralConfig } from './config.js';
 import { locales } from './locales.js';
@@ -13,6 +14,6 @@ export default defineModule({
   alwaysEnabled: true,
   locales,
   bot: {
-    commands: [ping, help],
+    commands: [ping, help, modules],
   },
 });

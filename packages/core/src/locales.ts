@@ -6,12 +6,12 @@ export const CORE_NAMESPACE = 'core';
 
 export const coreLocales: Record<Locale, Dictionary> = {
   ru: {
-    moduleDisabled: 'Модуль «{module}» отключён на этом сервере.',
+    moduleDisabled: 'Модуль «{module}» отключён на этом сервере. Администратор может включить его: /modules enable {id}',
     cooldown: 'Подождите {seconds} с перед повторным использованием.',
     error: 'Что-то пошло не так. Попробуйте позже.',
   },
   en: {
-    moduleDisabled: 'The “{module}” module is disabled on this server.',
+    moduleDisabled: 'The “{module}” module is disabled on this server. An admin can enable it with /modules enable {id}',
     cooldown: 'Please wait {seconds}s before using this again.',
     error: 'Something went wrong. Please try again later.',
   },

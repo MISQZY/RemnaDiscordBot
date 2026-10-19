@@ -86,7 +86,7 @@ export class Dispatcher {
         }
 
         if (!(await this.isEnabledFor(entry.module, interaction.guildId))) {
-          await interaction.reply(this.ephemeral(ctx.t(`core.moduleDisabled`, { module: this.moduleName(entry.module, ctx) })));
+          await interaction.reply(this.ephemeral(ctx.t(`core.moduleDisabled`, { module: this.moduleName(entry.module, ctx), id: entry.module.id })));
           return;
         }
 
@@ -106,7 +106,7 @@ export class Dispatcher {
         const ctx = this.interactionContext(entry.module, interaction.locale);
 
         if (!(await this.isEnabledFor(entry.module, interaction.guildId))) {
-          await interaction.reply(this.ephemeral(ctx.t('core.moduleDisabled', { module: this.moduleName(entry.module, ctx) })));
+          await interaction.reply(this.ephemeral(ctx.t('core.moduleDisabled', { module: this.moduleName(entry.module, ctx), id: entry.module.id })));
           return;
         }
         await entry.item.handle(interaction, ctx);

@@ -9,7 +9,15 @@ export const locales: Record<Locale, Dictionary> = {
     },
     help: {
       title: 'Команды бота',
-      empty: 'Команды ещё не зарегистрированы.',
+      empty: 'Нет доступных команд.',
+      disabled: 'Выключено модулей с командами: {count} — смотрите /modules list',
+    },
+    modules: {
+      title: 'Модули бота',
+      hint: 'Включить: /modules enable · выключить: /modules disable',
+      enabled: 'Модуль «{module}» включён.',
+      disabled: 'Модуль «{module}» выключен.',
+      unknown: 'Модуля «{module}» нет или его нельзя выключить.',
     },
   },
   en: {
@@ -19,7 +27,15 @@ export const locales: Record<Locale, Dictionary> = {
     },
     help: {
       title: 'Bot commands',
-      empty: 'No commands are registered yet.',
+      empty: 'No commands available.',
+      disabled: 'Modules with commands that are disabled: {count} — see /modules list',
+    },
+    modules: {
+      title: 'Bot modules',
+      hint: 'Enable: /modules enable · disable: /modules disable',
+      enabled: 'The “{module}” module is enabled.',
+      disabled: 'The “{module}” module is disabled.',
+      unknown: 'There is no “{module}” module, or it cannot be toggled.',
     },
   },
 };

@@ -105,7 +105,7 @@ describe('Dispatcher interactions', () => {
 
     expect(execute).not.toHaveBeenCalled();
     expect(interaction.reply).toHaveBeenCalledWith(
-      expect.objectContaining({ content: 'The “leveling” module is disabled on this server.' }),
+      expect.objectContaining({ content: 'The “leveling” module is disabled on this server. An admin can enable it with /modules enable leveling' }),
     );
   });
 
