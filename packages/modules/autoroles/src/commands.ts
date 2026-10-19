@@ -221,7 +221,7 @@ export const autorolesCommand = defineCommand<AutorolesConfig>({
         channelId: interaction.options.getChannel('channel', true).id,
         kind: interaction.options.getString('kind') ?? 'buttons',
         mode: interaction.options.getString('mode') ?? 'toggle',
-        message: { content: interaction.options.getString('text') ?? ctx.t('autoroles.commands.defaultText') },
+        message: { content: interaction.options.getString('text') ?? ctx.tGuild('autoroles.commands.defaultText') },
         items: [{ roleId: role.id, label: role.name.slice(0, 80) }],
       });
       await panels.create(guildId, input);

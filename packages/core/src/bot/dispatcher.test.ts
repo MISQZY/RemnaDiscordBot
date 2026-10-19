@@ -36,6 +36,7 @@ function setup({ enabled = true, cooldownFree = true } = {}) {
     logger: testLogger,
     i18n,
     bus: new EventBus(testLogger),
+    guildLocales: { get: vi.fn(async () => 'ru') },
     config: {
       isEnabled: vi.fn(async () => enabled),
       get: vi.fn(async () => ({ enabled, config: leveling.defaultConfig })),
@@ -94,7 +95,7 @@ describe('Dispatcher interactions', () => {
 
     await dispatcher.handleInteraction(interaction as never);
 
-    expect(execute).toHaveBeenCalledWith(interaction, expect.objectContaining({ locale: 'en', moduleId: 'leveling' }));
+    expect(execute).toHaveBeenCalledWith(interaction, expect.objectContaining({ locale: 'en', guildLocale: 'ru', moduleId: 'leveling' }));
   });
 
   it('replies when the module is disabled', async () => {

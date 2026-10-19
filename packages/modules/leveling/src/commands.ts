@@ -21,12 +21,13 @@ export const COMPONENT_PREFIX = 'lvl';
 async function leaderboardPage(ctx: InteractionContext<LevelingConfig>, guildId: string, page: number) {
   const { items, total } = await new LevelingService(ctx.db).leaderboard(guildId, page, PAGE_SIZE);
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const lines = items.map((e) => `**${e.rank}.** <@${e.userId}> · ${ctx.t('leveling.levelShort', { level: e.level })} · ${e.xp} XP`);
+  // Лидерборд и карточку уровня видят все — на языке сервера.
+  const lines = items.map((e) => `**${e.rank}.** <@${e.userId}> · ${ctx.tGuild('leveling.levelShort', { level: e.level })} · ${e.xp} XP`);
 
   const embed = new EmbedBuilder()
-    .setTitle(ctx.t('leveling.leaderboardTitle'))
-    .setDescription(lines.length > 0 ? lines.join('\n') : ctx.t('leveling.leaderboardEmpty'))
-    .setFooter({ text: ctx.t('leveling.page', { page: page + 1, pages }) });
+    .setTitle(ctx.tGuild('leveling.leaderboardTitle'))
+    .setDescription(lines.length > 0 ? lines.join('\n') : ctx.tGuild('leveling.leaderboardEmpty'))
+    .setFooter({ text: ctx.tGuild('leveling.page', { page: page + 1, pages }) });
   const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(`${COMPONENT_PREFIX}:page:${page - 1}`).setLabel('◀').setStyle(ButtonStyle.Secondary).setDisabled(page <= 0),
     new ButtonBuilder().setCustomId(`${COMPONENT_PREFIX}:page:${page + 1}`).setLabel('▶').setStyle(ButtonStyle.Secondary).setDisabled(page + 1 >= pages),
@@ -56,10 +57,10 @@ export const rank = defineCommand<LevelingConfig>({
       .setAuthor({ name: user.username, iconURL: user.displayAvatarURL() })
       .setColor(0x5865f2)
       .addFields(
-        { name: ctx.t('leveling.fields.level'), value: String(level), inline: true },
-        { name: ctx.t('leveling.fields.rank'), value: `#${position}`, inline: true },
-        { name: ctx.t('leveling.fields.messages'), value: String(row.messages), inline: true },
-        { name: ctx.t('leveling.fields.progress'), value: `${progressBar(current, needed)} ${current}/${needed} XP` },
+        { name: ctx.tGuild('leveling.fields.level'), value: String(level), inline: true },
+        { name: ctx.tGuild('leveling.fields.rank'), value: `#${position}`, inline: true },
+        { name: ctx.tGuild('leveling.fields.messages'), value: String(row.messages), inline: true },
+        { name: ctx.tGuild('leveling.fields.progress'), value: `${progressBar(current, needed)} ${current}/${needed} XP` },
       );
     await interaction.reply({ embeds: [embed] });
   },

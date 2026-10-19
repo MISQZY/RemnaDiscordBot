@@ -1,22 +1,13 @@
 import type { BotModuleContext, EventHandlers } from '@bot/core';
 import type { APIEmbed, Guild, GuildMember, PartialGuildMember } from 'discord.js';
-import { LRUCache } from 'lru-cache';
 import type { AuditLogConfig, LogCategory } from './config.js';
 import * as embeds from './embeds.js';
 import { MessageCache } from './message-cache.js';
 
 type Ctx = BotModuleContext<AuditLogConfig>;
 
-/** Локаль гильдии нужна на каждое событие — кэшируем, чтобы не ходить в БД. */
-const locales = new LRUCache<string, string>({ max: 10_000, ttl: 5 * 60_000 });
-
 async function translator(ctx: Ctx, guildId: string): Promise<embeds.Translate> {
-  let stored = locales.get(guildId);
-  if (stored === undefined) {
-    stored = (await ctx.db.guild.findUnique({ where: { id: guildId }, select: { locale: true } }))?.locale ?? '';
-    locales.set(guildId, stored);
-  }
-  const locale = ctx.i18n.resolveLocale(stored);
+  const locale = await ctx.guildLocales.get(guildId);
   return (key, vars) => ctx.i18n.t(locale, key, vars);
 }
 

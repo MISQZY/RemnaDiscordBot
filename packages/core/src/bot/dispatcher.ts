@@ -77,7 +77,7 @@ export class Dispatcher {
           if (interaction.isChatInputCommand()) await this.runFallback(interaction);
           return;
         }
-        const ctx = this.interactionContext(entry.module, interaction.locale);
+        const ctx = await this.interactionContext(entry.module, interaction);
 
         if (interaction.isAutocomplete()) {
           if (await this.isEnabledFor(entry.module, interaction.guildId)) await entry.item.autocomplete?.(interaction, ctx);
@@ -103,7 +103,7 @@ export class Dispatcher {
       if (interaction.isMessageComponent() || interaction.isModalSubmit()) {
         const entry = this.registry.findComponent(interaction.customId);
         if (!entry) return;
-        const ctx = this.interactionContext(entry.module, interaction.locale);
+        const ctx = await this.interactionContext(entry.module, interaction);
 
         if (!(await this.isEnabledFor(entry.module, interaction.guildId))) {
           await interaction.reply(this.ephemeral(ctx.t('core.moduleDisabled', { module: this.moduleName(entry.module, ctx), id: entry.module.id })));
@@ -121,7 +121,7 @@ export class Dispatcher {
   private async runFallback(interaction: ChatInputCommandInteraction): Promise<void> {
     const fallback = this.registry.fallbackCommand();
     if (!fallback || !(await this.isEnabledFor(fallback.module, interaction.guildId))) return;
-    await fallback.item.execute(interaction, this.interactionContext(fallback.module, interaction.locale));
+    await fallback.item.execute(interaction, await this.interactionContext(fallback.module, interaction));
   }
 
   private async isEnabledFor(module: AnyModule, guildId: string | null): Promise<boolean> {
@@ -173,12 +173,20 @@ export class Dispatcher {
     return ctx;
   }
 
-  private interactionContext(module: AnyModule, discordLocale: DiscordLocale | string): InteractionContext<unknown> {
-    const locale = this.services.i18n.resolveLocale(discordLocale);
+  /** Язык пользователя — для личных ответов, язык сервера — для того, что видят все. */
+  private async interactionContext(
+    module: AnyModule,
+    { locale: discordLocale, guildId }: { locale: DiscordLocale | string; guildId: string | null },
+  ): Promise<InteractionContext<unknown>> {
+    const { i18n, guildLocales } = this.services;
+    const locale = i18n.resolveLocale(discordLocale);
+    const guildLocale = guildId ? await guildLocales.get(guildId) : locale;
     return {
       ...this.moduleContext(module),
       locale,
-      t: (key, vars) => this.services.i18n.t(locale, key, vars),
+      guildLocale,
+      t: (key, vars) => i18n.t(locale, key, vars),
+      tGuild: (key, vars) => i18n.t(guildLocale, key, vars),
     };
   }
 }

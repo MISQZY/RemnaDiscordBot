@@ -16,10 +16,14 @@ import type { z } from 'zod';
 import type { ApiModuleContext, BotModuleContext, JobContext, ModuleServices } from './context.js';
 import type { ConfigIssue, GuildEntities } from './validation.js';
 
-/** Контекст interaction: контекст модуля + локаль пользователя. */
+/** Контекст interaction: контекст модуля + язык пользователя и язык сервера. */
 export interface InteractionContext<TConfig> extends BotModuleContext<TConfig> {
+  /** Язык пользователя — для эфемерных ответов. */
   locale: Locale;
+  /** Язык сервера — для сообщений, которые видят все. */
+  guildLocale: Locale;
   t(key: string, vars?: Record<string, string | number>): string;
+  tGuild(key: string, vars?: Record<string, string | number>): string;
 }
 
 export interface SlashCommand<TConfig = unknown> {

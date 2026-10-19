@@ -85,7 +85,8 @@ async function prepare(
 async function done(interaction: ChatInputCommandInteraction, ctx: Ctx, action: string, number: number) {
   const user = interaction.options.getUser('user', true);
   await interaction.editReply({
-    content: ctx.t(`moderation.done.${action}`, { user: user.username, number }),
+    // Итог действия видят все — на языке сервера.
+    content: ctx.tGuild(`moderation.done.${action}`, { user: user.username, number }),
     allowedMentions: { parse: [] },
   });
 }
@@ -179,7 +180,7 @@ export const warn = defineCommand<ModerationConfig>({
     await done(interaction, ctx, 'warn', modCase.number);
     if (escalated) {
       await interaction.followUp({
-        content: ctx.t('moderation.done.escalated', { action: ctx.t(`moderation.actions.${escalated.type}`), number: escalated.number }),
+        content: ctx.tGuild('moderation.done.escalated', { action: ctx.tGuild(`moderation.actions.${escalated.type}`), number: escalated.number }),
         allowedMentions: { parse: [] },
       });
     }

@@ -46,7 +46,7 @@ describe('message logging', () => {
       logger: createLogger({ service: 'test', level: 'silent', pretty: false }),
       redis: createTestRedis(),
       i18n,
-      db: { guild: { findUnique: async () => ({ locale: 'ru' }) } },
+      guildLocales: { get: async () => 'ru' },
       getConfig: async () => fullConfig,
     } as unknown as BotModuleContext<AuditLogConfig>;
     const message = (patch: object = {}) =>
