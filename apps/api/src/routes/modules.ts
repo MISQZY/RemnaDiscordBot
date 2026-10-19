@@ -193,7 +193,10 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
         const register = module.api;
         await guildScope.register(
           async (moduleScope) => {
-            await register(moduleScope, moduleServices(deps, module));
+            await register(moduleScope, {
+              ...moduleServices(deps, module),
+              currentUserId: (request) => requireSession(request).userId,
+            });
           },
           { prefix: `/v1/guilds/:guildId/modules/${module.id}` },
         );

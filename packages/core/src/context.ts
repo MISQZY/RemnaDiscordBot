@@ -2,6 +2,7 @@ import type { PrismaClient } from '@bot/db';
 import type { I18n } from '@bot/i18n';
 import type { Logger } from '@bot/logger';
 import type { Client, REST } from 'discord.js';
+import type { FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
 import type { EventBus } from './bus.js';
 import type { ConfigService } from './config/service.js';
@@ -31,7 +32,10 @@ export interface ModuleServices<TConfig> extends CoreServices {
 }
 
 /** Контекст роутов модуля в API. */
-export type ApiModuleContext<TConfig> = ModuleServices<TConfig>;
+export interface ApiModuleContext<TConfig> extends ModuleServices<TConfig> {
+  /** Discord ID вошедшего пользователя; доступ к гильдии уже проверен. */
+  currentUserId(request: FastifyRequest): string;
+}
 
 /** Контекст отложенной задачи модуля в воркере. */
 export interface JobContext<TConfig> extends ModuleServices<TConfig> {
