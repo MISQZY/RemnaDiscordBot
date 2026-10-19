@@ -25,7 +25,10 @@ describe('general module', () => {
     const sections = helpSections({
       modules: [general],
       enabled: new Set(['general', 'custom-commands']),
-      commandIds: new Map([['ping', '2']]),
+      commandIds: new Map([
+        ['ping', '2'],
+        ['modules', '3'],
+      ]),
       extraCommands: [{ name: 'rules', description: 'Server rules' }],
       locale: 'ru',
       moduleName: (id) => ({ general: 'Основное', 'custom-commands': 'Свои команды' })[id] ?? id,
@@ -35,7 +38,9 @@ describe('general module', () => {
     expect(sections[0]!.lines).toEqual([
       '</ping:2> — Проверить задержку бота',
       '`/help` — Показать доступные команды',
-      '`/modules` — Включить или выключить модули бота',
+      '</modules list:3> — Показать модули и их состояние',
+      '</modules enable:3> — Включить модуль',
+      '</modules disable:3> — Выключить модуль',
     ]);
     expect(sections[1]!.lines).toEqual(['`/rules` — Server rules']);
   });

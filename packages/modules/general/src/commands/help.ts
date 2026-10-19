@@ -1,5 +1,5 @@
 import { defineCommand, type AnyModule } from '@bot/core';
-import { chatInputApplicationCommandMention, EmbedBuilder, MessageFlags, SlashCommandBuilder } from 'discord.js';
+import { EmbedBuilder, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import type { GeneralConfig } from '../config.js';
 
 export interface HelpSection {
@@ -18,10 +18,33 @@ export interface HelpInput {
   moduleName(id: string): string;
 }
 
-const mention = (name: string, ids: ReadonlyMap<string, string>) => {
-  const id = ids.get(name);
-  return id ? chatInputApplicationCommandMention(name, id) : `\`/${name}\``;
+/**
+ * Упоминание команды. Discord подсвечивает только конечные команды, поэтому путь
+ * включает подкоманду и группу: `</modules enable:id>`. Без ID — просто код.
+ */
+const mention = (path: string[], ids: ReadonlyMap<string, string>) => {
+  const id = ids.get(path[0]!);
+  return id ? `</${path.join(' ')}:${id}>` : `\`/${path.join(' ')}\``;
 };
+
+interface CommandNode {
+  name: string;
+  type?: number;
+  description: string;
+  description_localizations?: Partial<Record<string, string | null>> | null;
+  options?: CommandNode[];
+}
+
+const SUBCOMMAND = 1;
+const SUBCOMMAND_GROUP = 2;
+
+/** Конечные команды: сама команда или каждая её подкоманда (с учётом групп). */
+function leaves(node: CommandNode, path: string[] = []): { path: string[]; node: CommandNode }[] {
+  const children = (node.options ?? []).filter((o) => o.type === SUBCOMMAND || o.type === SUBCOMMAND_GROUP);
+  const current = [...path, node.name];
+  if (children.length === 0) return [{ path: current, node }];
+  return children.flatMap((child) => leaves(child, current));
+}
 
 /** Разделы справки: команды включённых модулей, собранные из реестра автоматически. */
 export function helpSections({ modules, enabled, commandIds, extraCommands, locale, moduleName }: HelpInput): HelpSection[] {
@@ -31,17 +54,18 @@ export function helpSections({ modules, enabled, commandIds, extraCommands, loca
     if (commands.length === 0 || !enabled.has(module.id)) continue;
     sections.push({
       title: moduleName(module.id),
-      lines: commands.map((command) => {
-        const json = command.data.toJSON();
-        const localized = json.description_localizations?.[locale as keyof typeof json.description_localizations];
-        return `${mention(json.name, commandIds)} — ${localized ?? json.description}`;
-      }),
+      lines: commands.flatMap((command) =>
+        leaves(command.data.toJSON() as CommandNode).map(({ path, node }) => {
+          const localized = node.description_localizations?.[locale];
+          return `${mention(path, commandIds)} — ${localized ?? node.description}`;
+        }),
+      ),
     });
   }
   if (extraCommands.length > 0 && enabled.has('custom-commands')) {
     sections.push({
       title: moduleName('custom-commands'),
-      lines: extraCommands.map((c) => `${mention(c.name, commandIds)} — ${c.description}`),
+      lines: extraCommands.map((c) => `${mention([c.name], commandIds)} — ${c.description}`),
     });
   }
   return sections;
