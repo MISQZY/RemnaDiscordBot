@@ -203,8 +203,10 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
           schema: { tags: ['modules'], summary: 'Сбросить конфиг к значениям по умолчанию', params: ModuleParams, response: { 200: ModuleState } },
           config: { rateLimit: GUILD_WRITE_LIMIT },
         },
-        (request, reply) =>
-          applyUpdate(request, reply, request.params, () => ({ config: requireModule(request.params.moduleId).defaultConfig }), 'module.reset'),
+        async (request, reply) => {
+          const defaults = await config.defaults(request.params.guildId, request.params.moduleId);
+          return applyUpdate(request, reply, request.params, () => ({ config: defaults }), 'module.reset');
+        },
       );
 
       // Собственные роуты модулей: /v1/guilds/:guildId/modules/<id>/…

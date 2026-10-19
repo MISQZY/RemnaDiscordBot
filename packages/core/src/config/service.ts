@@ -1,4 +1,5 @@
-import type { ConfigInvalidation } from '@bot/contracts';
+import type { ConfigInvalidation, Locale } from '@bot/contracts';
+import type { I18n } from '@bot/i18n';
 import type { Logger } from '@bot/logger';
 import { LRUCache } from 'lru-cache';
 import type { AnyModule } from '../module.js';
@@ -25,6 +26,8 @@ export interface ConfigServiceOptions {
   sharedCache?: SharedConfigCache;
   /** Рассылка инвалидации другим процессам после записи. */
   publish?: (message: ConfigInvalidation) => Promise<void>;
+  /** Язык гильдии и словари — для локализованных значений по умолчанию (`localizeDefaults`). */
+  locales?: { localeOf(guildId: string): Promise<Locale>; i18n: I18n };
   localTtlMs?: number;
   localMax?: number;
 }
@@ -52,7 +55,7 @@ export class ConfigService {
     if (cached) return cached as ResolvedConfig<T>;
 
     const module = this.requireModule(moduleId);
-    const resolved = this.resolve(module, guildId, await this.load(guildId, moduleId));
+    const resolved = await this.resolve(module, guildId, await this.load(guildId, moduleId));
     this.local.set(key, resolved);
     return resolved as ResolvedConfig<T>;
   }
@@ -119,9 +122,18 @@ export class ConfigService {
     return stored;
   }
 
-  private resolve(module: AnyModule, guildId: string, stored: StoredConfig | null): ResolvedConfig {
+  /** Конфиг по умолчанию; тексты в нём — на языке гильдии, если модуль их локализует. */
+  async defaults(guildId: string, moduleId: string): Promise<unknown> {
+    const module = this.requireModule(moduleId);
+    const { locales } = this.options;
+    if (!module.localizeDefaults || !locales) return module.defaultConfig;
+    const locale = await locales.localeOf(guildId);
+    return module.localizeDefaults(structuredClone(module.defaultConfig), (key) => locales.i18n.raw(locale, `${module.id}.${key}`));
+  }
+
+  private async resolve(module: AnyModule, guildId: string, stored: StoredConfig | null): Promise<ResolvedConfig> {
     const enabled = module.alwaysEnabled || (stored?.enabled ?? module.enabledByDefault ?? false);
-    if (!stored) return { enabled, config: module.defaultConfig, updatedAt: null };
+    if (!stored) return { enabled, config: await this.defaults(guildId, module.id), updatedAt: null };
 
     const raw =
       stored.version < module.configVersion && module.migrateConfig
@@ -135,6 +147,6 @@ export class ConfigService {
       { guildId, moduleId: module.id, issues: parsed.error.issues },
       'Stored module config is invalid, falling back to defaults',
     );
-    return { enabled, config: module.defaultConfig, updatedAt: stored.updatedAt };
+    return { enabled, config: await this.defaults(guildId, module.id), updatedAt: stored.updatedAt };
   }
 }

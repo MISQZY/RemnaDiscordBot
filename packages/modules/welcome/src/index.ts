@@ -15,6 +15,12 @@ export default defineModule({
   defaultConfig: defaultWelcomeConfig,
   configVersion: 1,
   locales,
+  localizeDefaults: (defaults, t) => ({
+    ...defaults,
+    join: { ...defaults.join, message: { content: t('defaults.join') } },
+    joinDm: { ...defaults.joinDm, message: { content: t('defaults.dm') } },
+    leave: { ...defaults.leave, message: { content: t('defaults.leave') } },
+  }),
   validateConfig: (config, guild) =>
     new EntityChecker(guild).textChannel(config.join.channelId, ['join', 'channelId']).textChannel(config.leave.channelId, ['leave', 'channelId'])
       .issues,

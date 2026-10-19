@@ -16,6 +16,10 @@ export default defineModule({
   defaultConfig: defaultLevelingConfig,
   configVersion: 1,
   locales,
+  localizeDefaults: (defaults, t) => ({
+    ...defaults,
+    announcement: { ...defaults.announcement, message: { content: t('defaults.levelUp') } },
+  }),
   validateConfig: (config, guild) => {
     const checker = new EntityChecker(guild)
       .textChannel(config.announcement.channelId, ['announcement', 'channelId'])

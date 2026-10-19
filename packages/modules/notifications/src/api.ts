@@ -3,7 +3,6 @@ import { isUniqueViolation, type Prisma } from '@bot/db';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
-  DEFAULT_MESSAGES,
   MAX_SUBSCRIPTIONS,
   Provider,
   SubscriptionCreate,
@@ -85,7 +84,10 @@ export function notificationsApi(providers: () => Map<ProviderId, FeedProvider>)
               sourceId: source.id,
               channelId: input.channelId,
               mentionRoleId: input.mentionRoleId,
-              message: (input.message ?? DEFAULT_MESSAGES[input.provider]) as Prisma.InputJsonValue,
+              // Шаблон по умолчанию — на языке сервера.
+              message: (input.message ?? {
+                content: ctx.i18n.raw(await ctx.guildLocales.get(guildId), `notifications.defaults.${input.provider}`),
+              }) as Prisma.InputJsonValue,
             },
             include: { source: true },
           });

@@ -58,14 +58,15 @@ registerCoreLocales(i18n);
 registry.registerLocales(i18n);
 
 const bus = new EventBus(logger);
+const guildLocales = new GuildLocales(db, i18n);
 const config = new ConfigService({
   registry,
   store: new PrismaConfigStore(db),
   sharedCache: new RedisConfigCache(redis),
   publish: (message) => publishConfigInvalidation(redis, message),
+  locales: { localeOf: (guildId) => guildLocales.get(guildId), i18n },
   logger,
 });
-const guildLocales = new GuildLocales(db, i18n);
 const unsubscribeConfig = await subscribeConfigInvalidation(redis, logger, (message) => {
   config.invalidate(message);
   // Инвалидация всей гильдии — могли смениться общие настройки, в том числе язык.

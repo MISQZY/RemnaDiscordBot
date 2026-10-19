@@ -23,6 +23,13 @@ describe('I18n', () => {
     expect(i18n.t('en', 'general.missing')).toBe('general.missing');
   });
 
+  it('returns raw template strings without ICU formatting', () => {
+    const i18n = new I18n('ru');
+    i18n.register('welcome', { ru: { join: 'Привет, {user.mention}!' }, en: {} });
+    expect(i18n.raw('en', 'welcome.join')).toBe('Привет, {user.mention}!');
+    expect(() => i18n.t('ru', 'welcome.join')).toThrow();
+  });
+
   it('resolves Discord locales', () => {
     const i18n = createI18n();
     expect(i18n.resolveLocale('en-US')).toBe('en');

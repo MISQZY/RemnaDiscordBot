@@ -1,6 +1,7 @@
 import { defineModule } from '@bot/core';
 import { notificationsApi } from './api.js';
 import { NotificationsConfig } from './config.js';
+import { locales } from './locales.js';
 import { pollProvider } from './poll.js';
 import { providersFromEnv, type Provider, type ProviderId } from './providers.js';
 
@@ -22,7 +23,7 @@ export default defineModule({
   configSchema: NotificationsConfig,
   defaultConfig: {},
   configVersion: 1,
-  locales: { ru: { name: 'Оповещения' }, en: { name: 'Notifications' } },
+  locales,
   intervals: {
     youtube: { everyMs: 5 * 60_000, run: poll('youtube') },
     twitch: { everyMs: 2 * 60_000, run: poll('twitch') },

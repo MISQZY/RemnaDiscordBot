@@ -10,11 +10,6 @@ export const MAX_SUBSCRIPTIONS = 25;
 
 export const Provider = z.enum(['youtube', 'twitch']);
 
-export const DEFAULT_MESSAGES: Record<z.infer<typeof Provider>, MessageTemplate> = {
-  youtube: { content: '📺 **{channel.name}** выпустил новое видео: **{video.title}**\n{video.url}' },
-  twitch: { content: '🔴 **{channel.name}** в эфире: **{stream.title}** ({stream.game})\n{stream.url}' },
-};
-
 export const SubscriptionCreate = z.object({
   provider: Provider,
   /** Ссылка на канал, ID или имя (`@handle` для YouTube, логин для Twitch). */

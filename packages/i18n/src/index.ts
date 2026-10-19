@@ -55,6 +55,14 @@ export class I18n {
     return String(format.format(vars));
   }
 
+  /**
+   * Строка словаря как есть, без ICU-форматирования: для шаблонов сообщений
+   * с плейсхолдерами вида `{user.mention}`, которые ICU считает ошибкой.
+   */
+  raw(locale: Locale, key: string): string {
+    return this.messages.get(locale)!.get(key) ?? this.messages.get(this.defaultLocale)!.get(key) ?? key;
+  }
+
   /** Discord locale (`ru`, `en-US`, …) → поддерживаемая локаль. */
   resolveLocale(discordLocale: string | null | undefined): Locale {
     const base = discordLocale?.split('-')[0];

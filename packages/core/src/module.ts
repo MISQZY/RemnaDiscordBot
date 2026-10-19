@@ -73,6 +73,11 @@ export interface ModuleDefinition<TSchema extends z.ZodType = z.ZodType> {
   /** Растёт при несовместимых изменениях схемы; старые конфиги проходят через `migrateConfig`. */
   configVersion: number;
   migrateConfig?: (raw: unknown, fromVersion: number) => unknown;
+  /**
+   * Тексты конфига по умолчанию на языке гильдии: `t('defaults.joinMessage')` берёт строку
+   * `<moduleId>.defaults.joinMessage` из словарей модуля как есть (шаблон, не ICU). Вызывается для гильдий без сохранённого конфига.
+   */
+  localizeDefaults?: (defaults: z.output<TSchema>, t: (key: string) => string) => z.output<TSchema>;
   enabledByDefault?: boolean;
   /** Служебный модуль: нельзя выключить. */
   alwaysEnabled?: boolean;

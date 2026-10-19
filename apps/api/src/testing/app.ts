@@ -42,7 +42,7 @@ export interface TestAppOptions {
 export async function createTestApp({ modules = [], rateLimitPerMinute = 0 }: TestAppOptions = {}): Promise<TestApp> {
   const database = await createTestDatabase();
   const redis = createTestRedis();
-  const logger = createLogger({ service: 'api-test', level: 'silent', pretty: false });
+  const logger = createLogger({ service: 'api-test', level: process.env.TEST_LOG_LEVEL ?? 'silent', pretty: false });
 
   const oauth = new FakeDiscordOAuth();
   const rest = new FakeRest();
@@ -51,6 +51,7 @@ export async function createTestApp({ modules = [], rateLimitPerMinute = 0 }: Te
   registerCoreLocales(i18n);
   registry.registerLocales(i18n);
 
+  const guildLocales = new GuildLocales(database.db, i18n);
   const deps: ApiDeps = {
     logger,
     db: database.db,
@@ -63,10 +64,11 @@ export async function createTestApp({ modules = [], rateLimitPerMinute = 0 }: Te
       store: new PrismaConfigStore(database.db),
       sharedCache: new RedisConfigCache(redis),
       publish: (message) => publishConfigInvalidation(redis, message),
+      locales: { localeOf: (guildId) => guildLocales.get(guildId), i18n },
       logger,
     }),
     scheduler: new Scheduler(database.db),
-    guildLocales: new GuildLocales(database.db, i18n),
+    guildLocales,
     rest: rest.asRest(),
     snapshots: new GuildSnapshotReader(redis),
     oauth,

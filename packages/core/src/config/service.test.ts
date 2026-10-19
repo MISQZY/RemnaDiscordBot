@@ -1,4 +1,7 @@
+import { I18n } from '@bot/i18n';
 import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
+import { defineModule } from '../module.js';
 import { ModuleRegistry } from '../registry.js';
 import { createTestModule, testLogger } from '../testing/fixtures.js';
 import { MemoryConfigStore, MemorySharedCache } from '../testing/memory-config.js';
@@ -108,6 +111,28 @@ describe('ConfigService', () => {
       config: { xpPerMessage: 15, announce: true },
       updatedAt: STORED_AT,
     });
+  });
+
+  it('localizes default texts to the guild language', async () => {
+    const i18n = new I18n('ru');
+    i18n.register('greeter', { ru: { defaults: { text: 'Привет, {user.mention}' } }, en: { defaults: { text: 'Hi {user.mention}' } } });
+    const greeter = defineModule({
+      id: 'greeter',
+      configSchema: z.object({ text: z.string() }),
+      defaultConfig: { text: 'static' },
+      configVersion: 1,
+      localizeDefaults: (defaults, t) => ({ ...defaults, text: t('defaults.text') }),
+    });
+    const service = new ConfigService({
+      registry: new ModuleRegistry([greeter]),
+      store: new MemoryConfigStore(),
+      locales: { localeOf: async (guildId) => (guildId === GUILD ? 'en' : 'ru'), i18n },
+      logger: testLogger,
+    });
+
+    expect((await service.get(GUILD, 'greeter')).config).toEqual({ text: 'Hi {user.mention}' });
+    expect((await service.get('222222222222222222', 'greeter')).config).toEqual({ text: 'Привет, {user.mention}' });
+    expect(await service.defaults(GUILD, 'greeter')).toEqual({ text: 'Hi {user.mention}' });
   });
 
   it('throws for unknown modules', async () => {
