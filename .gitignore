@@ -1,0 +1,35 @@
+# Документация (Obsidian vault) — локальная
+docs/
+
+# ИИ-инструменты и их правила — локальные
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+.claude/
+.cursor/
+.cursorrules
+.windsurfrules
+.aider*
+.codex/
+.gemini/
+GEMINI.md
+.github/copilot-instructions.md
+
+# Зависимости и сборка
+node_modules/
+dist/
+build/
+.turbo/
+coverage/
+
+# Окружение
+.env
+.env.*
+!.env.example
+
+# Логи / IDE
+*.log
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
