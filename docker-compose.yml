@@ -37,7 +37,7 @@ services:
       context: .
       dockerfile: docker/app.Dockerfile
       target: migrate
-    image: discord-bot/migrate
+    image: ${IMAGE_REPO:-discord-bot}/migrate:${IMAGE_TAG:-latest}
     profiles: [app]
     env_file: .env
     environment:
@@ -51,7 +51,7 @@ services:
       context: .
       dockerfile: docker/app.Dockerfile
       args: { APP: bot }
-    image: discord-bot/bot
+    image: ${IMAGE_REPO:-discord-bot}/bot:${IMAGE_TAG:-latest}
     profiles: [app]
     restart: unless-stopped
     # Forwards signals and reaps child processes (bot clusters, Prisma).
@@ -71,7 +71,7 @@ services:
       context: .
       dockerfile: docker/app.Dockerfile
       args: { APP: worker, HEALTH_PORT: 3002 }
-    image: discord-bot/worker
+    image: ${IMAGE_REPO:-discord-bot}/worker:${IMAGE_TAG:-latest}
     profiles: [app]
     restart: unless-stopped
     # Forwards signals and reaps child processes (bot clusters, Prisma).
@@ -91,7 +91,7 @@ services:
       context: .
       dockerfile: docker/app.Dockerfile
       args: { APP: api, HEALTH_PORT: 3000 }
-    image: discord-bot/api
+    image: ${IMAGE_REPO:-discord-bot}/api:${IMAGE_TAG:-latest}
     profiles: [app]
     restart: unless-stopped
     # Forwards signals and reaps child processes (bot clusters, Prisma).
