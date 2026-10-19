@@ -13,7 +13,11 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "check": "turbo run lint typecheck test",
-    "deploy-commands": "pnpm --filter @bot/bot deploy-commands"
+    "deploy-commands": "pnpm --filter @bot/bot deploy-commands",
+    "db:generate": "pnpm --filter @bot/db db:generate",
+    "db:migrate": "pnpm --filter @bot/db db:migrate",
+    "db:deploy": "pnpm --filter @bot/db db:deploy",
+    "db:studio": "pnpm --filter @bot/db db:studio"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
