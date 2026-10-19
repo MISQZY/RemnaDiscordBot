@@ -113,3 +113,32 @@ model MemberRoleBackup {
 
   @@id([guildId, userId])
 }
+
+/// Кейс модерации: бан, кик, мут, предупреждение… Номер последовательный в пределах гильдии.
+model ModCase {
+  id           String    @id @default(cuid())
+  guildId      String
+  number       Int
+  /// `ban` | `unban` | `kick` | `mute` | `unmute` | `warn`
+  type         String
+  targetId     String
+  moderatorId  String
+  reason       String?
+  durationSec  Int?
+  /// Окончание временного наказания или срок действия предупреждения.
+  expiresAt    DateTime?
+  /// Снято досрочно (разбан, снятие мута, снятие предупреждения).
+  revokedAt    DateTime?
+  revokedBy    String?
+  revokeReason String?
+  createdAt    DateTime  @default(now())
+
+  @@unique([guildId, number])
+  @@index([guildId, targetId, type])
+}
+
+/// Последний номер кейса в гильдии — атомарный инкремент через upsert.
+model ModCaseCounter {
+  guildId String @id
+  last    Int
+}

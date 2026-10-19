@@ -7,6 +7,8 @@ export type {
   Guild,
   GuildModuleConfig,
   MemberRoleBackup,
+  ModCase,
+  ModCaseCounter,
   RolePanel,
   ScheduledAction,
 } from '@prisma/client';
