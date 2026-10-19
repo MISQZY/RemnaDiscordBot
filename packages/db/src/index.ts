@@ -44,3 +44,11 @@ export async function createDatabaseClient(url: string): Promise<PrismaClient> {
   };
   return new SqliteClient({ datasourceUrl: url });
 }
+
+/**
+ * Нарушение уникального ключа (P2002). Проверка по коду, а не `instanceof`:
+ * у Postgres- и SQLite-клиента разные классы ошибок.
+ */
+export function isUniqueViolation(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { code?: unknown }).code === 'P2002';
+}
