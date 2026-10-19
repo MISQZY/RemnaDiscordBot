@@ -1,22 +1,26 @@
 import { defineCommand, defineComponent, type InteractionContext } from '@bot/core';
 import {
   ActionRowBuilder,
+  AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
+  GuildMember,
   InteractionContextType,
   MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
-  type GuildMember,
 } from 'discord.js';
 import type { LevelingConfig } from './config.js';
 import { syncRewards } from './bot.js';
 import { levelProgress, progressBar } from './formula.js';
+import { rankCardRendererFromEnv } from './rank-card.js';
 import { LevelingService } from './service.js';
 
 const PAGE_SIZE = 10;
 export const COMPONENT_PREFIX = 'lvl';
+/** The `/rank` picture; without a renderer configured, an embed. */
+const rankCards = rankCardRendererFromEnv();
 
 async function leaderboardPage(ctx: InteractionContext<LevelingConfig>, guildId: string, page: number) {
   const { items, total } = await new LevelingService(ctx.db).leaderboard(guildId, page, PAGE_SIZE);
@@ -52,16 +56,44 @@ export const rank = defineCommand<LevelingConfig>({
     }
     const { level, current, needed } = levelProgress(row.xp);
     const position = await service.rankOf(interaction.guildId!, row.xp);
-    const embed = new EmbedBuilder()
-      .setAuthor({ name: user.username, iconURL: user.displayAvatarURL() })
-      .setColor(0x5865f2)
-      .addFields(
-        { name: ctx.tGuild('leveling.fields.level'), value: String(level), inline: true },
-        { name: ctx.tGuild('leveling.fields.rank'), value: `#${position}`, inline: true },
-        { name: ctx.tGuild('leveling.fields.messages'), value: String(row.messages), inline: true },
-        { name: ctx.tGuild('leveling.fields.progress'), value: `${progressBar(current, needed)} ${current}/${needed} XP` },
-      );
-    await interaction.reply({ embeds: [embed] });
+    const embed = () =>
+      new EmbedBuilder()
+        .setAuthor({ name: user.username, iconURL: user.displayAvatarURL() })
+        .setColor(0x5865f2)
+        .addFields(
+          { name: ctx.tGuild('leveling.fields.level'), value: String(level), inline: true },
+          { name: ctx.tGuild('leveling.fields.rank'), value: `#${position}`, inline: true },
+          { name: ctx.tGuild('leveling.fields.messages'), value: String(row.messages), inline: true },
+          { name: ctx.tGuild('leveling.fields.progress'), value: `${progressBar(current, needed)} ${current}/${needed} XP` },
+        );
+    if (!rankCards) {
+      await interaction.reply({ embeds: [embed()] });
+      return;
+    }
+
+    // Drawing takes longer than the 3 s an interaction may wait for its reply.
+    await interaction.deferReply();
+    const target = interaction.options.getUser('user') ? interaction.options.getMember('user') : interaction.member;
+    const member = target instanceof GuildMember ? target : null;
+    try {
+      const png = await rankCards.render({
+        locale: ctx.guildLocale,
+        user: {
+          id: user.id,
+          name: member?.displayName ?? user.displayName,
+          avatarUrl: (member ?? user).displayAvatarURL({ extension: 'png', size: 256 }),
+        },
+        level,
+        rank: position,
+        current,
+        needed,
+        messages: row.messages,
+      });
+      await interaction.editReply({ files: [new AttachmentBuilder(png, { name: 'rank.png' })] });
+    } catch (err) {
+      ctx.logger.warn({ err }, 'Rank card failed, answering with an embed');
+      await interaction.editReply({ embeds: [embed()] });
+    }
   },
 });
 
