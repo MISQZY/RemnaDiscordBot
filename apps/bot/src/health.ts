@@ -16,8 +16,25 @@ export function healthResponse(clusters: ClusterStatus[]): HealthResponse {
   return { statusCode: ok ? 200 : 503, body: { status: ok ? 'ok' : 'starting', clusters } };
 }
 
-export function startHealthServer(port: number, getClusters: () => ClusterStatus[], logger: Logger): Server {
+export interface HealthServerOptions {
+  getClusters: () => ClusterStatus[];
+  /** Prometheus text served at `/metrics`. */
+  getMetrics: () => Promise<string>;
+  metricsContentType: string;
+}
+
+export function startHealthServer(port: number, { getClusters, getMetrics, metricsContentType }: HealthServerOptions, logger: Logger): Server {
   const server = createServer((req, res) => {
+    if (req.method === 'GET' && req.url === '/metrics') {
+      getMetrics().then(
+        (body) => res.writeHead(200, { 'content-type': metricsContentType }).end(body),
+        (err: unknown) => {
+          logger.error({ err }, 'Failed to collect metrics');
+          res.writeHead(500).end();
+        },
+      );
+      return;
+    }
     if (req.method !== 'GET' || req.url !== '/health') {
       res.writeHead(404).end();
       return;

@@ -1,6 +1,6 @@
 import { extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ModuleRegistry } from '@bot/core';
+import { ModuleRegistry, metricsContentType } from '@bot/core';
 import { createLogger } from '@bot/logger';
 import { modules } from '@bot/module-list';
 import { ClusterManager } from 'discord-hybrid-sharding';
@@ -8,6 +8,7 @@ import { REST } from 'discord.js';
 import { collectCommandPayloads, syncCommands } from './commands.js';
 import { loadManagerEnv } from './env.js';
 import { startHealthServer } from './health.js';
+import { aggregateMetrics, registerManagerMetrics } from './metrics.js';
 
 const env = loadManagerEnv();
 const logger = createLogger({ service: 'bot-manager', level: env.LOG_LEVEL });
@@ -31,9 +32,14 @@ manager.on('clusterCreate', (cluster) => {
   cluster.on('death', () => logger.warn({ clusterId: cluster.id }, 'Cluster died'));
 });
 
+registerManagerMetrics(manager);
 const health = startHealthServer(
   env.BOT_HEALTH_PORT,
-  () => [...manager.clusters.values()].map((c) => ({ id: c.id, ready: c.ready })),
+  {
+    getClusters: () => [...manager.clusters.values()].map((c) => ({ id: c.id, ready: c.ready })),
+    getMetrics: () => aggregateMetrics(manager, logger),
+    metricsContentType,
+  },
   logger,
 );
 

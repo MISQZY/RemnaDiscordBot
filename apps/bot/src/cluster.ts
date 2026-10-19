@@ -22,6 +22,7 @@ import { Redis } from 'ioredis';
 import { loadClusterEnv } from './env.js';
 import { GuildLifecycle } from './lifecycle/guilds.js';
 import { startHeartbeat } from './lifecycle/heartbeat.js';
+import { registerClusterMetrics } from './metrics.js';
 
 const env = loadClusterEnv();
 const info = getInfo();
@@ -45,6 +46,7 @@ const client = new Client({
   allowedMentions: { parse: ['users'] },
 });
 client.cluster = new ClusterClient(client);
+registerClusterMetrics(client, info.CLUSTER);
 
 const db = await createDatabaseClient(env.DATABASE_URL);
 const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: 3 });
