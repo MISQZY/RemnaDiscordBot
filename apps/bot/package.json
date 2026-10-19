@@ -1,0 +1,30 @@
+{
+  "name": "@bot/bot",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --conditions=development --env-file-if-exists=../../.env src/index.ts",
+    "start": "node --env-file-if-exists=../../.env dist/index.js",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@bot/contracts": "workspace:*",
+    "@bot/core": "workspace:*",
+    "@bot/db": "workspace:*",
+    "@bot/discord": "workspace:*",
+    "@bot/i18n": "workspace:*",
+    "@bot/logger": "workspace:*",
+    "@bot/module-general": "workspace:*",
+    "discord-hybrid-sharding": "3.0.1",
+    "discord.js": "14.27.0",
+    "ioredis": "6.0.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@bot/config": "workspace:*"
+  }
+}

@@ -39,6 +39,46 @@ importers:
         specifier: 5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
+  apps/bot:
+    dependencies:
+      '@bot/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@bot/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@bot/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bot/discord':
+        specifier: workspace:*
+        version: link:../../packages/discord
+      '@bot/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
+      '@bot/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@bot/module-general':
+        specifier: workspace:*
+        version: link:../../packages/modules/general
+      discord-hybrid-sharding:
+        specifier: 3.0.1
+        version: 3.0.1
+      discord.js:
+        specifier: 14.27.0
+        version: 14.27.0
+      ioredis:
+        specifier: 6.0.0
+        version: 6.0.0
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@bot/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+
   packages/config: {}
 
   packages/contracts:
@@ -835,6 +875,9 @@ packages:
 
   discord-api-types@0.38.56:
     resolution: {integrity: sha512-Hti4RZsGvF5C7SM8rF2MDHtIm0Hyfrlk84GpEA29nj91tvVVMvX+oQSCodu10t2ZcjFGofq8TX0YyC04B2E69Q==}
+
+  discord-hybrid-sharding@3.0.1:
+    resolution: {integrity: sha512-a4MhJs9Ga2yiIGEz+Lj0WgBOS785DSqX3PIr/vkOMpqugS1QJk79T8YFvGr26JmOVRAhgqaWE2eUjuekR/8MJA==}
 
   discord.js@14.27.0:
     resolution: {integrity: sha512-qHbFlFG2N7y3LjPySYsL6A1+BnX6bkTVgo842EX0CqVPk/KTMwZkojPHEXKsQUpWZNyz5BISNHK1cPpQw0+m4A==}
@@ -2059,6 +2102,8 @@ snapshots:
   detect-libc@2.1.2: {}
 
   discord-api-types@0.38.56: {}
+
+  discord-hybrid-sharding@3.0.1: {}
 
   discord.js@14.27.0:
     dependencies:
