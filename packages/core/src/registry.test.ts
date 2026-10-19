@@ -1,4 +1,4 @@
-import { GatewayIntentBits } from 'discord.js';
+import { GatewayIntentBits, Partials } from 'discord.js';
 import { describe, expect, it, vi } from 'vitest';
 import { EventBus } from './bus.js';
 import { ModuleRegistry } from './registry.js';
@@ -31,6 +31,15 @@ describe('ModuleRegistry', () => {
         GatewayIntentBits.GuildMembers,
       ].sort(),
     );
+  });
+
+  it('merges partials of all modules', () => {
+    const a = createTestModule('leveling');
+    a.bot!.partials = [Partials.Message, Partials.Channel];
+    const b = createTestModule('welcome');
+    b.bot!.partials = [Partials.Message];
+
+    expect(new ModuleRegistry([a, b]).partials()).toEqual([Partials.Message, Partials.Channel]);
   });
 
   it('rejects duplicate and invalid module ids', () => {

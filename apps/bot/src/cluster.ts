@@ -30,6 +30,7 @@ const registry = new ModuleRegistry(modules);
 
 const client = new Client({
   intents: registry.intents([GatewayIntentBits.Guilds, GatewayIntentBits.GuildExpressions]),
+  partials: registry.partials(),
   shards: info.SHARD_LIST,
   shardCount: info.TOTAL_SHARDS,
   // Сообщения и presence не кэшируем: нужные модулям данные живут в Redis.

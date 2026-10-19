@@ -6,6 +6,7 @@ import type {
   ChatInputCommandInteraction,
   ClientEvents,
   GatewayIntentBits,
+  Partials,
   MessageComponentInteraction,
   ModalSubmitInteraction,
   RESTPostAPIChatInputApplicationCommandsJSONBody,
@@ -43,6 +44,8 @@ export type EventHandlers<TConfig> = {
 export interface BotFacet<TConfig> {
   /** Gateway intents, нужные модулю; бот подключается с их объединением. */
   intents?: GatewayIntentBits[];
+  /** Partials discord.js — события по объектам не из кэша (удаление старых сообщений и т.п.). */
+  partials?: Partials[];
   commands?: SlashCommand<TConfig>[];
   events?: EventHandlers<TConfig>;
   /** Обработчики компонентов по префиксу `customId` (часть до первого `:`). */

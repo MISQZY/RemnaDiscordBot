@@ -1,6 +1,6 @@
 import { ModuleId } from '@bot/contracts';
 import type { I18n } from '@bot/i18n';
-import type { ClientEvents, GatewayIntentBits } from 'discord.js';
+import type { ClientEvents, GatewayIntentBits, Partials } from 'discord.js';
 import { CORE_NAMESPACE } from './locales.js';
 import type { AnyModule, ComponentHandler, EventHandlers, JobHandler, SlashCommand } from './module.js';
 
@@ -101,6 +101,11 @@ export class ModuleRegistry {
       for (const intent of module.bot?.intents ?? []) all.add(intent);
     }
     return [...all];
+  }
+
+  /** Объединение partials всех модулей. */
+  partials(): Partials[] {
+    return [...new Set(this.all().flatMap((module) => module.bot?.partials ?? []))];
   }
 
   /** Регистрирует словари модулей в i18n под неймспейсом `<moduleId>`. */
