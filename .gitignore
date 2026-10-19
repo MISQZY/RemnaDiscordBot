@@ -36,3 +36,6 @@ coverage/
 
 # Сгенерированный SQLite-клиент для тестов
 packages/db/generated/
+
+# Локальная SQLite-база режима dev:local
+.local/

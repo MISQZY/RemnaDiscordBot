@@ -11,7 +11,8 @@
     "lint": "eslint src",
     "test": "vitest run --passWithNoTests",
     "deploy-commands": "tsx --conditions=development --env-file-if-exists=../../.env src/deploy-commands.ts",
-    "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests"
+    "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests",
+    "dev:local": "node scripts/dev-local.mjs"
   },
   "dependencies": {
     "@bot/contracts": "workspace:*",
@@ -24,6 +25,7 @@
     "discord-hybrid-sharding": "3.0.1",
     "discord.js": "14.27.0",
     "ioredis": "6.0.0",
+    "ioredis-mock": "8.13.1",
     "zod": "4.6.7"
   },
   "devDependencies": {

@@ -18,7 +18,8 @@
     "db:migrate": "pnpm --filter @bot/db db:migrate",
     "db:deploy": "pnpm --filter @bot/db db:deploy",
     "db:studio": "pnpm --filter @bot/db db:studio",
-    "test:integration": "turbo run test:integration"
+    "test:integration": "turbo run test:integration",
+    "dev:local": "pnpm --filter @bot/bot dev:local"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

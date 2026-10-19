@@ -9,14 +9,13 @@ import {
   registerCoreLocales,
   subscribeConfigInvalidation,
 } from '@bot/core';
-import { createPrismaClient } from '@bot/db';
 import { GuildSnapshotWriter } from '@bot/discord';
 import { I18n } from '@bot/i18n';
 import { createLogger } from '@bot/logger';
 import { ClusterClient, getInfo } from 'discord-hybrid-sharding';
 import { Client, Events, GatewayIntentBits, Options } from 'discord.js';
-import { Redis } from 'ioredis';
 import { loadClusterEnv } from './env.js';
+import { createDatabase, createRedis, isLocalDatabase, isMemoryRedis } from './infra.js';
 import { GuildLifecycle } from './lifecycle/guilds.js';
 import { modules } from './modules.js';
 
@@ -42,9 +41,12 @@ const client = new Client({
 });
 client.cluster = new ClusterClient(client);
 
-const db = createPrismaClient({ url: env.DATABASE_URL });
-const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: 3 });
+const db = await createDatabase(env.DATABASE_URL);
+const redis = createRedis(env.REDIS_URL);
 redis.on('error', (err) => logger.error({ err }, 'Redis error'));
+if (isLocalDatabase(env.DATABASE_URL) || isMemoryRedis(env.REDIS_URL)) {
+  logger.warn('Local mode: SQLite and in-memory Redis, single cluster only');
+}
 
 const i18n = new I18n(env.DEFAULT_LOCALE);
 registerCoreLocales(i18n);
