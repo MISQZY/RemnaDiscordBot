@@ -1,6 +1,7 @@
 import { ModuleId } from '@bot/contracts';
 import type { I18n } from '@bot/i18n';
 import type { ClientEvents } from 'discord.js';
+import { CORE_NAMESPACE } from './locales.js';
 import type { AnyModule, ComponentHandler, EventHandlers, SlashCommand } from './module.js';
 
 export interface Registered<T> {
@@ -23,6 +24,7 @@ export class ModuleRegistry {
   register(module: AnyModule): this {
     const id = ModuleId.safeParse(module.id);
     if (!id.success) throw new Error(`Invalid module id "${module.id}"`);
+    if (module.id === CORE_NAMESPACE) throw new Error(`Module id "${CORE_NAMESPACE}" is reserved`);
     if (this.modules.has(module.id)) throw new Error(`Module "${module.id}" is already registered`);
 
     const defaults = module.configSchema.safeParse(module.defaultConfig);
