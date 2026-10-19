@@ -9,7 +9,7 @@ import { locales } from './locales.js';
 export { LeaderboardEntry, LevelingConfig } from './config.js';
 export { LevelingService } from './service.js';
 
-/** Опыт за сообщения, уровни, роли-награды и лидерборд. */
+/** Message XP, levels, reward roles and a leaderboard. */
 export default defineModule({
   id: 'leveling',
   configSchema: LevelingConfig,
@@ -32,7 +32,7 @@ export default defineModule({
     return checker.issues;
   },
   bot: {
-    // Само сообщение нужно только для автора и канала — Message Content не требуется.
+    // Only the author and channel of a message are needed — no Message Content intent.
     intents: [GatewayIntentBits.GuildMessages],
     commands,
     events: { messageCreate: onMessage },

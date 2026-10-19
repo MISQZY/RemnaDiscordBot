@@ -43,7 +43,7 @@ export const AllowedMentions = z.object({
 });
 export type AllowedMentions = z.infer<typeof AllowedMentions>;
 
-/** Сообщение с плейсхолдерами: `{user.mention}`, `{guild.name}` и т.д. */
+/** A message with placeholders: `{user.mention}`, `{guild.name}`, etc. */
 export const MessageTemplate = z
   .object({
     content: z.string().max(2000).optional(),

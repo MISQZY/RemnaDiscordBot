@@ -27,7 +27,7 @@ const panelOption = (o: SlashCommandStringOption) =>
 const reply = (interaction: ChatInputCommandInteraction, content: string) =>
   interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
 
-/** Причина, по которой бот не может выдавать роль, или `null`. */
+/** Why the bot cannot assign the role, or `null`. */
 function roleProblem(ctx: Ctx, role: Role): string | null {
   if (role.id === role.guild.id) return ctx.t('autoroles.reply.everyone');
   if (role.managed) return ctx.t('autoroles.reply.managedRole', { role: role.name });
@@ -198,7 +198,7 @@ export const autorolesCommand = defineCommand<AutorolesConfig>({
       return;
     }
 
-    // Панели
+    // Panels
     if (sub === 'create') {
       const role = interaction.options.getRole('role', true) as Role;
       const problem = roleProblem(ctx, role);

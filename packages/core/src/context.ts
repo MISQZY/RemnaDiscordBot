@@ -11,7 +11,7 @@ import type { Scheduler } from './jobs/scheduler.js';
 import type { ModuleRegistry } from './registry.js';
 import type { GuildEntities } from './validation.js';
 
-/** Общие сервисы процесса (бот, API, воркер), доступные модулям. */
+/** Shared process services (bot, API, worker) available to modules. */
 export interface CoreServices {
   logger: Logger;
   db: PrismaClient;
@@ -20,38 +20,38 @@ export interface CoreServices {
   bus: EventBus;
   config: ConfigService;
   scheduler: Scheduler;
-  /** Язык гильдии для публичных сообщений. */
+  /** Guild language for public messages. */
   guildLocales: GuildLocales;
-  /** Discord REST от имени бота: работает без gateway (API, воркер). */
+  /** Discord REST as the bot: works without the gateway (API, worker). */
   rest: REST;
 }
 
 export interface BotServices extends CoreServices {
   client: Client;
-  /** Все модули бота — для служебных команд вроде `/help` и `/modules`. */
+  /** All bot modules — for built-in commands like `/help` and `/modules`. */
   registry: ModuleRegistry;
 }
 
-/** Сервисы, привязанные к модулю: логгер с `moduleId` и чтение его конфига. */
+/** Services bound to a module: a logger with `moduleId` and reading its config. */
 export interface ModuleServices<TConfig> extends CoreServices {
   moduleId: string;
   getConfig(guildId: string): Promise<TConfig>;
 }
 
-/** Контекст роутов модуля в API. */
+/** Context of module routes in the API. */
 export interface ApiModuleContext<TConfig> extends ModuleServices<TConfig> {
-  /** Discord ID вошедшего пользователя; доступ к гильдии уже проверен. */
+  /** The logged-in user's Discord ID; guild access is already checked. */
   currentUserId(request: FastifyRequest): string;
-  /** Каналы и роли гильдии из снапшота — для проверки ссылок в данных модуля. */
+  /** Guild channels and roles from the snapshot — for checking references in module data. */
   guildEntities(guildId: string): Promise<GuildEntities>;
 }
 
-/** Контекст отложенной задачи модуля в воркере. */
+/** Context of a module's scheduled job in the worker. */
 export interface JobContext<TConfig> extends ModuleServices<TConfig> {
   guildId: string;
 }
 
-/** Контекст, который получает обработчик модуля в боте. */
+/** Context a module handler receives in the bot. */
 export interface BotModuleContext<TConfig> extends ModuleServices<TConfig> {
   client: Client;
   registry: ModuleRegistry;

@@ -9,7 +9,7 @@ const ManagerEnv = z.object({
   SHARDS_PER_CLUSTER: z.coerce.number().int().positive().default(4),
   BOT_HEALTH_PORT: z.coerce.number().int().positive().default(3001),
   DISCORD_DEV_GUILD_ID: z.string().optional(),
-  /** Синхронизировать slash-команды с Discord при старте (меняются только отличия). */
+  /** Sync slash commands with Discord on startup (only differences are changed). */
   AUTO_DEPLOY_COMMANDS: z.stringbool().default(true),
 });
 
@@ -30,7 +30,7 @@ const DeployEnv = z.object({
 });
 
 function load<T extends z.ZodType>(schema: T): z.output<T> {
-  // Пустые строки из .env считаем незаданными, чтобы сработали значения по умолчанию.
+  // Treat empty strings from .env as unset so that defaults apply.
   const raw = Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== ''));
   const result = schema.safeParse(raw);
   if (!result.success) throw new Error(`Invalid environment:\n${z.prettifyError(result.error)}`);

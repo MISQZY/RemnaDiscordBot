@@ -9,7 +9,7 @@ export interface AuditRecord {
   diff?: { before: unknown; after: unknown };
 }
 
-/** История изменений из панели — её показывает веб. */
+/** History of changes made through the dashboard — shown by the web app. */
 export async function recordAudit(db: PrismaClient, record: AuditRecord): Promise<void> {
   await db.dashboardAuditLog.create({
     data: {

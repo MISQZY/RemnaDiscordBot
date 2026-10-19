@@ -6,13 +6,13 @@ import type { ModerationConfig } from './config.js';
 
 const UnbanPayload = z.object({ userId: Snowflake });
 
-/** Истёк временный бан. Кейс отдельно не создаётся: срок хранится в `expiresAt`. */
+/** A temporary ban expired. No separate case is created: the term is stored in `expiresAt`. */
 export async function unbanJob(payload: unknown, ctx: JobContext<ModerationConfig>): Promise<void> {
   const { userId } = UnbanPayload.parse(payload);
   try {
     await ctx.rest.delete(Routes.guildBan(ctx.guildId, userId), { reason: 'Temporary ban expired' });
   } catch (err) {
-    // Уже разбанен вручную.
+    // Already unbanned manually.
     if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownBan) return;
     throw err;
   }

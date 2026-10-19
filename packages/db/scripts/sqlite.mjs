@@ -1,6 +1,6 @@
-// SQLite-вариант схемы для локальных тестов без Postgres.
-//   node scripts/sqlite.mjs generate          — схема + клиент в generated/sqlite
-//   node scripts/sqlite.mjs push <file.db>    — создать таблицы в файле БД
+// SQLite flavour of the schema for local tests without Postgres.
+//   node scripts/sqlite.mjs generate          — schema + client in generated/sqlite
+//   node scripts/sqlite.mjs push <file.db>    — create tables in the database file
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -13,7 +13,7 @@ const outDir = resolve(root, 'generated/sqlite');
 const target = resolve(outDir, 'schema.prisma');
 const prismaCli = createRequire(import.meta.url).resolve('prisma/build/index.js');
 
-/** Конструкции Postgres, которых нет в SQLite: их появление в схеме должно ломать тесты сразу. */
+/** Postgres constructs SQLite lacks: their appearance in the schema must fail tests right away. */
 const UNSUPPORTED = [
   [/\b(String|Int|BigInt|Float|Decimal|Boolean|DateTime|Json|Bytes)\[\]/, 'scalar lists (use Json)'],
   [/@db\./, 'native database types'],
@@ -30,7 +30,7 @@ function buildSchema() {
     .replace('provider = "prisma-client-js"', 'provider = "prisma-client-js"\n  output   = "./client"');
 }
 
-/** Запускает Prisma CLI молча; вывод показывается только при ошибке. */
+/** Runs the Prisma CLI quietly; output is shown only on failure. */
 function prisma(args, env = {}) {
   const result = spawnSync(process.execPath, [prismaCli, ...args, '--schema', target], {
     cwd: root,
@@ -42,7 +42,7 @@ function prisma(args, env = {}) {
   }
 }
 
-/** Генерирует клиент, если схема изменилась с прошлого раза (или с `force`). */
+/** Generates the client when the schema changed since last time (or with `force`). */
 export function generate({ force = false } = {}) {
   const schema = buildSchema();
   const upToDate =
@@ -54,7 +54,7 @@ export function generate({ force = false } = {}) {
   prisma(['generate', '--no-hints']);
 }
 
-/** `file:C:/…/test.db` на Windows, `file:/tmp/test.db` на Unix — формат, который понимает Prisma. */
+/** `file:C:/…/test.db` on Windows, `file:/tmp/test.db` on Unix — the format Prisma understands. */
 export function sqliteUrl(databaseFile) {
   return `file:${resolve(databaseFile).replaceAll('\\', '/')}`;
 }

@@ -6,8 +6,8 @@ import { collectCommandPayloads, syncCommands } from './commands.js';
 import { loadDeployEnv } from './env.js';
 
 /**
- * Ручная синхронизация slash-команд (обычно не нужна: бот делает это при старте).
- * С DISCORD_DEV_GUILD_ID — в тестовую гильдию, иначе или с `--global` — глобально.
+ * Manual slash command sync (usually not needed: the bot does it on startup).
+ * With DISCORD_DEV_GUILD_ID — into the dev guild, otherwise or with `--global` — globally.
  */
 const env = loadDeployEnv();
 const logger = createLogger({ service: 'deploy-commands', level: env.LOG_LEVEL });

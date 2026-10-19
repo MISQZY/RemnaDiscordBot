@@ -8,14 +8,14 @@ const WorkerEnv = z.object({
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
   DEFAULT_LOCALE: Locale.default('ru'),
-  /** Как часто проверять готовые отложенные задачи. */
+  /** How often to check for due scheduled jobs. */
   WORKER_POLL_MS: z.coerce.number().int().positive().default(2_000),
   WORKER_HEALTH_PORT: z.coerce.number().int().positive().default(3002),
 });
 export type WorkerEnv = z.infer<typeof WorkerEnv>;
 
 export function loadWorkerEnv(): WorkerEnv {
-  // Пустые строки из .env считаем незаданными, чтобы сработали значения по умолчанию.
+  // Treat empty strings from .env as unset so that defaults apply.
   const raw = Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== ''));
   const result = WorkerEnv.safeParse(raw);
   if (!result.success) throw new Error(`Invalid environment:\n${z.prettifyError(result.error)}`);

@@ -1,10 +1,10 @@
 import type { EmbedTemplate, MessageTemplate } from '@bot/contracts';
 import type { APIEmbed } from 'discord-api-types/v10';
 
-/** Значения плейсхолдеров: `{ 'user.mention': '<@1>', level: 5 }`. */
+/** Placeholder values: `{ 'user.mention': '<@1>', level: 5 }`. */
 export type TemplateVars = Record<string, string | number | null | undefined>;
 
-/** Сообщение после подстановки — в форме Discord API, пригодной и для REST, и для discord.js. */
+/** The message after substitution — in Discord API shape, usable with both REST and discord.js. */
 export interface RenderedMessage {
   content?: string;
   embeds?: APIEmbed[];
@@ -21,14 +21,14 @@ const LIMITS = {
   fieldValue: 1024,
   footer: 2048,
   author: 256,
-  /** Суммарный текст всех эмбедов сообщения. */
+  /** Total text of all of a message's embeds. */
   embedsTotal: 6000,
 };
 
-/** Подставляет значения; неизвестные плейсхолдеры остаются как есть. Код не исполняется. */
+/** Substitutes values; unknown placeholders stay as they are. No code is executed. */
 export function renderText(text: string, vars: TemplateVars): string {
   return text.replace(PLACEHOLDER, (match, key: string) => {
-    // Только собственные ключи: `{constructor}` не должен доставать свойства прототипа.
+    // Own keys only: `{constructor}` must not reach prototype properties.
     const value = Object.hasOwn(vars, key) ? vars[key] : undefined;
     return value === undefined || value === null ? match : String(value);
   });
@@ -75,8 +75,8 @@ function embedLength(embed: APIEmbed): number {
 }
 
 /**
- * Рендер шаблона с соблюдением лимитов Discord: длинные поля обрезаются,
- * эмбеды сверх общего лимита в 6000 символов отбрасываются. `@everyone` и роли — только явно.
+ * Renders a template within Discord limits: long fields are truncated,
+ * embeds beyond the 6000 character total are dropped. `@everyone` and roles only when explicit.
  */
 export function renderMessage(template: MessageTemplate, vars: TemplateVars): RenderedMessage {
   const content = template.content ? truncate(renderText(template.content, vars), LIMITS.content) : undefined;
@@ -103,7 +103,7 @@ export function renderMessage(template: MessageTemplate, vars: TemplateVars): Re
   };
 }
 
-/** Тело для Discord REST (`POST /channels/:id/messages`). */
+/** Body for Discord REST (`POST /channels/:id/messages`). */
 export function toRestMessage(message: RenderedMessage) {
   return {
     content: message.content,

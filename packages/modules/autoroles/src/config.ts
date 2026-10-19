@@ -5,12 +5,12 @@ export const AutorolesConfig = z.object({
   joinRoles: z.object({
     humans: z.array(Snowflake).max(10),
     bots: z.array(Snowflake).max(10),
-    /** Задержка выдачи — чтобы роль не получали те, кто зашёл и сразу вышел (или не прошёл правила). */
+    /** Grant delay — so members who join and leave right away (or skip the rules) do not get the role. */
     delaySec: z.number().int().min(0).max(3600),
   }),
   persistence: z.object({
     enabled: z.boolean(),
-    /** Какие роли сохранять: все, только из списка или все, кроме списка. */
+    /** Which roles to keep: all, only listed ones, or all except listed ones. */
     mode: z.enum(['all', 'whitelist', 'blacklist']),
     roleIds: z.array(Snowflake).max(50),
   }),
@@ -23,13 +23,13 @@ export const defaultAutorolesConfig: AutorolesConfig = {
 };
 
 export const PanelKind = z.enum(['buttons', 'select']);
-/** toggle — нажатие выдаёт или снимает; add/remove — только одно; unique — одна роль из панели. */
+/** toggle — a click adds or removes; add/remove — only one of them; unique — one role from the panel. */
 export const PanelMode = z.enum(['toggle', 'add', 'remove', 'unique']);
 
 export const PanelItem = z.object({
   roleId: Snowflake,
   label: z.string().min(1).max(80),
-  /** Юникод-эмодзи или кастомный `<:name:id>`. */
+  /** A Unicode emoji or a custom `<:name:id>`. */
   emoji: z.string().max(64).optional(),
   style: z.enum(['primary', 'secondary', 'success', 'danger']).default('secondary'),
   description: z.string().max(100).optional(),

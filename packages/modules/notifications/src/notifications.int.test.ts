@@ -33,7 +33,7 @@ describe('pollProvider', () => {
       db: database.db,
       rest: { post },
       logger: createLogger({ service: 'test', level: 'silent', pretty: false }),
-      // Модуль включён во всех гильдиях, кроме третьей.
+      // The module is enabled in every guild except the third one.
       config: { isEnabled: async (guildId: string) => guildId !== '3' },
     } as unknown as ModuleServices<NotificationsConfig>;
   });

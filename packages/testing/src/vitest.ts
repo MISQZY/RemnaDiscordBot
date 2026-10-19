@@ -1,10 +1,10 @@
 import { fileURLToPath } from 'node:url';
 import { configDefaults, defineConfig, type ViteUserConfig } from 'vitest/config';
 
-/** Интеграционные тесты — файлы `*.int.test.ts`. */
+/** Integration tests — `*.int.test.ts` files. */
 const INTEGRATION_PATTERN = 'src/**/*.int.test.ts';
 
-/** Быстрые unit-тесты без БД и Redis. */
+/** Fast unit tests without a database or Redis. */
 export function unitConfig(): ViteUserConfig {
   return defineConfig({
     test: {
@@ -13,7 +13,7 @@ export function unitConfig(): ViteUserConfig {
   });
 }
 
-/** Интеграционные тесты на SQLite и in-memory Redis — без контейнеров. */
+/** Integration tests on SQLite and in-memory Redis — no containers. */
 export function integrationConfig(): ViteUserConfig {
   return defineConfig({
     test: {

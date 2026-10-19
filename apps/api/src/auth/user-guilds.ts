@@ -10,7 +10,7 @@ import type { Session, SessionStore } from './sessions.js';
 const GUILDS_CACHE_SEC = 60;
 const REFRESH_MARGIN_MS = 60_000;
 
-/** Гильдии пользователя с правами и присутствием бота. */
+/** The user's guilds with permissions and bot presence. */
 export class UserGuildService {
   constructor(
     private readonly redis: Redis,
@@ -19,7 +19,7 @@ export class UserGuildService {
     private readonly snapshots: GuildSnapshotReader,
   ) {}
 
-  /** Access-токен Discord; обновляется заранее, если скоро истечёт. */
+  /** Discord access token; refreshed ahead of time when it is about to expire. */
   async accessToken(session: Session): Promise<string> {
     if (session.expiresAt - REFRESH_MARGIN_MS > Date.now()) return session.accessToken;
     try {
@@ -28,7 +28,7 @@ export class UserGuildService {
       await this.sessions.save(session);
       return session.accessToken;
     } catch (err) {
-      // Refresh-токен отозван — сессия больше не действительна.
+      // The refresh token was revoked — the session is no longer valid.
       if (err instanceof ApiError && err.code === 'UNAUTHORIZED') await this.sessions.destroy(session.id);
       throw err;
     }
@@ -46,7 +46,7 @@ export class UserGuildService {
         botPresent: await this.snapshots.isPresent(guild.id),
       })),
     );
-    // Сначала то, что можно настроить, затем по имени.
+    // Manageable guilds first, then by name.
     return result.sort((a, b) => Number(b.canManage) - Number(a.canManage) || a.name.localeCompare(b.name));
   }
 

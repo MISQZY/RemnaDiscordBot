@@ -15,7 +15,7 @@ async function scanKeys(redis: Redis, pattern: string): Promise<string[]> {
   return keys;
 }
 
-/** Состояние кластеров бота по их пульсу в Redis; пропавший кластер просто исчезает из списка. */
+/** Bot cluster state from their heartbeats in Redis; a missing cluster simply drops out of the list. */
 export function statusRoutes({ redis }: ApiDeps): FastifyPluginAsyncZod {
   return async (app) => {
     app.get(

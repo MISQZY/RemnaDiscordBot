@@ -1,6 +1,6 @@
 import type { GuildChannel, GuildRole } from '@bot/contracts';
 
-/** Данные гильдии для проверки конфига — из снапшота в Redis. */
+/** Guild data for config validation — from the Redis snapshot. */
 export interface GuildEntities {
   channels: GuildChannel[];
   roles: GuildRole[];
@@ -11,12 +11,12 @@ export interface ConfigIssue {
   message: string;
 }
 
-/** discord.js ChannelType, в которые бот может писать сообщения. */
+/** discord.js channel types the bot can post messages to. */
 export const TEXT_CHANNEL_TYPES = [0, 5, 10, 11, 12, 15] as const;
 
 /**
- * Помощник для `validateConfig`: собирает ошибки по ссылкам на каналы и роли.
- * `null`/`undefined` пропускаются — «не выбрано» проверяет схема модуля.
+ * Helper for `validateConfig`: collects issues with channel and role references.
+ * `null`/`undefined` are skipped — "not selected" is checked by the module schema.
  */
 export class EntityChecker {
   readonly issues: ConfigIssue[] = [];
@@ -38,7 +38,7 @@ export class EntityChecker {
     return this;
   }
 
-  /** Роль, которую бот может выдавать: существует, ниже роли бота и не управляется интеграцией. */
+  /** A role the bot can assign: exists, is below the bot's role and is not managed by an integration. */
   assignableRole(id: string | null | undefined, path: ConfigIssue['path']): this {
     if (!id) return this;
     const role = this.roleById.get(id);

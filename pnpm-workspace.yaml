@@ -11,5 +11,5 @@ onlyBuiltDependencies:
 
 peerDependencyRules:
   allowedVersions:
-    # ioredis-mock не импортирует ioredis во время работы; мок используется только в тестах.
+    # ioredis-mock does not import ioredis at runtime; the mock is only used in tests.
     ioredis-mock>ioredis: '6'

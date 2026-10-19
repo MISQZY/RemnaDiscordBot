@@ -2,7 +2,7 @@ import { MessageTemplate, Snowflake } from '@bot/contracts';
 import type { NotificationSource, NotificationSubscription } from '@bot/db';
 import { z } from 'zod';
 
-/** Настроек уровня гильдии пока нет: всё задаётся в подписках. */
+/** No guild-level settings yet: everything is set per subscription. */
 export const NotificationsConfig = z.object({});
 export type NotificationsConfig = z.infer<typeof NotificationsConfig>;
 
@@ -12,7 +12,7 @@ export const Provider = z.enum(['youtube', 'twitch']);
 
 export const SubscriptionCreate = z.object({
   provider: Provider,
-  /** Ссылка на канал, ID или имя (`@handle` для YouTube, логин для Twitch). */
+  /** Channel link, ID or name (`@handle` for YouTube, login for Twitch). */
   query: z.string().min(1).max(200),
   channelId: Snowflake,
   mentionRoleId: Snowflake.nullable().default(null),

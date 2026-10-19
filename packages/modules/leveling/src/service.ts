@@ -13,7 +13,7 @@ export interface XpChange {
   leveledUp: boolean;
 }
 
-/** Опыт и лидерборд. Начисление — атомарный инкремент, без гонок между кластерами. */
+/** XP and leaderboard. Granting is an atomic increment, with no races between clusters. */
 export class LevelingService {
   constructor(private readonly db: PrismaClient) {}
 
@@ -39,7 +39,7 @@ export class LevelingService {
     return this.db.memberLevel.findUnique({ where: { guildId_userId: { guildId, userId } } });
   }
 
-  /** Место в рейтинге: 1 + число участников с большим опытом. */
+  /** Leaderboard position: 1 + the number of members with more XP. */
   async rankOf(guildId: string, xp: number): Promise<number> {
     return 1 + (await this.db.memberLevel.count({ where: { guildId, xp: { gt: xp } } }));
   }
@@ -73,7 +73,7 @@ export class LevelingService {
   }
 }
 
-/** Какие роли-награды выдать и снять для уровня. */
+/** Which reward roles to grant and remove for a level. */
 export function rewardChanges(level: number, config: Pick<LevelingConfig, 'rewards' | 'stackRewards'>): { add: string[]; remove: string[] } {
   const reached = config.rewards.filter((r) => r.level <= level).sort((a, b) => a.level - b.level);
   const notReached = config.rewards.filter((r) => r.level > level).map((r) => r.roleId);
@@ -86,7 +86,7 @@ export function rewardChanges(level: number, config: Pick<LevelingConfig, 'rewar
   };
 }
 
-/** Опыт за сообщение с учётом множителей: наибольший по ролям × канал. */
+/** XP per message with multipliers: the highest role multiplier × the channel multiplier. */
 export function messageXp(
   config: Pick<LevelingConfig, 'xpPerMessage' | 'multipliers'>,
   { roleIds, channelId }: { roleIds: readonly string[]; channelId: string },

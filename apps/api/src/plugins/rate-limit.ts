@@ -3,10 +3,10 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
 import { ApiError } from '../errors.js';
 
-/** Ключ лимита: пользователь, если вошёл, иначе IP. */
+/** Rate limit key: the user when logged in, otherwise the IP. */
 const clientKey = (request: FastifyRequest) => (request.session ? `user:${request.session.userId}` : `ip:${request.ip}`);
 
-/** Лимиты на запись в гильдию — по гильдии и пользователю. */
+/** Guild write limits — per guild and user. */
 export const GUILD_WRITE_LIMIT = {
   max: 20,
   timeWindow: '1 minute',
@@ -15,8 +15,8 @@ export const GUILD_WRITE_LIMIT = {
 };
 
 /**
- * Глобальный лимит со счётчиками в Redis — общий для всех реплик API.
- * Проверяется в preHandler, когда сессия и параметры маршрута уже известны.
+ * Global limit with counters in Redis — shared by all API replicas.
+ * Checked in preHandler, when the session and route params are already known.
  */
 export async function registerRateLimit(app: FastifyInstance, redis: Redis, max = 120): Promise<void> {
   await app.register(rateLimit, {

@@ -5,8 +5,8 @@ import type { Logger } from '@bot/logger';
 import { Events, type Client, type Guild } from 'discord.js';
 
 /**
- * Язык нового сервера — из его настроек в Discord; если такого языка у бота нет, английский.
- * Выбранный позже язык (`/language`, API) не перезаписывается.
+ * A new server's language comes from its Discord settings; English if the bot does not support it.
+ * A language chosen later (`/language`, API) is never overwritten.
  */
 export function initialLocale(guild: Pick<Guild, 'preferredLocale'>): Locale {
   const base = guild.preferredLocale?.split('-')[0];
@@ -14,8 +14,8 @@ export function initialLocale(guild: Pick<Guild, 'preferredLocale'>): Locale {
 }
 
 /**
- * Платформенная часть, не зависящая от модулей: учёт гильдий в БД
- * и актуальность снапшотов каналов/ролей/эмодзи для API.
+ * Module-independent platform part: tracks guilds in the database
+ * and keeps channel/role/emoji snapshots fresh for the API.
  */
 export class GuildLifecycle {
   constructor(
@@ -40,7 +40,7 @@ export class GuildLifecycle {
     client.on(Events.GuildRoleCreate, (role) => roles(role.guild));
     client.on(Events.GuildRoleUpdate, (_, role) => roles(role.guild));
     client.on(Events.GuildRoleDelete, (role) => roles(role.guild));
-    // Права бота на роли зависят от его собственных ролей.
+    // The bot's ability to manage roles depends on its own roles.
     client.on(Events.GuildMemberUpdate, (_, member) => {
       if (member.id === client.user?.id) roles(member.guild);
     });
@@ -62,14 +62,14 @@ export class GuildLifecycle {
   }
 
   async leave(guild: Guild): Promise<void> {
-    // Недоступная гильдия — сбой Discord, а не удаление бота.
+    // An unavailable guild is a Discord outage, not the bot being removed.
     if (!guild.available) return;
     await this.db.guild.updateMany({ where: { id: guild.id }, data: { leftAt: new Date() } });
     await this.snapshots.removeGuild(guild.id);
     this.logger.info({ guildId: guild.id }, 'Left guild');
   }
 
-  /** При старте кластера: гильдии могли добавиться, пока бот был выключен. */
+  /** On cluster startup: guilds may have been added while the bot was offline. */
   async syncAll(guilds: Guild[]): Promise<void> {
     for (const guild of guilds) {
       await this.db.guild.upsert({

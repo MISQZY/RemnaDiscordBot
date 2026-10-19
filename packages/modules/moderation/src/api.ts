@@ -9,7 +9,7 @@ const CasesQuery = z.object({
   targetId: z.string().optional(),
   type: CaseType.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
-  /** Номер кейса, с которого продолжить (не включительно), — кейсы идут от новых к старым. */
+  /** Case number to continue from (exclusive) — cases go from newest to oldest. */
   before: z.coerce.number().int().optional(),
 });
 const CasesPage = z.object({ items: z.array(ModCaseDto), nextBefore: z.number().int().nullable() });

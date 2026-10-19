@@ -22,8 +22,8 @@ export function buildHeartbeat(client: Client, { clusterId, shards }: HeartbeatO
 }
 
 /**
- * Периодически пишет состояние кластера в Redis. TTL втрое больше интервала:
- * пропавший ключ означает, что кластер не отвечает.
+ * Periodically writes the cluster state to Redis. The TTL is three times the interval:
+ * a missing key means the cluster is not responding.
  */
 export function startHeartbeat(client: Client, redis: Redis, logger: Logger, options: HeartbeatOptions): () => Promise<void> {
   const intervalMs = options.intervalMs ?? 30_000;

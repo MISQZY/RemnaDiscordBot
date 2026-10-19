@@ -7,22 +7,22 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// Discord-сервер и его общие настройки.
+/// A Discord server and its general settings.
 model Guild {
   id          String    @id
   locale      String    @default("ru")
   timezone    String    @default("Europe/Moscow")
-  /// ID ролей модераторов (JSON-массив: схема переносима на SQLite для тестов).
+  /// Moderator role IDs (a JSON array: keeps the schema portable to SQLite for tests).
   modRoleIds  Json      @default("[]")
   premiumTier Int       @default(0)
   joinedAt    DateTime  @default(now())
-  /// Бот удалён с сервера; данные чистятся позже задачей обслуживания.
+  /// The bot was removed from the server; data is cleaned up later by a maintenance job.
   leftAt      DateTime?
 
   modules GuildModuleConfig[]
 }
 
-/// Конфиг модуля для гильдии. `config` валидируется zod-схемой модуля.
+/// A module config for a guild. `config` is validated with the module's zod schema.
 model GuildModuleConfig {
   guildId   String
   moduleId  String
@@ -37,7 +37,7 @@ model GuildModuleConfig {
   @@id([guildId, moduleId])
 }
 
-/// Пользователь веб-платформы (Discord user).
+/// A web platform user (Discord user).
 model DashboardUser {
   id         String   @id
   username   String
@@ -47,7 +47,7 @@ model DashboardUser {
   lastSeenAt DateTime @default(now())
 }
 
-/// История изменений настроек через API.
+/// History of settings changes made through the API.
 model DashboardAuditLog {
   id        String   @id @default(cuid())
   guildId   String
@@ -60,10 +60,10 @@ model DashboardAuditLog {
   @@index([guildId, createdAt])
 }
 
-/// Отложенные действия (снятие бана, задержанная выдача роли…). Воркер забирает их атомарно.
+/// Scheduled actions (unban, delayed role grant…). The worker claims them atomically.
 model ScheduledAction {
   id          String    @id @default(cuid())
-  /// Необязательный ключ: повторное планирование с тем же ключом заменяет задачу, по нему же отмена.
+  /// Optional key: scheduling again with the same key replaces the job; also used to cancel.
   key         String?   @unique
   guildId     String
   /// `<moduleId>:<job>`
@@ -71,7 +71,7 @@ model ScheduledAction {
   payload     Json
   runAt       DateTime
   doneAt      DateTime?
-  /// Задача взята воркером до этого момента; после — может быть взята снова.
+  /// The job is taken by a worker until this moment; after that it can be claimed again.
   lockedUntil DateTime?
   attempts    Int       @default(0)
   lastError   String?
@@ -81,19 +81,19 @@ model ScheduledAction {
   @@index([guildId])
 }
 
-/// Панель самостоятельного выбора ролей: сообщение с кнопками или выпадающим списком (модуль autoroles).
+/// A self-assignable role panel: a message with buttons or a dropdown (autoroles module).
 model RolePanel {
   id        String   @id @default(cuid())
   guildId   String
   channelId String
-  /// Сообщение в Discord; `null` — панель ещё не опубликована.
+  /// The Discord message; `null` — the panel is not published yet.
   messageId String?
   /// `buttons` | `select`
   kind      String
   /// `toggle` | `add` | `remove` | `unique`
   mode      String
   maxRoles  Int?
-  /// MessageTemplate — текст над кнопками.
+  /// MessageTemplate — the text above the buttons.
   message   Json
   /// [{ roleId, label, emoji?, style?, description? }]
   items     Json
@@ -103,18 +103,18 @@ model RolePanel {
   @@index([guildId])
 }
 
-/// Роли участника на момент выхода — для восстановления при возвращении (модуль autoroles).
+/// A member's roles at the time they left — restored when they come back (autoroles module).
 model MemberRoleBackup {
   guildId String
   userId  String
-  /// JSON-массив ID ролей.
+  /// A JSON array of role IDs.
   roleIds Json
   savedAt DateTime @updatedAt
 
   @@id([guildId, userId])
 }
 
-/// Кейс модерации: бан, кик, мут, предупреждение… Номер последовательный в пределах гильдии.
+/// A moderation case: ban, kick, mute, warning… Numbered sequentially within a guild.
 model ModCase {
   id           String    @id @default(cuid())
   guildId      String
@@ -125,9 +125,9 @@ model ModCase {
   moderatorId  String
   reason       String?
   durationSec  Int?
-  /// Окончание временного наказания или срок действия предупреждения.
+  /// End of a temporary punishment or the expiry of a warning.
   expiresAt    DateTime?
-  /// Снято досрочно (разбан, снятие мута, снятие предупреждения).
+  /// Revoked early (unban, unmute, warning removal).
   revokedAt    DateTime?
   revokedBy    String?
   revokeReason String?
@@ -137,13 +137,13 @@ model ModCase {
   @@index([guildId, targetId, type])
 }
 
-/// Последний номер кейса в гильдии — атомарный инкремент через upsert.
+/// Last case number in a guild — atomic increment via upsert.
 model ModCaseCounter {
   guildId String @id
   last    Int
 }
 
-/// Опыт участника (модуль leveling). Имя и аватар — для лидерборда без запросов к Discord.
+/// A member's XP (leveling module). Name and avatar let the leaderboard skip Discord calls.
 model MemberLevel {
   guildId   String
   userId    String
@@ -158,19 +158,19 @@ model MemberLevel {
   @@index([guildId, xp])
 }
 
-/// Пользовательская команда гильдии: slash-команда или автоответ на сообщение (модуль custom-commands).
+/// A guild's custom command: a slash command or an auto-reply to messages (custom-commands module).
 model CustomCommand {
   id                String   @id @default(cuid())
   guildId           String
-  /// Имя slash-команды или название триггера; уникально в гильдии.
+  /// Slash command name or trigger name; unique within a guild.
   name              String
   /// `slash` | `trigger`
   kind              String
   description       String?
-  /// Для триггера: `exact` | `startsWith` | `contains` | `regex`
+  /// For triggers: `exact` | `startsWith` | `contains` | `regex`
   matchMode         String?
   pattern           String?
-  /// MessageTemplate ответа.
+  /// MessageTemplate of the reply.
   response          Json
   ephemeral         Boolean  @default(false)
   /// { addRoleIds, removeRoleIds, deleteTrigger }
@@ -179,7 +179,7 @@ model CustomCommand {
   allowedRoleIds    Json
   cooldownSec       Int      @default(0)
   enabled           Boolean  @default(true)
-  /// ID guild-команды в Discord (для slash).
+  /// Guild command ID in Discord (for slash commands).
   discordCommandId  String?
   uses              Int      @default(0)
   createdBy         String
@@ -189,15 +189,15 @@ model CustomCommand {
   @@unique([guildId, name])
 }
 
-/// Внешний источник оповещений (канал YouTube, стример Twitch) — один на всю платформу.
+/// An external notification source (YouTube channel, Twitch streamer) — one for the whole platform.
 model NotificationSource {
   id            String    @id @default(cuid())
   /// `youtube` | `twitch`
   provider      String
-  /// ID канала YouTube или пользователя Twitch.
+  /// YouTube channel ID or Twitch user ID.
   externalId    String
   name          String
-  /// Последнее объявленное видео или стрим — чтобы не повторяться.
+  /// The last announced video or stream — to avoid repeats.
   lastItemId    String?
   lastCheckedAt DateTime?
   createdAt     DateTime  @default(now())
@@ -207,14 +207,14 @@ model NotificationSource {
   @@unique([provider, externalId])
 }
 
-/// Подписка гильдии на источник: куда и каким сообщением объявлять (модуль notifications).
+/// A guild's subscription to a source: where and with which message to announce (notifications module).
 model NotificationSubscription {
   id            String   @id @default(cuid())
   guildId       String
   sourceId      String
   channelId     String
   mentionRoleId String?
-  /// MessageTemplate анонса.
+  /// MessageTemplate of the announcement.
   message       Json
   enabled       Boolean  @default(true)
   createdAt     DateTime @default(now())

@@ -4,14 +4,14 @@ import { z } from 'zod';
 import { regexProblem } from './matching.js';
 
 export const CustomCommandsConfig = z.object({
-  /** Автоответы на сообщения (нужен intent Message Content). Slash-команды работают всегда. */
+  /** Auto-replies to messages (need the Message Content intent). Slash commands always work. */
   triggersEnabled: z.boolean(),
 });
 export type CustomCommandsConfig = z.infer<typeof CustomCommandsConfig>;
 
 export const defaultCustomCommandsConfig: CustomCommandsConfig = { triggersEnabled: true };
 
-/** Лимит команд на гильдию (у Discord — 100 guild-команд на приложение). */
+/** Command limit per guild (Discord allows 100 guild commands per application). */
 export const MAX_COMMANDS = 50;
 
 export const MatchMode = z.enum(['exact', 'startsWith', 'contains', 'regex']);
@@ -22,7 +22,7 @@ const SLASH_NAME = /^[-_\p{Ll}\p{N}]{1,32}$/u;
 export const CommandActions = z.object({
   addRoleIds: z.array(Snowflake).max(5),
   removeRoleIds: z.array(Snowflake).max(5),
-  /** Удалить сообщение, вызвавшее триггер. */
+  /** Delete the message that fired the trigger. */
   deleteTrigger: z.boolean(),
 });
 export type CommandActions = z.infer<typeof CommandActions>;

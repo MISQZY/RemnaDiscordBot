@@ -45,7 +45,7 @@ const config = new ConfigService({
 });
 const unsubscribeConfig = await subscribeConfigInvalidation(redis, logger, (message) => {
   config.invalidate(message);
-  // Инвалидация всей гильдии — могли смениться общие настройки, в том числе язык.
+  // Whole-guild invalidation — general settings, including the language, may have changed.
   if (!message.moduleId) guildLocales.invalidate(message.guildId);
 });
 

@@ -12,7 +12,7 @@ import { startHealthServer } from './health.js';
 const env = loadManagerEnv();
 const logger = createLogger({ service: 'bot-manager', level: env.LOG_LEVEL });
 
-// В dev процесс запущен из .ts через tsx, в проде — из собранного .js.
+// In dev the process runs from .ts via tsx, in production from the built .js.
 const clusterFile = fileURLToPath(new URL(`./cluster${extname(fileURLToPath(import.meta.url))}`, import.meta.url));
 
 const manager = new ClusterManager(clusterFile, {
@@ -20,7 +20,7 @@ const manager = new ClusterManager(clusterFile, {
   totalShards: env.TOTAL_SHARDS,
   shardsPerClusters: env.SHARDS_PER_CLUSTER,
   mode: 'process',
-  // Кластеры наследуют флаги node (загрузчик tsx, --conditions, --env-file).
+  // Clusters inherit node flags (tsx loader, --conditions, --env-file).
   execArgv: process.execArgv,
   respawn: true,
   restarts: { max: 5, interval: 60 * 60_000 },
@@ -50,7 +50,7 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 
 if (env.AUTO_DEPLOY_COMMANDS) {
-  // Один раз в менеджере, а не в каждом кластере. Ошибка синхронизации не мешает запуску.
+  // Once in the manager, not in every cluster. A sync failure does not block startup.
   try {
     const result = await syncCommands(new REST().setToken(env.DISCORD_TOKEN), collectCommandPayloads(new ModuleRegistry(modules)), {
       guildId: env.DISCORD_DEV_GUILD_ID,

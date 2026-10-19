@@ -7,7 +7,7 @@ import { inject } from 'vitest';
 
 declare module 'vitest' {
   export interface ProvidedContext {
-    /** SQLite-файл с применённой схемой; создаётся в global setup. */
+    /** SQLite file with the schema applied; created in global setup. */
     sqliteTemplatePath: string;
   }
 }
@@ -18,12 +18,12 @@ export interface TestDatabase {
   cleanup(): Promise<void>;
 }
 
-// Клиент генерируется в global setup, поэтому импортируется динамически и без статических типов.
+// The client is generated in global setup, so it is imported dynamically and without static types.
 const SQLITE_CLIENT = '@bot/db/sqlite';
 
 /**
- * Отдельная SQLite-база для тестового файла: копия шаблона со схемой.
- * Клиент приводится к типу Postgres-клиента — схемы совпадают, отличается только провайдер.
+ * A separate SQLite database per test file: a copy of the template with the schema.
+ * The client is cast to the Postgres client type — the schemas match, only the provider differs.
  */
 export async function createTestDatabase(): Promise<TestDatabase> {
   const dir = await mkdtemp(join(tmpdir(), 'bot-test-db-'));

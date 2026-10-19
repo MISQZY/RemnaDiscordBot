@@ -4,7 +4,7 @@ import type { ApiDeps } from '../deps.js';
 
 const Health = z.object({ status: z.enum(['ok', 'unavailable']) });
 
-/** Liveness и readiness — для Docker и балансировщика; вне `/v1` и без лимита запросов. */
+/** Liveness and readiness — for Docker and the load balancer; outside `/v1` and not rate limited. */
 export function healthRoutes({ db, redis }: ApiDeps): FastifyPluginAsyncZod {
   return async (app) => {
     app.get(

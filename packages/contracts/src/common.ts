@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-/** Discord snowflake ID. Хранится строкой: в JS number не помещается без потерь. */
+/** Discord snowflake ID. Stored as a string: a JS number cannot hold it losslessly. */
 export const Snowflake = z.string().regex(/^\d{17,20}$/, 'Invalid Discord ID');
 export type Snowflake = z.infer<typeof Snowflake>;
 

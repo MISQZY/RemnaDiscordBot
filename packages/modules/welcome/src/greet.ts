@@ -5,11 +5,11 @@ import type { GuildMember, PartialGuildMember } from 'discord.js';
 import type { WelcomeConfig, WelcomeKind } from './config.js';
 
 export interface GreetOptions {
-  /** Отправить, даже если сообщение выключено в конфиге (тестовая отправка). */
+  /** Send even when the message is disabled in the config (a test send). */
   force?: boolean;
 }
 
-/** Отправляет приветствие, прощание или ЛС. Возвращает, было ли что-то отправлено. */
+/** Sends the welcome, farewell or DM. Returns whether anything was sent. */
 export async function greet(
   kind: WelcomeKind,
   member: GuildMember | PartialGuildMember,
@@ -27,7 +27,7 @@ export async function greet(
       await member.send(message);
       return true;
     } catch (err) {
-      // У пользователя закрыты ЛС — это не ошибка модуля.
+      // The user's DMs are closed — not a module error.
       logger.debug({ err, userId: member.id }, 'Welcome DM not delivered');
       return false;
     }

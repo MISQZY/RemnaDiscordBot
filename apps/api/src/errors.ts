@@ -1,6 +1,6 @@
 import { HttpError, type HttpErrorDetails } from '@bot/core';
 
-/** Ошибки API: общий `HttpError` ядра плюс фабрики для частых случаев. */
+/** API errors: the core `HttpError` plus factories for common cases. */
 export class ApiError extends HttpError {
   static override badRequest(message: string, details?: HttpErrorDetails) {
     return new ApiError(400, 'VALIDATION_FAILED', message, details);

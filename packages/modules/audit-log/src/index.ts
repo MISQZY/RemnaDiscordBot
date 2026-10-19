@@ -6,7 +6,7 @@ import { locales } from './locales.js';
 
 export { AuditLogConfig } from './config.js';
 
-/** Журнал событий сервера в выбранные каналы: сообщения, участники, голос, сервер, баны. */
+/** Server event log to chosen channels: messages, members, voice, server, bans. */
 export default defineModule({
   id: 'audit-log',
   configSchema: AuditLogConfig,
@@ -21,13 +21,13 @@ export default defineModule({
   bot: {
     intents: [
       GatewayIntentBits.GuildMessages,
-      // Текст сообщений — привилегированный intent Message Content.
+      // Message text requires the privileged Message Content intent.
       GatewayIntentBits.MessageContent,
       GatewayIntentBits.GuildMembers,
       GatewayIntentBits.GuildVoiceStates,
       GatewayIntentBits.GuildModeration,
     ],
-    // Бот не кэширует сообщения и не всех участников — события по ним приходят как partial.
+    // The bot caches neither messages nor all members — their events arrive as partials.
     partials: [Partials.Message, Partials.GuildMember, Partials.User],
     events: createHandlers(),
   },

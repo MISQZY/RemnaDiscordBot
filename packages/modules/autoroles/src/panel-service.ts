@@ -13,7 +13,7 @@ const data = (input: PanelInput) => ({
   items: input.items as Prisma.InputJsonValue,
 });
 
-/** Панели ролей: хранение и публикация в Discord через REST. Общее для API и slash-команд. */
+/** Role panels: storage and publishing to Discord via REST. Shared by the API and slash commands. */
 export class PanelService {
   constructor(
     private readonly db: PrismaClient,
@@ -34,7 +34,7 @@ export class PanelService {
     return toPanel(await this.db.rolePanel.create({ data: { guildId, ...data(input) } }));
   }
 
-  /** Сменился канал — старое сообщение удаляется, при публикации панель отправится в новый. */
+  /** The channel changed — the old message is deleted and publishing posts the panel to the new one. */
   async update(guildId: string, panelId: string, input: PanelInput): Promise<Panel> {
     const row = await this.find(guildId, panelId);
     const moved = row.messageId !== null && row.channelId !== input.channelId;
@@ -48,7 +48,7 @@ export class PanelService {
     await this.db.rolePanel.delete({ where: { id: row.id } });
   }
 
-  /** Отправляет сообщение панели или обновляет уже отправленное. */
+  /** Posts the panel message or updates the one already posted. */
   async publish(guildId: string, panelId: string): Promise<Panel> {
     const row = await this.find(guildId, panelId);
     const body = panelMessageBody(toPanel(row));
@@ -58,7 +58,7 @@ export class PanelService {
       try {
         await this.rest.patch(Routes.channelMessage(row.channelId, messageId), { body });
       } catch (err) {
-        // Сообщение удалили вручную — публикуем заново.
+        // The message was deleted manually — post it again.
         if (!(err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownMessage)) throw err;
         messageId = null;
       }

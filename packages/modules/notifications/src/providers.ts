@@ -9,7 +9,7 @@ export interface SourceInfo {
   url: string;
 }
 
-/** Новое видео или начавшийся стрим. `id` — для дедупликации. */
+/** A new video or a started stream. `id` is used for deduplication. */
 export interface FeedItem {
   id: string;
   vars: Record<string, string | number>;
@@ -17,9 +17,9 @@ export interface FeedItem {
 
 export interface Provider {
   id: ProviderId;
-  /** Канал или стример по ссылке, ID или имени. */
+  /** A channel or streamer by link, ID or name. */
   lookup(query: string): Promise<SourceInfo>;
-  /** Элементы источников от новых к старым; ключ — externalId. */
+  /** Sources' items from newest to oldest; keyed by externalId. */
   latest(externalIds: string[]): Promise<Map<string, FeedItem[]>>;
 }
 
@@ -36,7 +36,7 @@ const tag = (xml: string, name: string) => {
   return match ? decode(match[1]!.trim()) : '';
 };
 
-/** Atom-лента YouTube: формат стабилен, поэтому без XML-парсера. */
+/** YouTube Atom feed: the format is stable, so no XML parser is needed. */
 export function parseYoutubeFeed(xml: string): { channelName: string; items: FeedItem[] } {
   const channelName = tag(xml.split('<entry>')[0] ?? '', 'title');
   const items = [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map(([, entry]) => {
@@ -82,7 +82,7 @@ export class YoutubeProvider implements Provider {
     return response.text();
   }
 
-  /** Ссылка вида /channel/UC…, /@handle или просто @handle → ID канала со страницы. */
+  /** A /channel/UC… or /@handle link, or just @handle → the channel ID from the page. */
   private async resolveChannelId(query: string): Promise<string> {
     const fromUrl = /channel\/(UC[\w-]{22})/.exec(query)?.[1];
     if (fromUrl) return fromUrl;
@@ -131,7 +131,7 @@ export class TwitchProvider implements Provider {
 
   async latest(externalIds: string[]): Promise<Map<string, FeedItem[]>> {
     const result = new Map<string, FeedItem[]>(externalIds.map((id) => [id, []]));
-    // Helix принимает до 100 пользователей за запрос.
+    // Helix accepts up to 100 users per request.
     for (let i = 0; i < externalIds.length; i += 100) {
       const query = externalIds.slice(i, i + 100).map((id) => `user_id=${id}`).join('&');
       const { data } = await this.helix<{ data: TwitchStream[] }>(`/streams?${query}`);
@@ -173,7 +173,7 @@ export class TwitchProvider implements Provider {
   }
 }
 
-/** Провайдеры из окружения процесса: Twitch — только если заданы ключи приложения. */
+/** Providers from the process environment: Twitch only when the app credentials are set. */
 export function providersFromEnv(env: NodeJS.ProcessEnv = process.env): Map<ProviderId, Provider> {
   const providers = new Map<ProviderId, Provider>([['youtube', new YoutubeProvider()]]);
   if (env.TWITCH_CLIENT_ID && env.TWITCH_CLIENT_SECRET) {

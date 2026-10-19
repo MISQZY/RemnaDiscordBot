@@ -36,7 +36,7 @@ function base(name: string, description: string, ru: string, permission: bigint)
 
 const ephemeral = (content: string) => ({ content, flags: MessageFlags.Ephemeral as const });
 
-/** Общие проверки и разбор опций для команд наказаний. Возвращает `null`, если уже ответили ошибкой. */
+/** Common checks and option parsing for punishment commands. Returns `null` when an error reply was already sent. */
 async function prepare(
   interaction: ChatInputCommandInteraction,
   ctx: Ctx,
@@ -82,7 +82,7 @@ async function prepare(
 async function done(interaction: ChatInputCommandInteraction, ctx: Ctx, action: string, number: number) {
   const user = interaction.options.getUser('user', true);
   await interaction.editReply({
-    // Итог действия видят все — на языке сервера.
+    // Everyone sees the result — use the server's language.
     content: ctx.tGuild(`moderation.done.${action}`, { user: user.username, number }),
     allowedMentions: { parse: [] },
   });
@@ -248,7 +248,7 @@ export const clear = defineCommand<ModerationConfig>({
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const fetched = await channel.messages.fetch({ limit: 100 });
     const targets = [...fetched.values()].filter((m) => !user || m.author.id === user.id).slice(0, amount);
-    // Discord удаляет пачкой только сообщения моложе 14 дней.
+    // Discord bulk-deletes only messages younger than 14 days.
     const deleted = await channel.bulkDelete(targets, true);
     await interaction.editReply(ctx.t('moderation.done.clear', { count: deleted.size }));
   },

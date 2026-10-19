@@ -6,7 +6,7 @@ export const OAUTH_SCOPES = ['identify', 'guilds'] as const;
 export interface DiscordTokens {
   accessToken: string;
   refreshToken: string;
-  /** Unix-время истечения access-токена, мс. */
+  /** Access token expiry as Unix time, ms. */
   expiresAt: number;
 }
 
@@ -22,11 +22,11 @@ export interface DiscordPartialGuild {
   name: string;
   icon: string | null;
   owner: boolean;
-  /** Битовая маска прав пользователя в гильдии (строка с bigint). */
+  /** The user's permission bitmask in the guild (bigint as a string). */
   permissions: string;
 }
 
-/** Обращения к Discord от имени пользователя. В тестах подменяется фейком. */
+/** Discord calls on behalf of the user. Replaced with a fake in tests. */
 export interface DiscordOAuth {
   authorizeUrl(state: string, redirectUri: string): string;
   exchangeCode(code: string, redirectUri: string): Promise<DiscordTokens>;

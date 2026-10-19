@@ -3,8 +3,8 @@ import type { GuildMember } from 'discord.js';
 export type PunishAction = 'ban' | 'kick' | 'mute' | 'warn';
 
 /**
- * Можно ли модератору наказать участника. Возвращает ключ ошибки i18n или `null`.
- * Нельзя: себя, владельца, бота, участника с ролью не ниже своей; и то, что не может сам бот.
+ * Whether the moderator may punish the member. Returns an i18n error key or `null`.
+ * Not allowed: yourself, the owner, the bot, a member whose role is not lower than yours; or what the bot itself cannot do.
  */
 export function hierarchyError(moderator: GuildMember, target: GuildMember, action: PunishAction): string | null {
   const guild = target.guild;

@@ -1,6 +1,6 @@
 import { PermissionFlagsBits } from 'discord-api-types/v10';
 
-/** Права, которые бот запрашивает при приглашении — по потребностям модулей MVP. */
+/** Permissions the bot requests on invite — based on what the MVP modules need. */
 export const BOT_INVITE_PERMISSIONS =
   PermissionFlagsBits.ViewChannel |
   PermissionFlagsBits.SendMessages |
@@ -17,7 +17,7 @@ export const BOT_INVITE_PERMISSIONS =
   PermissionFlagsBits.ModerateMembers |
   PermissionFlagsBits.ViewAuditLog;
 
-/** Настраивать бота может владелец, Administrator или Manage Server. */
+/** The owner, Administrator or Manage Server can configure the bot. */
 export function canManageGuild({ owner, permissions }: { owner: boolean; permissions: string }): boolean {
   if (owner) return true;
   const granted = BigInt(permissions);

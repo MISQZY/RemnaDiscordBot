@@ -9,7 +9,7 @@ type Ctx = BotModuleContext<LevelingConfig>;
 
 const cooldownKey = (guildId: string, userId: string) => `leveling:cd:${guildId}:${userId}`;
 
-/** Роли-награды за уровень: выдаёт достигнутые, снимает лишние (если награды не копятся). */
+/** Level reward roles: grants reached ones and removes the rest (when rewards don't stack). */
 export async function syncRewards(member: GuildMember, level: number, config: LevelingConfig, logger: Ctx['logger']): Promise<void> {
   if (config.rewards.length === 0) return;
   const { add, remove } = rewardChanges(level, config);
@@ -42,7 +42,7 @@ async function announce(ctx: Ctx, message: Message<true>, member: GuildMember, l
   }
 }
 
-/** Опыт за сообщение: кулдаун в Redis (общий для кластеров), атомарный инкремент в БД. */
+/** XP per message: cooldown in Redis (shared by clusters), atomic increment in the database. */
 export async function onMessage(ctx: Ctx, message: Message): Promise<void> {
   if (!message.inGuild() || message.author.bot || message.system) return;
   const member = message.member;

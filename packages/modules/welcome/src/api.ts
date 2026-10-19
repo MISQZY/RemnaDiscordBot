@@ -10,7 +10,7 @@ const TestBody = z.object({ kind: WelcomeKind });
 const TestResult = z.object({ sent: z.boolean(), reason: z.string().optional() });
 type TestResult = z.infer<typeof TestResult>;
 
-/** Тестовая отправка из веба через Discord REST — от имени пользователя, нажавшего кнопку. */
+/** Test send from the web app via Discord REST — as the user who clicked the button. */
 export async function sendTestMessage(
   rest: REST,
   config: WelcomeConfig,

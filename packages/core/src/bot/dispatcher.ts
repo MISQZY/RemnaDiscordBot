@@ -15,7 +15,7 @@ import type { ModuleRegistry } from '../registry.js';
 import { extractGuildId } from './guild-id.js';
 
 export interface DispatcherOptions {
-  /** Сколько ждать обработчик события, прежде чем записать его в зависшие. */
+  /** How long to wait for an event handler before reporting it as stuck. */
   handlerTimeoutMs?: number;
 }
 
@@ -32,8 +32,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 /**
- * Единственная точка входа событий Discord: раздаёт их модулям,
- * пропуская выключенные для гильдии, и изолирует ошибки обработчиков.
+ * The single entry point for Discord events: dispatches them to modules,
+ * skipping modules disabled in the guild, and isolates handler errors.
  */
 export class Dispatcher {
   private readonly contexts = new Map<string, BotModuleContext<unknown>>();
@@ -117,7 +117,7 @@ export class Dispatcher {
     }
   }
 
-  /** Команда не из реестра — отдаём модулю с `fallbackCommand` (если он включён в гильдии). */
+  /** A command not in the registry — hand it to the module with `fallbackCommand` (if enabled in the guild). */
   private async runFallback(interaction: ChatInputCommandInteraction): Promise<void> {
     const fallback = this.registry.fallbackCommand();
     if (!fallback || !(await this.isEnabledFor(fallback.module, interaction.guildId))) return;
@@ -129,7 +129,7 @@ export class Dispatcher {
     return this.services.config.isEnabled(guildId, module.id);
   }
 
-  /** Возвращает 0, если кулдаун взят, иначе сколько миллисекунд ждать. */
+  /** Returns 0 when the cooldown was taken, otherwise how many milliseconds to wait. */
   private async acquireCooldown(command: SlashCommand, userId: string): Promise<number> {
     if (!command.cooldownMs) return 0;
     const key = RedisKeys.cooldown(command.data.name, userId);
@@ -173,7 +173,7 @@ export class Dispatcher {
     return ctx;
   }
 
-  /** Язык пользователя — для личных ответов, язык сервера — для того, что видят все. */
+  /** The user's language for private replies, the server's language for what everyone sees. */
   private async interactionContext(
     module: AnyModule,
     { locale: discordLocale, guildId }: { locale: DiscordLocale | string; guildId: string | null },

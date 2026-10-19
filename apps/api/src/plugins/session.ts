@@ -8,7 +8,7 @@ export const SESSION_COOKIE = 'sid';
 
 declare module 'fastify' {
   interface FastifyRequest {
-    /** Сессия из подписанной cookie `sid`; `null` — пользователь не вошёл. */
+    /** Session from the signed `sid` cookie; `null` — the user is not logged in. */
     session: Session | null;
   }
 }
@@ -18,7 +18,7 @@ export interface SessionPluginOptions {
   secret: string;
 }
 
-/** Достаёт сессию из подписанной cookie до обработчиков. */
+/** Loads the session from the signed cookie before route handlers. */
 export const sessionPlugin = fp<SessionPluginOptions>(async (app: FastifyInstance, { store, secret }) => {
   await app.register(cookie, { secret });
   app.decorateRequest('session', null);

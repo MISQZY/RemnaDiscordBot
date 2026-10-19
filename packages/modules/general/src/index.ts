@@ -6,7 +6,7 @@ import { ping } from './commands/ping.js';
 import { GeneralConfig } from './config.js';
 import { locales } from './locales.js';
 
-/** Служебные команды, доступные на любом сервере. */
+/** Built-in commands available on every server. */
 export default defineModule({
   id: 'general',
   configSchema: GeneralConfig,

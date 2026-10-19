@@ -6,7 +6,7 @@ import type { APIActionRowComponent, APIComponentInMessageActionRow, APIMessageC
 import { z } from 'zod';
 import { PanelItem, type Panel } from './config.js';
 
-/** Префикс customId компонентов модуля: `ar:<panelId>[:<roleId>]`. */
+/** customId prefix of the module's components: `ar:<panelId>[:<roleId>]`. */
 export const COMPONENT_PREFIX = 'ar';
 
 export function toPanel(row: RolePanel): Panel {
@@ -28,13 +28,13 @@ export function toPanel(row: RolePanel): Panel {
 export interface RoleChanges {
   add: string[];
   remove: string[];
-  /** Выбор превышает `maxRoles` — ничего не меняем. */
+  /** The pick exceeds `maxRoles` — change nothing. */
   limited: boolean;
 }
 
 /**
- * Какие роли выдать и снять по нажатию кнопки (`picked` — одна роль) или выбору в списке
- * (`picked` — итоговый выбор). Учитываются только роли этой панели.
+ * Which roles to add and remove on a button click (`picked` — one role) or a dropdown pick
+ * (`picked` — the final selection). Only this panel's roles are considered.
  */
 export function computeRoleChanges(
   panel: Pick<Panel, 'mode' | 'maxRoles' | 'items'>,
@@ -85,7 +85,7 @@ export function parseEmoji(emoji: string | undefined): APIMessageComponentEmoji 
   return custom ? { id: custom[3], name: custom[2], animated: custom[1] === 'a' } : { name: emoji };
 }
 
-/** Компоненты сообщения панели в формате Discord API. */
+/** Panel message components in the Discord API format. */
 export function buildComponents(panel: Pick<Panel, 'id' | 'kind' | 'mode' | 'maxRoles' | 'items'>): APIActionRowComponent<APIComponentInMessageActionRow>[] {
   if (panel.kind === 'select') {
     const max = panel.mode === 'unique' ? 1 : Math.min(panel.maxRoles ?? panel.items.length, panel.items.length);
@@ -126,7 +126,7 @@ export function buildComponents(panel: Pick<Panel, 'id' | 'kind' | 'mode' | 'max
   return rows;
 }
 
-/** Тело сообщения панели для Discord REST. */
+/** Panel message body for Discord REST. */
 export function panelMessageBody(panel: Panel) {
   return { ...toRestMessage(renderMessage(panel.message, {})), components: buildComponents(panel) };
 }

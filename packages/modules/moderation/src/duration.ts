@@ -13,7 +13,7 @@ const UNIT_SECONDS: Record<string, number> = {
   н: 604_800,
 };
 
-/** `1h30m`, `2d`, `45 мин`… → секунды; `null`, если строка не разобрана целиком. */
+/** `1h30m`, `2d`, `45 мин`… → seconds; `null` when the string is not fully parsed. */
 export function parseDuration(input: string): number | null {
   const compact = input.toLowerCase().replace(/\s+/g, '').replace(/мин/g, 'м');
   const pattern = /(\d+)([a-zа-я])/gu;
@@ -45,7 +45,7 @@ const LABELS: Record<Locale, [number, string][]> = {
   ],
 };
 
-/** 93 784 → `1д 2ч 3мин 4с`. */
+/** 93 784 → `1д 2ч 3мин 4с` (ru) / `1d 2h 3m 4s` (en). */
 export function formatDuration(seconds: number, locale: Locale): string {
   const parts: string[] = [];
   let rest = seconds;
@@ -57,5 +57,5 @@ export function formatDuration(seconds: number, locale: Locale): string {
   return parts.join(' ') || `0${LABELS[locale].at(-1)![1]}`;
 }
 
-/** Максимальный тайм-аут Discord — 28 дней. */
+/** Discord's maximum timeout — 28 days. */
 export const MAX_TIMEOUT_SEC = 28 * 86_400;

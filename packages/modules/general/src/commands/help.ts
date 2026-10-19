@@ -11,19 +11,19 @@ export interface HelpSection {
 export interface HelpInput {
   modules: AnyModule[];
   enabled: ReadonlySet<string>;
-  /** ID зарегистрированных в Discord команд — для кликабельных упоминаний. */
+  /** IDs of commands registered in Discord — for clickable mentions. */
   commandIds: ReadonlyMap<string, string>;
-  /** Команды гильдии, которых нет в модулях (пользовательские). */
+  /** Guild commands that are not in modules (custom ones). */
   extraCommands: { name: string; description: string }[];
   locale: string;
-  /** Словари модулей — тексты команд берутся из них. */
+  /** Module dictionaries — command texts come from them. */
   i18n: I18n;
   moduleName(id: string): string;
 }
 
 /**
- * Упоминание команды. Discord подсвечивает только конечные команды, поэтому путь
- * включает подкоманду и группу: `</modules enable:id>`. Без ID — просто код.
+ * A command mention. Discord highlights only leaf commands, so the path
+ * includes the subcommand and group: `</modules enable:id>`. Without an ID — plain code.
  */
 const mention = (path: string[], ids: ReadonlyMap<string, string>) => {
   const id = ids.get(path[0]!);
@@ -41,7 +41,7 @@ interface CommandNode {
 const SUBCOMMAND = 1;
 const SUBCOMMAND_GROUP = 2;
 
-/** Конечные команды: сама команда или каждая её подкоманда (с учётом групп). */
+/** Leaf commands: the command itself or each of its subcommands (including groups). */
 function leaves(node: CommandNode, path: string[] = []): { path: string[]; node: CommandNode }[] {
   const children = (node.options ?? []).filter((o) => o.type === SUBCOMMAND || o.type === SUBCOMMAND_GROUP);
   const current = [...path, node.name];
@@ -49,7 +49,7 @@ function leaves(node: CommandNode, path: string[] = []): { path: string[]; node:
   return children.flatMap((child) => leaves(child, current));
 }
 
-/** Разделы справки: команды включённых модулей, собранные из реестра автоматически. */
+/** Help sections: commands of enabled modules, collected from the registry automatically. */
 export function helpSections({ modules, enabled, commandIds, extraCommands, locale, i18n, moduleName }: HelpInput): HelpSection[] {
   const sections: HelpSection[] = [];
   for (const module of modules) {

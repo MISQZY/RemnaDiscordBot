@@ -81,7 +81,7 @@ export function guildRoutes({ db, redis, snapshots, guildLocales }: ApiDeps, use
           create: { id: guildId, ...after },
           update: after,
         });
-        // Язык и другие общие настройки читают все процессы — сбрасываем их кэши.
+        // All processes read the language and other general settings — invalidate their caches.
         guildLocales.invalidate(guildId);
         await publishConfigInvalidation(redis, { guildId });
         await recordAudit(db, {

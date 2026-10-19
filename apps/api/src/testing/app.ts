@@ -38,7 +38,7 @@ export interface TestAppOptions {
   rateLimitPerMinute?: number;
 }
 
-/** API поверх SQLite и in-memory Redis; запросы — через `app.inject`. */
+/** API on top of SQLite and in-memory Redis; requests go through `app.inject`. */
 export async function createTestApp({ modules = [], rateLimitPerMinute = 0 }: TestAppOptions = {}): Promise<TestApp> {
   const database = await createTestDatabase();
   const redis = createTestRedis();
@@ -105,7 +105,7 @@ export const GUILD_ID = '300000000000000003';
 export const ROLE_ID = '400000000000000004';
 export const CHANNEL_ID = '500000000000000005';
 
-/** Снапшот гильдии в Redis — как его пишет бот. */
+/** Guild snapshot in Redis — the same way the bot writes it. */
 export async function seedGuildSnapshot(t: TestApp, guildId = GUILD_ID): Promise<void> {
   const meta: GuildMeta = { id: guildId, name: 'Test guild', icon: null, ownerId: TEST_USER.id, memberCount: 10, shardId: 0 };
   const roles: GuildRole[] = [
@@ -122,7 +122,7 @@ export async function seedGuildSnapshot(t: TestApp, guildId = GUILD_ID): Promise
     .exec();
 }
 
-/** Проходит вход через фейковый Discord и возвращает cookie сессии. */
+/** Logs in through the fake Discord and returns the session cookie. */
 export async function login(t: TestApp): Promise<string> {
   const start = await t.app.inject('/v1/auth/login');
   const state = new URL(start.headers.location!).searchParams.get('state');

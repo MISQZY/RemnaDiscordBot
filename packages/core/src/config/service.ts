@@ -10,7 +10,7 @@ import type { ConfigStore, StoredConfig } from './store.js';
 export interface ResolvedConfig<T = unknown> {
   enabled: boolean;
   config: T;
-  /** `null` — конфиг не сохранялся, действуют значения по умолчанию. */
+  /** `null` — the config was never saved, defaults apply. */
   updatedAt: string | null;
 }
 
@@ -24,9 +24,9 @@ export interface ConfigServiceOptions {
   store: ConfigStore;
   logger: Logger;
   sharedCache?: SharedConfigCache;
-  /** Рассылка инвалидации другим процессам после записи. */
+  /** Broadcasts invalidation to other processes after a write. */
   publish?: (message: ConfigInvalidation) => Promise<void>;
-  /** Язык гильдии и словари — для локализованных значений по умолчанию (`localizeDefaults`). */
+  /** Guild language and dictionaries — for localized defaults (`localizeDefaults`). */
   locales?: { localeOf(guildId: string): Promise<Locale>; i18n: I18n };
   localTtlMs?: number;
   localMax?: number;
@@ -39,8 +39,8 @@ export class UnknownModuleError extends Error {
 }
 
 /**
- * Конфиги модулей по гильдиям. Чтение: LRU процесса → общий кэш (Redis) → БД → defaultConfig.
- * Запись валидирует конфиг схемой модуля и инвалидирует кэши во всех процессах.
+ * Module configs per guild. Reads: process LRU → shared cache (Redis) → database → defaultConfig.
+ * Writes validate the config with the module's schema and invalidate caches in all processes.
  */
 export class ConfigService {
   private readonly local: LRUCache<string, ResolvedConfig>;
@@ -95,7 +95,7 @@ export class ConfigService {
     return { enabled, config: config as T, updatedAt: saved.updatedAt };
   }
 
-  /** Сбрасывает локальный кэш — вызывается по сообщению из pub/sub. */
+  /** Drops the local cache — called on a pub/sub message. */
   invalidate({ guildId, moduleId }: ConfigInvalidation): void {
     if (moduleId) {
       this.local.delete(`${guildId}:${moduleId}`);
@@ -122,7 +122,7 @@ export class ConfigService {
     return stored;
   }
 
-  /** Конфиг по умолчанию; тексты в нём — на языке гильдии, если модуль их локализует. */
+  /** Default config; its texts are in the guild's language when the module localizes them. */
   async defaults(guildId: string, moduleId: string): Promise<unknown> {
     const module = this.requireModule(moduleId);
     const { locales } = this.options;

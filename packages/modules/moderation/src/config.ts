@@ -4,21 +4,21 @@ import { z } from 'zod';
 import { MAX_TIMEOUT_SEC } from './duration.js';
 
 export const EscalationRule = z.object({
-  /** Число активных предупреждений, на котором срабатывает правило. */
+  /** Number of active warnings that triggers the rule. */
   warns: z.number().int().min(1).max(50),
   action: z.enum(['mute', 'kick', 'ban']),
-  /** Для мута обязательна (≤ 28 дней), для бана — временный бан. */
+  /** Required for mutes (≤ 28 days); for bans it makes the ban temporary. */
   durationSec: z.number().int().min(60).max(365 * 86_400).nullable(),
 });
 
 export const ModerationConfig = z
   .object({
-    /** Канал журнала кейсов. */
+    /** Case log channel. */
     logChannelId: Snowflake.nullable(),
-    /** Писать нарушителю в ЛС о наказании. */
+    /** DM the offender about the punishment. */
     dmOnAction: z.boolean(),
     requireReason: z.boolean(),
-    /** Через сколько дней предупреждение перестаёт считаться; 0 — никогда. */
+    /** After how many days a warning stops counting; 0 — never. */
     warnExpiryDays: z.number().int().min(0).max(365),
     escalation: z.array(EscalationRule).max(10),
   })
@@ -46,7 +46,7 @@ export const defaultModerationConfig: ModerationConfig = {
 export const CaseType = z.enum(['ban', 'unban', 'kick', 'mute', 'unmute', 'warn']);
 export type CaseType = z.infer<typeof CaseType>;
 
-/** Модератор автоматических действий (эскалация, истечение срока). */
+/** Moderator of automatic actions (escalation, expiry). */
 export const SYSTEM_MODERATOR = 'system';
 
 export const ModCaseDto = z.object({
@@ -57,7 +57,7 @@ export const ModCaseDto = z.object({
   reason: z.string().nullable(),
   durationSec: z.number().int().nullable(),
   expiresAt: z.iso.datetime().nullable(),
-  /** Наказание действует сейчас: не снято и не истекло. */
+  /** The punishment is in effect now: not revoked and not expired. */
   active: z.boolean(),
   revokedAt: z.iso.datetime().nullable(),
   revokedBy: z.string().nullable(),

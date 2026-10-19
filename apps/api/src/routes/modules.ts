@@ -14,7 +14,7 @@ import { requireSession } from '../plugins/session.js';
 const GuildParams = z.object({ guildId: Snowflake });
 const ModuleParams = GuildParams.extend({ moduleId: ModuleId });
 
-/** ETag конфига: меняется при каждом сохранении. */
+/** Config ETag: changes on every save. */
 export function configEtag(resolved: ResolvedConfig): string {
   return `"${resolved.updatedAt ?? 'default'}"`;
 }
@@ -37,7 +37,7 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
     roles: (await snapshots.getRoles(guildId)) ?? [],
   });
 
-  /** Общий путь записи: If-Match → валидация и сохранение → аудит → новый ETag. */
+  /** Common write path: If-Match → validation and save → audit → new ETag. */
   async function applyUpdate(
     request: FastifyRequest,
     reply: FastifyReply,
@@ -107,7 +107,7 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
       },
     );
 
-    // Публичные роуты модулей: только если модуль включён в гильдии.
+    // Public module routes: only when the module is enabled in the guild.
     for (const module of registry.all()) {
       if (!module.publicApi) continue;
       const register = module.publicApi;
@@ -209,7 +209,7 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
         },
       );
 
-      // Собственные роуты модулей: /v1/guilds/:guildId/modules/<id>/…
+      // Modules' own routes: /v1/guilds/:guildId/modules/<id>/…
       for (const module of registry.all()) {
         if (!module.api) continue;
         const register = module.api;

@@ -17,7 +17,7 @@ function isIgnored(config: AuditLogConfig, { channelId, member, bot }: { channel
   return member?.roles?.cache?.some((role) => config.ignoredRoleIds.includes(role.id)) ?? false;
 }
 
-/** Готовит конфиг, перевод и отправку для категории; `null` — категория не настроена. */
+/** Prepares config, translation and sending for a category; `null` — the category is not configured. */
 async function prepare(ctx: Ctx, guild: Guild, category: LogCategory) {
   const config = await ctx.getConfig(guild.id);
   const channelId = config.channels[category];
@@ -87,7 +87,7 @@ export function createHandlers(): EventHandlers<AuditLogConfig> {
       const cache = new MessageCache(ctx.redis);
       const cached = await cache.get(newMessage.id);
       const before = cached?.content ?? oldMessage.content ?? null;
-      // Discord шлёт update и при подгрузке превью ссылок — текст при этом не меняется.
+      // Discord also sends updates when link previews load — the text stays the same.
       if (before === newMessage.content) return;
 
       if (cached) await cache.set(newMessage.id, { ...cached, content: newMessage.content });
@@ -118,7 +118,7 @@ export function createHandlers(): EventHandlers<AuditLogConfig> {
     guildMemberUpdate: async (ctx, oldMember, newMember) => {
       const log = await prepare(ctx, newMember.guild, 'members');
       if (!log || isIgnored(log.config, { member: newMember, bot: newMember.user.bot })) return;
-      // Без старого состояния (partial) изменения не вычислить.
+      // Without the old state (partial) changes cannot be computed.
       if (oldMember.partial) return;
 
       const before = new Set(oldMember.roles.cache.keys());

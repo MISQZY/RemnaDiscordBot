@@ -1,13 +1,13 @@
 import type { Logger } from '@bot/logger';
 
 /**
- * Межмодульные события внутри процесса. Модули расширяют интерфейс:
+ * In-process events between modules. Modules extend the interface:
  *
  * declare module '@bot/core' {
  *   interface BusEvents { 'leveling.levelUp': { guildId: string; userId: string; level: number } }
  * }
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- расширяется через declaration merging
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- extended via declaration merging
 export interface BusEvents {}
 
 type BusHandler<K extends keyof BusEvents> = (payload: BusEvents[K]) => Promise<void> | void;
@@ -27,7 +27,7 @@ export class EventBus {
     return () => set.delete(handler as BusHandler<never>);
   }
 
-  /** Вызывает всех подписчиков; ошибка одного не мешает остальным. */
+  /** Calls all subscribers; one subscriber's error does not affect the others. */
   async emit<K extends keyof BusEvents>(event: K, payload: BusEvents[K]): Promise<void> {
     const set = this.handlers.get(event);
     if (!set) return;

@@ -7,7 +7,7 @@ import { locales } from './locales.js';
 
 export { CommandDto, CommandInput, CustomCommandsConfig } from './config.js';
 
-/** Пользовательские slash-команды и автоответы на сообщения. */
+/** Custom slash commands and auto-replies to messages. */
 export default defineModule({
   id: 'custom-commands',
   configSchema: CustomCommandsConfig,
@@ -15,7 +15,7 @@ export default defineModule({
   configVersion: 1,
   locales,
   bot: {
-    // Триггеры читают текст сообщений — привилегированный intent Message Content.
+    // Triggers read message text — the privileged Message Content intent.
     intents: [GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
     events: { messageCreate: onMessage },
     fallbackCommand: customSlashCommand,

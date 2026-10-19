@@ -6,11 +6,11 @@ const ApiEnv = z.object({
   LOG_LEVEL: z.string().default('info'),
   API_HOST: z.string().default('127.0.0.1'),
   API_PORT: z.coerce.number().int().positive().default(3000),
-  /** Публичный адрес API — из него строится redirect_uri OAuth2. */
+  /** Public API URL — the OAuth2 redirect_uri is built from it. */
   API_PUBLIC_URL: z.url().default('http://localhost:3000'),
-  /** Адрес веб-платформы: CORS и редирект после входа. Пока веба нет — Swagger на самом API. */
+  /** Web platform URL: CORS and post-login redirect. Until the web app exists — Swagger on the API itself. */
   WEB_ORIGIN: z.url().optional(),
-  /** Токен бота: API пишет в Discord от имени бота (публикация сообщений, тестовые отправки). */
+  /** Bot token: the API writes to Discord as the bot (publishing messages, test sends). */
   DISCORD_TOKEN: z.string().min(1),
   DISCORD_CLIENT_ID: z.string().min(1),
   DISCORD_CLIENT_SECRET: z.string().min(1),
@@ -22,7 +22,7 @@ const ApiEnv = z.object({
 export type ApiEnv = z.infer<typeof ApiEnv>;
 
 export function loadApiEnv(): ApiEnv {
-  // Пустые строки из .env считаем незаданными, чтобы сработали значения по умолчанию.
+  // Treat empty strings from .env as unset so that defaults apply.
   const raw = Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== ''));
   const result = ApiEnv.safeParse(raw);
   if (!result.success) throw new Error(`Invalid environment:\n${z.prettifyError(result.error)}`);

@@ -11,13 +11,13 @@ export interface Session {
   avatar: string | null;
   accessToken: string;
   refreshToken: string;
-  /** Истечение access-токена Discord, мс. */
+  /** Discord access token expiry, ms. */
   expiresAt: number;
 }
 
 const SESSION_TTL_SEC = 7 * 24 * 60 * 60;
 
-/** Сессии в Redis: API без состояния, реплики делят сессии. Токены хранятся зашифрованными. */
+/** Sessions in Redis: the API is stateless and replicas share sessions. Tokens are stored encrypted. */
 export class SessionStore {
   constructor(
     private readonly redis: Redis,
@@ -42,13 +42,13 @@ export class SessionStore {
         refreshToken: this.cipher.decrypt(stored.refreshToken),
       };
     } catch {
-      // Сменился SESSION_SECRET или запись повреждена — считаем, что сессии нет.
+      // SESSION_SECRET changed or the entry is corrupted — treat it as no session.
       await this.destroy(id);
       return null;
     }
   }
 
-  /** Сохраняет сессию и продлевает её (скользящий срок жизни). */
+  /** Saves the session and extends it (sliding expiration). */
   async save(session: Session): Promise<void> {
     const stored = {
       ...session,

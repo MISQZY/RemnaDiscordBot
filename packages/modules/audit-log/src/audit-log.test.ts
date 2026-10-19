@@ -71,7 +71,7 @@ describe('message logging', () => {
     const { ctx, logChannel, message } = setup();
     await auditLog.bot!.events!.messageCreate!(ctx, message());
 
-    // Discord присылает удаление без текста.
+    // Discord sends deletions without the text.
     await auditLog.bot!.events!.messageDelete!(ctx, message({ content: null, author: null }));
 
     const [[payload]] = logChannel.send.mock.calls as unknown as [[{ embeds: { fields: { name: string; value: string }[] }[] }]];

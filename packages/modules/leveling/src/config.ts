@@ -6,20 +6,20 @@ import { levelProgress } from './formula.js';
 export const LevelingConfig = z
   .object({
     xpPerMessage: z.object({ min: z.number().int().min(1).max(100), max: z.number().int().min(1).max(100) }),
-    /** Опыт за сообщения начисляется не чаще раза в этот интервал. */
+    /** Message XP is granted at most once per this interval. */
     cooldownSec: z.number().int().min(0).max(3600),
     ignoredChannelIds: z.array(Snowflake).max(100),
     ignoredRoleIds: z.array(Snowflake).max(50),
-    /** Множители опыта: берётся наибольший по ролям, умножается на множитель канала. */
+    /** XP multipliers: the highest role multiplier times the channel's multiplier. */
     multipliers: z.array(z.object({ type: z.enum(['role', 'channel']), id: Snowflake, value: z.number().min(0).max(10) })).max(25),
     announcement: z.object({
-      /** `current` — в канал сообщения, `channel` — в выбранный, `dm` — в ЛС. */
+      /** `current` — to the message's channel, `channel` — to the chosen one, `dm` — via DM. */
       mode: z.enum(['off', 'current', 'channel', 'dm']),
       channelId: Snowflake.nullable(),
       message: MessageTemplate,
     }),
     rewards: z.array(z.object({ level: z.number().int().min(1).max(1000), roleId: Snowflake })).max(50),
-    /** Оставлять роли за прошлые уровни или держать только самую высокую. */
+    /** Keep roles for previous levels or only the highest one. */
     stackRewards: z.boolean(),
     publicLeaderboard: z.boolean(),
   })
@@ -49,7 +49,7 @@ export const LeaderboardEntry = z.object({
   avatar: z.string().nullable(),
   xp: z.number().int(),
   level: z.number().int(),
-  /** Опыт внутри текущего уровня и сколько нужно до следующего. */
+  /** XP within the current level and how much is needed for the next one. */
   progress: z.object({ current: z.number().int(), needed: z.number().int() }),
   messages: z.number().int(),
 });

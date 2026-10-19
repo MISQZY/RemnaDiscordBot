@@ -42,7 +42,7 @@ export function customCommandsApi(app: FastifyInstance, ctx: ApiModuleContext<Cu
     enabled: input.enabled,
   });
 
-  /** Имя уже занято в гильдии — 409. */
+  /** The name is already taken in the guild — 409. */
   async function saving<T>(operation: Promise<T>): Promise<T> {
     try {
       return await operation;
@@ -54,7 +54,7 @@ export function customCommandsApi(app: FastifyInstance, ctx: ApiModuleContext<Cu
     }
   }
 
-  /** Приводит guild-команду в Discord к состоянию строки. */
+  /** Brings the guild command in Discord in line with the row. */
   async function syncDiscord(guildId: string, id: string): Promise<CommandDto> {
     const command = toDto(await findCommand(guildId, id));
     const shouldExist = command.kind === 'slash' && command.enabled;
@@ -97,7 +97,7 @@ export function customCommandsApi(app: FastifyInstance, ctx: ApiModuleContext<Cu
       const existing = await findCommand(guildId, commandId!);
       const input = request.body as CommandInput;
       await validate(guildId, input);
-      // Переименование slash-команды в Discord — это новая команда: старую удаляем.
+      // Renaming a slash command in Discord means a new command: delete the old one.
       if (existing.discordCommandId && (existing.name !== input.name || input.kind !== 'slash')) {
         await sync.remove(guildId, existing.discordCommandId);
         await ctx.db.customCommand.update({ where: { id: existing.id }, data: { discordCommandId: null } });

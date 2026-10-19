@@ -8,8 +8,8 @@ export async function publishConfigInvalidation(redis: Redis, message: ConfigInv
 }
 
 /**
- * Подписка на инвалидацию конфигов. Использует отдельное подключение:
- * Redis-клиент в режиме подписки не может выполнять обычные команды.
+ * Subscription to config invalidation. Uses a separate connection:
+ * a Redis client in subscriber mode cannot run regular commands.
  */
 export async function subscribeConfigInvalidation(
   redis: Redis,

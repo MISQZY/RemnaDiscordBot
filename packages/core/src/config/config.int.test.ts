@@ -10,7 +10,7 @@ import { PrismaConfigStore } from './store.js';
 
 const GUILD = '111111111111111111';
 
-/** Сервис так, как его собирает процесс бота или API. */
+/** The service as the bot or API process builds it. */
 function createService(database: TestDatabase, redis: Redis): ConfigService {
   return new ConfigService({
     registry: new ModuleRegistry([createTestModule('leveling')]),
@@ -55,7 +55,7 @@ describe('ConfigService with database and Redis', () => {
       invalidated(message);
     });
 
-    // Бот закэшировал старое значение.
+    // The bot has cached the old value.
     const before = await bot.get(GUILD, 'leveling');
 
     await api.update(GUILD, 'leveling', { config: { xpPerMessage: 40, announce: true } });

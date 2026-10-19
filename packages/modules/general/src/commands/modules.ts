@@ -5,7 +5,7 @@ import type { GeneralConfig } from '../config.js';
 const moduleName = (ctx: InteractionContext<GeneralConfig>, id: string) =>
   ctx.i18n.has(`${id}.name`, ctx.locale) ? ctx.t(`${id}.name`) : id;
 
-/** Модули, которые можно включать и выключать (служебные всегда включены). */
+/** Modules that can be toggled (built-in ones are always enabled). */
 const toggleable = (ctx: InteractionContext<GeneralConfig>) => ctx.registry.all().filter((m) => !m.alwaysEnabled);
 
 export const modules = defineCommand<GeneralConfig>({

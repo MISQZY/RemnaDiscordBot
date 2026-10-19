@@ -56,7 +56,7 @@ describe('autoroles API', () => {
       },
     ]);
 
-    // Повторная публикация правит уже отправленное сообщение.
+    // Publishing again edits the message that was already sent.
     t.rest.calls.length = 0;
     await request('POST', `${base}/${panel.id}/publish`);
     expect(t.rest.calls[0]).toMatchObject({ method: 'patch', route: `/channels/${CHANNEL_ID}/messages/${published.json().messageId}` });

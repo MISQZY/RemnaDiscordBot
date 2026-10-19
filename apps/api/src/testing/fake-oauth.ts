@@ -8,14 +8,14 @@ export const TEST_USER: DiscordUser = {
   avatar: null,
 };
 
-/** Discord без сети: код `valid-code` обменивается на токены, гильдии задаются тестом. */
+/** Discord without network: the `valid-code` code is exchanged for tokens, guilds are set by the test. */
 export class FakeDiscordOAuth implements DiscordOAuth {
   guilds: DiscordPartialGuild[] = [];
   user: DiscordUser = TEST_USER;
   guildRequests = 0;
   refreshed = 0;
   revoked: string[] = [];
-  /** Через сколько истекает выданный токен. */
+  /** How soon an issued token expires. */
   tokenLifetimeMs = 60 * 60_000;
 
   authorizeUrl(state: string, redirectUri: string): string {

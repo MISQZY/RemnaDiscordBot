@@ -5,7 +5,7 @@ import { Routes } from 'discord.js';
 import type { NotificationsConfig } from './config.js';
 import type { Provider } from './providers.js';
 
-/** Тело анонса; упоминается только роль подписки, а не любые роли из шаблона. */
+/** Announcement body; only the subscription's role is pinged, not any role from the template. */
 export function announcementBody(
   subscription: { message: unknown; mentionRoleId: string | null },
   vars: Record<string, string | number>,
@@ -22,12 +22,12 @@ export function announcementBody(
   };
 }
 
-/** Сколько новых элементов объявлять за проверку — защита от лавины после простоя. */
+/** How many new items to announce per check — protects against a flood after downtime. */
 const MAX_ITEMS_PER_CHECK = 3;
 
 /**
- * Проверяет источники провайдера, у которых есть включённые подписки, и рассылает анонсы.
- * Первая проверка источника только запоминает последний элемент.
+ * Checks the provider's sources that have enabled subscriptions and sends announcements.
+ * A source's first check only remembers the latest item.
  */
 export async function pollProvider(ctx: ModuleServices<NotificationsConfig>, provider: Provider): Promise<number> {
   const sources = await ctx.db.notificationSource.findMany({

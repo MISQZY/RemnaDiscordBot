@@ -8,7 +8,7 @@ import { locales } from './locales.js';
 
 export { WelcomeConfig } from './config.js';
 
-/** Приветствия при входе (в канал и в ЛС) и прощания при выходе. */
+/** Welcome messages on join (to a channel and via DM) and farewells on leave. */
 export default defineModule({
   id: 'welcome',
   configSchema: WelcomeConfig,
@@ -25,7 +25,7 @@ export default defineModule({
     new EntityChecker(guild).textChannel(config.join.channelId, ['join', 'channelId']).textChannel(config.leave.channelId, ['leave', 'channelId'])
       .issues,
   bot: {
-    // События входа и выхода участников требуют привилегированного intent Server Members.
+    // Member join and leave events require the privileged Server Members intent.
     intents: [GatewayIntentBits.GuildMembers],
     commands: [welcomeCommand],
     events: {

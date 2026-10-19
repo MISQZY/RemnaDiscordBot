@@ -1,11 +1,11 @@
-# Образ приложения монорепо: docker build --build-arg APP=bot|api|worker.
-# Оптимизация размера (prune dev-зависимостей, multi-stage) — этап 3.
+# Monorepo app image: docker build --build-arg APP=bot|api|worker.
+# Size optimization (pruning dev dependencies, multi-stage) — stage 3.
 FROM node:24-alpine
 
 ARG APP=bot
 ARG HEALTH_PORT=3001
 
-# openssl нужен движку Prisma на musl.
+# The Prisma engine needs openssl on musl.
 RUN apk add --no-cache openssl && corepack enable
 WORKDIR /repo
 

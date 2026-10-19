@@ -10,7 +10,7 @@ import { COMPONENT_PREFIX } from './panel.js';
 
 export { AutorolesConfig, Panel, PanelInput } from './config.js';
 
-/** Роли при входе, восстановление ролей при возвращении, панели самостоятельного выбора ролей. */
+/** Join roles, role restore for returning members, self-assignable role panels. */
 export default defineModule({
   id: 'autoroles',
   configSchema: AutorolesConfig,
@@ -23,7 +23,7 @@ export default defineModule({
       .roles(config.joinRoles.bots, ['joinRoles', 'bots'], { assignable: true })
       .roles(config.persistence.roleIds, ['persistence', 'roleIds']).issues,
   bot: {
-    // Вход и выход участников — привилегированный intent Server Members.
+    // Member joins and leaves require the privileged Server Members intent.
     intents: [GatewayIntentBits.GuildMembers],
     events: {
       guildMemberAdd: onMemberJoin,

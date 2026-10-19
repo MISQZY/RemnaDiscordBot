@@ -1,15 +1,15 @@
 import { createRequire } from 'node:module';
 import type { Redis } from 'ioredis';
 
-// CommonJS-пакет без ESM-типов; повторяет API ioredis, поэтому типизируется им.
+// A CommonJS package without ESM types; it mirrors ioredis's API, so it is typed with it.
 const RedisMock = createRequire(import.meta.url)('ioredis-mock') as new (options: { port: number }) => Redis;
 
 let nextPort = 40_000;
 
 /**
- * In-memory Redis для тестов. ioredis-mock делит данные между клиентами с одинаковым
- * host:port, поэтому каждый вызов получает свой «порт» — и свою изолированную базу.
- * Клиенты из `duplicate()` видят те же данные и pub/sub.
+ * In-memory Redis for tests. ioredis-mock shares data between clients with the same
+ * host:port, so each call gets its own "port" — and its own isolated database.
+ * Clients from `duplicate()` see the same data and pub/sub.
  */
 export function createTestRedis(): Redis {
   return new RedisMock({ port: nextPort++ });

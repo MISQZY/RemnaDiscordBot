@@ -6,7 +6,7 @@ export interface ScheduleRequest {
   job: string;
   payload: unknown;
   runAt: Date;
-  /** Повторное планирование с тем же ключом заменяет ожидающую задачу; по ключу же отмена. */
+  /** Scheduling again with the same key replaces the pending job; the key is also used to cancel. */
   key?: string;
 }
 
@@ -17,8 +17,8 @@ export interface ClaimOptions {
 }
 
 /**
- * Отложенные действия поверх таблицы `ScheduledAction` — работает и на Postgres, и на SQLite.
- * Захват — compare-and-swap по `lockedUntil`, поэтому несколько воркеров не возьмут одну задачу.
+ * Scheduled actions on top of the `ScheduledAction` table — works on both Postgres and SQLite.
+ * Claiming is a compare-and-swap on `lockedUntil`, so several workers never take the same job.
  */
 export class Scheduler {
   constructor(private readonly db: PrismaClient) {}
@@ -38,7 +38,7 @@ export class Scheduler {
     return this.db.scheduledAction.upsert({ where: { key }, create: { ...data, key }, update: data });
   }
 
-  /** Отменяет ещё не выполненную задачу. Возвращает, была ли она. */
+  /** Cancels a job that has not run yet. Returns whether it existed. */
   async cancel(key: string): Promise<boolean> {
     const { count } = await this.db.scheduledAction.deleteMany({ where: { key, doneAt: null } });
     return count > 0;
@@ -74,7 +74,7 @@ export class Scheduler {
     await this.db.scheduledAction.update({ where: { id }, data: { doneAt: new Date(), lockedUntil: null, lastError: null } });
   }
 
-  /** Ошибка: повтор в `retryAt` или, если `null`, окончательный отказ (`doneAt` + `lastError`). */
+  /** Failure: retry at `retryAt` or, when `null`, give up for good (`doneAt` + `lastError`). */
   async fail(id: string, error: string, retryAt: Date | null): Promise<void> {
     await this.db.scheduledAction.update({
       where: { id },

@@ -2,7 +2,7 @@ import type { CoreServices, ModuleRegistry } from '@bot/core';
 import type { GuildSnapshotReader } from '@bot/discord';
 import type { DiscordOAuth } from './auth/discord-oauth.js';
 
-/** Всё, от чего зависит сервер; собирается в index.ts, в тестах — из SQLite, мока Redis и фейка Discord. */
+/** Everything the server depends on; built in index.ts, in tests from SQLite, a Redis mock and a fake Discord. */
 export interface ApiDeps extends CoreServices {
   registry: ModuleRegistry;
   snapshots: GuildSnapshotReader;
@@ -12,16 +12,16 @@ export interface ApiDeps extends CoreServices {
 
 export interface ApiOptions {
   publicUrl: string;
-  /** Адрес веба: CORS и редирект после входа. */
+  /** Web app URL: CORS and post-login redirect. */
   webOrigin: string;
-  /** Куда вести после входа, если веб не передал путь. */
+  /** Where to go after login when the web app did not pass a path. */
   defaultRedirect: string;
   clientId: string;
-  /** Подпись cookie и ключ шифрования токенов. */
+  /** Cookie signing and token encryption key. */
   sessionSecret: string;
   secureCookies: boolean;
-  /** Swagger UI на `/docs`. */
+  /** Swagger UI at `/docs`. */
   docs: boolean;
-  /** Глобальный лимит запросов в минуту на пользователя/IP; 0 — без лимита. */
+  /** Global request limit per minute per user/IP; 0 — unlimited. */
   rateLimitPerMinute: number;
 }

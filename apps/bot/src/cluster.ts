@@ -34,7 +34,7 @@ const client = new Client({
   partials: registry.partials(),
   shards: info.SHARD_LIST,
   shardCount: info.TOTAL_SHARDS,
-  // Сообщения и presence не кэшируем: нужные модулям данные живут в Redis.
+  // Messages and presences are not cached: the data modules need lives in Redis.
   makeCache: Options.cacheWithLimits({
     ...Options.DefaultMakeCacheSettings,
     MessageManager: 0,
@@ -69,7 +69,7 @@ const config = new ConfigService({
 });
 const unsubscribeConfig = await subscribeConfigInvalidation(redis, logger, (message) => {
   config.invalidate(message);
-  // Инвалидация всей гильдии — могли смениться общие настройки, в том числе язык.
+  // Whole-guild invalidation — general settings, including the language, may have changed.
   if (!message.moduleId) guildLocales.invalidate(message.guildId);
 });
 

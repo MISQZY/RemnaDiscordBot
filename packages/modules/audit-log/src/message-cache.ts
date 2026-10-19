@@ -1,9 +1,9 @@
 import type { Redis } from 'ioredis';
 
 /**
- * Свой кэш текста сообщений: discord.js сообщения не кэширует (так настроен бот),
- * а при удалении Discord присылает только ID. Хранится только для гильдий,
- * где включено логирование сообщений.
+ * Our own message text cache: discord.js does not cache messages (the bot is configured so),
+ * and on deletion Discord only sends the ID. Stored only for guilds
+ * that have message logging enabled.
  */
 export interface CachedMessage {
   authorId: string;

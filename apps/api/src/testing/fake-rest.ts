@@ -6,10 +6,10 @@ export interface RestCall {
   body?: unknown;
 }
 
-/** Discord REST без сети: записывает вызовы, отвечает по маршруту. */
+/** Discord REST without network: records calls and responds by route. */
 export class FakeRest {
   readonly calls: RestCall[] = [];
-  /** Ответы по точному маршруту; по умолчанию — `{ id }` с новым snowflake. */
+  /** Responses by exact route; defaults to `{ id }` with a new snowflake. */
   readonly responses = new Map<string, unknown>();
   private created = 0;
 

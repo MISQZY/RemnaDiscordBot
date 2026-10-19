@@ -8,13 +8,13 @@ import { locales } from './locales.js';
 export { ModCaseDto, ModerationConfig } from './config.js';
 export { ModerationService } from './service.js';
 
-/** Баны, кики, муты, предупреждения с автоэскалацией и журналом кейсов. */
+/** Bans, kicks, mutes, warnings with auto-escalation and a case log. */
 export default defineModule({
   id: 'moderation',
   configSchema: ModerationConfig,
   defaultConfig: defaultModerationConfig,
   configVersion: 1,
-  // Команды модерации и так ограничены правами Discord — ждать включения в панели не нужно.
+  // Moderation commands are already limited by Discord permissions — no need to wait for enabling in the dashboard.
   enabledByDefault: true,
   locales,
   validateConfig: (config, guild) => new EntityChecker(guild).textChannel(config.logChannelId, ['logChannelId']).issues,

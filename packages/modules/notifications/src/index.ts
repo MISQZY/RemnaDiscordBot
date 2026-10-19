@@ -9,7 +9,7 @@ export { NotificationsConfig, SubscriptionDto } from './config.js';
 export { parseYoutubeFeed, TwitchProvider, YoutubeProvider, type Provider } from './providers.js';
 
 let providers: Map<ProviderId, Provider> | undefined;
-/** Провайдеры создаются лениво: модуль загружается и там, где сеть к ним не нужна. */
+/** Providers are created lazily: the module also loads where their network is not needed. */
 const getProviders = () => (providers ??= providersFromEnv());
 
 const poll = (id: ProviderId) => async (ctx: Parameters<typeof pollProvider>[0]) => {
@@ -17,7 +17,7 @@ const poll = (id: ProviderId) => async (ctx: Parameters<typeof pollProvider>[0])
   if (provider) await pollProvider(ctx, provider);
 };
 
-/** Оповещения о новых видео YouTube и стримах Twitch. Источники опрашивает воркер. */
+/** Notifications about new YouTube videos and Twitch streams. The worker polls the sources. */
 export default defineModule({
   id: 'notifications',
   configSchema: NotificationsConfig,

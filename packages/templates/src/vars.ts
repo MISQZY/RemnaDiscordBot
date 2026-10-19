@@ -1,6 +1,6 @@
 import type { TemplateVars } from './render.js';
 
-/** Плейсхолдеры общих сущностей. Модули добавляют свои (`level`, `case.id`, …). */
+/** Placeholders of common entities. Modules add their own (`level`, `case.id`, …). */
 
 export interface UserLike {
   id: string;
@@ -52,7 +52,7 @@ export function channelVars(channel: { id: string; name: string }): TemplateVars
   return { channel: `<#${channel.id}>`, 'channel.name': channel.name };
 }
 
-/** Описание общих плейсхолдеров — для подсказок в редакторе шаблонов. */
+/** List of common placeholders — for hints in the template editor. */
 export const COMMON_PLACEHOLDERS = [
   'user',
   'user.mention',

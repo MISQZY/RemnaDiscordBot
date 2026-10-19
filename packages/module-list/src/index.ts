@@ -9,8 +9,8 @@ import notifications from '@bot/module-notifications';
 import welcome from '@bot/module-welcome';
 
 /**
- * Модули платформы — единый список для бота, API и воркера.
- * Порядок задаёт порядок вызова обработчиков событий.
+ * Platform modules — a single list for the bot, the API and the worker.
+ * The order defines the order in which event handlers run.
  */
 export const modules: AnyModule[] = [
   general,

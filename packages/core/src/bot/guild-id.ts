@@ -1,6 +1,6 @@
 import { Guild } from 'discord.js';
 
-/** Находит ID гильдии в аргументах gateway-события (message, member, channel, guild…). */
+/** Finds the guild ID in gateway event arguments (message, member, channel, guild…). */
 export function extractGuildId(args: readonly unknown[]): string | null {
   for (const arg of args) {
     if (arg instanceof Guild) return arg.id;

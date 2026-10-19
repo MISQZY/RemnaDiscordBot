@@ -11,7 +11,7 @@ export interface ActionInput {
   moderatorId: string;
   reason?: string | null;
   durationSec?: number | null;
-  /** Бан: удалить сообщения за последние N секунд (≤ 7 дней). */
+  /** Ban: delete messages from the last N seconds (≤ 7 days). */
   deleteMessageSeconds?: number;
 }
 
@@ -35,8 +35,8 @@ export const unbanKey = (guildId: string, userId: string) => `moderation:unban:$
 const isDiscordError = (err: unknown, ...codes: number[]) => err instanceof DiscordAPIError && codes.includes(err.code as number);
 
 /**
- * Действия модерации через Discord REST — одинаково работают в боте, API и воркере.
- * Проверки иерархии ролей делает вызывающая сторона (бот), у REST-контекста их нет.
+ * Moderation actions via Discord REST — work the same in the bot, the API and the worker.
+ * Role hierarchy checks are done by the caller (the bot); the REST context has none.
  */
 export class ModerationService {
   constructor(private readonly services: Pick<CoreServices, 'db' | 'rest' | 'scheduler' | 'i18n' | 'logger' | 'bus'>) {}
@@ -100,7 +100,7 @@ export class ModerationService {
     return this.finish(await this.record('unmute', input), config);
   }
 
-  /** Предупреждение и автоэскалация по числу активных предупреждений. */
+  /** A warning and auto-escalation by the number of active warnings. */
   async warn(input: ActionInput, config: ModerationConfig): Promise<{ case: ModCase; escalated: ModCase | null }> {
     await this.notify('warn', input, config);
     const durationSec = config.warnExpiryDays > 0 ? config.warnExpiryDays * 86_400 : null;
@@ -122,7 +122,7 @@ export class ModerationService {
     return { case: modCase, escalated };
   }
 
-  /** Снять наказание по номеру кейса. */
+  /** Revoke a punishment by case number. */
   async revoke(guildId: string, number: number, moderatorId: string, reason: string | null, config: ModerationConfig): Promise<ModCase> {
     const modCase = await this.services.db.modCase.findUnique({ where: { guildId_number: { guildId, number } } });
     if (!modCase) throw HttpError.notFound('Case not found');
@@ -218,7 +218,7 @@ export class ModerationService {
     });
   }
 
-  /** ЛС нарушителю до действия (после кика и бана бот уже не сможет написать). */
+  /** DM the offender before acting (after a kick or ban the bot can no longer write). */
   private async notify(type: CaseType, input: ActionInput, config: ModerationConfig): Promise<void> {
     if (!config.dmOnAction) return;
     const { rest, i18n, logger } = this.services;

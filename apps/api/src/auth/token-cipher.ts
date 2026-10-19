@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 
-/** Шифрование OAuth-токенов в Redis: AES-256-GCM, ключ выводится из SESSION_SECRET. */
+/** Encrypts OAuth tokens stored in Redis: AES-256-GCM with a key derived from SESSION_SECRET. */
 export class TokenCipher {
   private readonly key: Buffer;
 

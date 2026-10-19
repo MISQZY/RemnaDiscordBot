@@ -16,18 +16,18 @@ import type { z } from 'zod';
 import type { ApiModuleContext, BotModuleContext, JobContext, ModuleServices } from './context.js';
 import type { ConfigIssue, GuildEntities } from './validation.js';
 
-/** Контекст interaction: контекст модуля + язык пользователя и язык сервера. */
+/** Interaction context: module context plus the user's and the server's language. */
 export interface InteractionContext<TConfig> extends BotModuleContext<TConfig> {
-  /** Язык пользователя — для эфемерных ответов. */
+  /** The user's language — for ephemeral replies. */
   locale: Locale;
-  /** Язык сервера — для сообщений, которые видят все. */
+  /** The server's language — for messages everyone sees. */
   guildLocale: Locale;
   t(key: string, vars?: Record<string, string | number>): string;
   tGuild(key: string, vars?: Record<string, string | number>): string;
 }
 
 export interface SlashCommand<TConfig = unknown> {
-  /** `SlashCommandBuilder` или любой объект с тем же контрактом. */
+  /** A `SlashCommandBuilder` or any object with the same contract. */
   data: { name: string; toJSON(): RESTPostAPIChatInputApplicationCommandsJSONBody };
   cooldownMs?: number;
   execute(interaction: ChatInputCommandInteraction, ctx: InteractionContext<TConfig>): Promise<void>;
@@ -50,61 +50,61 @@ export type EventHandlers<TConfig> = {
 };
 
 export interface BotFacet<TConfig> {
-  /** Gateway intents, нужные модулю; бот подключается с их объединением. */
+  /** Gateway intents the module needs; the bot connects with their union. */
   intents?: GatewayIntentBits[];
-  /** Partials discord.js — события по объектам не из кэша (удаление старых сообщений и т.п.). */
+  /** discord.js partials — events for uncached objects (deleting old messages, etc.). */
   partials?: Partials[];
   commands?: SlashCommand<TConfig>[];
   events?: EventHandlers<TConfig>;
-  /** Обработчики компонентов по префиксу `customId` (часть до первого `:`). */
+  /** Component handlers by `customId` prefix (the part before the first `:`). */
   components?: Record<string, ComponentHandler<TConfig>>;
   /**
-   * Обработчик slash-команд, которых нет в реестре (динамические guild-команды).
-   * Такой обработчик может быть только у одного модуля.
+   * Handler for slash commands that are not in the registry (dynamic guild commands).
+   * Only one module may have such a handler.
    */
   fallbackCommand?: FallbackCommand<TConfig>;
 }
 
 export interface ModuleDefinition<TSchema extends z.ZodType = z.ZodType> {
-  /** Стабильный идентификатор: используется в БД, URL и ключах кэша. */
+  /** Stable identifier: used in the database, URLs and cache keys. */
   id: string;
   configSchema: TSchema;
   defaultConfig: z.output<TSchema>;
-  /** Растёт при несовместимых изменениях схемы; старые конфиги проходят через `migrateConfig`. */
+  /** Bumped on incompatible schema changes; older configs go through `migrateConfig`. */
   configVersion: number;
   migrateConfig?: (raw: unknown, fromVersion: number) => unknown;
   /**
-   * Тексты конфига по умолчанию на языке гильдии: `t('defaults.joinMessage')` берёт строку
-   * `<moduleId>.defaults.joinMessage` из словарей модуля как есть (шаблон, не ICU). Вызывается для гильдий без сохранённого конфига.
+   * Default config texts in the guild's language: `t('defaults.joinMessage')` takes the string
+   * `<moduleId>.defaults.joinMessage` from the module's dictionaries as is (a template, not ICU). Called for guilds without a saved config.
    */
   localizeDefaults?: (defaults: z.output<TSchema>, t: (key: string) => string) => z.output<TSchema>;
   enabledByDefault?: boolean;
-  /** Служебный модуль: нельзя выключить. */
+  /** Built-in module: cannot be disabled. */
   alwaysEnabled?: boolean;
   locales?: Partial<Record<Locale, Dictionary>>;
   bot?: BotFacet<z.output<TSchema>>;
   /**
-   * Проверка ссылок конфига на каналы и роли гильдии — API вызывает её перед сохранением.
-   * Схема уже проверена; удобно собирать ошибки через `EntityChecker`.
+   * Checks the config's references to guild channels and roles — the API calls it before saving.
+   * The schema is already validated; `EntityChecker` is handy for collecting issues.
    */
   validateConfig?: (config: z.output<TSchema>, guild: GuildEntities) => ConfigIssue[];
   /**
-   * Роуты модуля в API, монтируются в `/v1/guilds/:guildId/modules/<id>`.
-   * Доступ к гильдии уже проверен; `request.params.guildId` — ID гильдии.
+   * The module's API routes, mounted at `/v1/guilds/:guildId/modules/<id>`.
+   * Guild access is already checked; `request.params.guildId` is the guild ID.
    */
   api?: (app: FastifyInstance, ctx: ApiModuleContext<z.output<TSchema>>) => Promise<void> | void;
   /**
-   * Публичные роуты без авторизации: `/v1/public/guilds/:guildId/modules/<id>`.
-   * Отвечают, только если модуль включён в гильдии (проверяет API).
+   * Public routes without auth: `/v1/public/guilds/:guildId/modules/<id>`.
+   * They respond only when the module is enabled in the guild (checked by the API).
    */
   publicApi?: (app: FastifyInstance, ctx: ModuleServices<z.output<TSchema>>) => Promise<void> | void;
-  /** Отложенные задачи: тип `<moduleId>:<имя>`, планируются через `ctx.scheduler`, выполняет воркер. */
+  /** Scheduled jobs: type `<moduleId>:<name>`, scheduled via `ctx.scheduler`, run by the worker. */
   jobs?: Record<string, JobHandler<z.output<TSchema>>>;
-  /** Периодические задачи воркера (флаш счётчиков, поллинг источников). */
+  /** Worker interval tasks (flushing counters, polling sources). */
   intervals?: Record<string, IntervalTask<z.output<TSchema>>>;
 }
 
-/** Обработчик задачи; `payload` модуль валидирует сам. Ошибка — повтор с задержкой. */
+/** Job handler; the module validates `payload` itself. An error means a delayed retry. */
 export type JobHandler<TConfig = unknown> = (payload: unknown, ctx: JobContext<TConfig>) => Promise<void>;
 
 export interface IntervalTask<TConfig = unknown> {
@@ -112,7 +112,7 @@ export interface IntervalTask<TConfig = unknown> {
   run(ctx: ModuleServices<TConfig>): Promise<void>;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- реестр хранит модули с разными схемами
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- the registry stores modules with different schemas
 export type AnyModule = ModuleDefinition<any>;
 
 export function defineModule<TSchema extends z.ZodType>(module: ModuleDefinition<TSchema>): ModuleDefinition<TSchema> {

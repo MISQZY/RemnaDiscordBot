@@ -1,10 +1,10 @@
-/** Длина текста, по которому ищем триггер, — ограничивает стоимость регулярок. */
+/** Length of the text searched for triggers — bounds the cost of regexes. */
 const MAX_INPUT = 2000;
 
-/** Вложенные квантификаторы вида `(a+)+`, `(\w*)*` — классический источник катастрофического бэктрекинга. */
+/** Nested quantifiers like `(a+)+`, `(\w*)*` — a classic source of catastrophic backtracking. */
 const NESTED_QUANTIFIER = /\((?:[^()\\]|\\.)*[+*](?:[^()\\]|\\.)*\)[+*{]/;
 
-/** Проблема регулярки или `null`, если её можно сохранить. */
+/** The regex's problem, or `null` when it can be saved. */
 export function regexProblem(pattern: string): string | null {
   try {
     new RegExp(pattern, 'iu');
@@ -23,7 +23,7 @@ export interface TriggerLike {
 
 const compiled = new Map<string, RegExp>();
 
-/** Совпал ли триггер; `args` — текст после совпадения (`startsWith`) или первая группа (`regex`). */
+/** Whether the trigger matched; `args` is the text after the match (`startsWith`) or the first group (`regex`). */
 export function matchTrigger(trigger: TriggerLike, content: string): { args: string } | null {
   const pattern = trigger.pattern;
   if (!pattern) return null;

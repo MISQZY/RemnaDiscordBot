@@ -1,6 +1,6 @@
-// Локальный запуск без Postgres, Redis и контейнеров:
-// SQLite-файл в .local/ и общий in-memory Redis-сервер для бота, воркера и API.
-// Данные SQLite сохраняются между запусками, данные Redis (сессии, кэш) — нет.
+// Local run without Postgres, Redis or containers:
+// a SQLite file in .local/ and a shared in-memory Redis server for the bot, the worker and the API.
+// SQLite data survives restarts, Redis data (sessions, cache) does not.
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
@@ -15,7 +15,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dbFile = resolve(root, '.local/dev.db');
 const redisPort = Number(process.env.LOCAL_REDIS_PORT ?? 6390);
 
-// Значения из .env видны дочерним процессам через --env-file; здесь — только для проверок.
+// .env values reach child processes via --env-file; here they are only used for checks.
 const envFile = resolve(root, '.env');
 const fileEnv = existsSync(envFile) ? parseEnv(readFileSync(envFile, 'utf8')) : {};
 const setting = (name) => process.env[name] || fileEnv[name] || undefined;
@@ -26,14 +26,14 @@ push(dbFile);
 
 const redis = await startMemoryRedisServer({ port: redisPort });
 
-// Переменные окружения имеют приоритет над .env (--env-file их не перезаписывает).
+// Environment variables take precedence over .env (--env-file does not override them).
 const env = {
   ...process.env,
   DATABASE_URL: sqliteUrl(dbFile),
   REDIS_URL: redis.url,
   TOTAL_SHARDS: '1',
   SHARDS_PER_CLUSTER: '1',
-  // Сессии всё равно живут только в памяти, поэтому случайный секрет на запуск безопасен.
+  // Sessions live only in memory anyway, so a random per-run secret is safe.
   SESSION_SECRET: setting('SESSION_SECRET') ?? randomBytes(32).toString('base64url'),
 };
 

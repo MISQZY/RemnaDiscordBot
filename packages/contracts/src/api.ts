@@ -3,7 +3,7 @@ import { Locale, ModuleId, Snowflake } from './common.js';
 import { GuildMeta } from './guild.js';
 import { ClusterHeartbeat } from './messages.js';
 
-/** DTO REST API `/v1`. Одни и те же схемы валидируют запросы в API и типизируют клиент веба. */
+/** REST API `/v1` DTOs. The same schemas validate API requests and type the web client. */
 
 export const ApiErrorCode = z.enum([
   'VALIDATION_FAILED',
@@ -45,7 +45,7 @@ export const UserGuild = z.object({
   name: z.string(),
   icon: z.string().nullable(),
   owner: z.boolean(),
-  /** Владелец, Administrator или Manage Server — может настраивать бота. */
+  /** Owner, Administrator or Manage Server — can configure the bot. */
   canManage: z.boolean(),
   botPresent: z.boolean(),
 });
@@ -78,7 +78,7 @@ export const ModuleInfo = z.object({
   name: z.string(),
   alwaysEnabled: z.boolean(),
   enabledByDefault: z.boolean(),
-  /** JSON Schema конфига — для автогенерации форм в вебе. */
+  /** Config JSON Schema — for generating forms in the web app. */
   configSchema: z.record(z.string(), z.unknown()),
 });
 export type ModuleInfo = z.infer<typeof ModuleInfo>;
@@ -87,19 +87,19 @@ export const ModuleState = z.object({
   id: ModuleId,
   enabled: z.boolean(),
   config: z.unknown(),
-  /** `null` — конфиг не сохранялся, действуют значения по умолчанию. */
+  /** `null` — the config was never saved, defaults apply. */
   updatedAt: z.iso.datetime().nullable(),
 });
 export type ModuleState = z.infer<typeof ModuleState>;
 
-/** PUT: конфиг заменяется целиком. */
+/** PUT: the config is replaced entirely. */
 export const ModuleConfigReplace = z.object({
   enabled: z.boolean().optional(),
   config: z.unknown(),
 });
 export type ModuleConfigReplace = z.infer<typeof ModuleConfigReplace>;
 
-/** PATCH: поля `config` сливаются с текущим конфигом (поверхностно), затем всё валидируется. */
+/** PATCH: `config` fields are shallow-merged into the current config, then everything is validated. */
 export const ModuleConfigPatch = z.object({
   enabled: z.boolean().optional(),
   config: z.record(z.string(), z.unknown()).optional(),

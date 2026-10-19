@@ -7,7 +7,7 @@ export interface Dictionary {
 
 export type TranslationVars = Record<string, string | number | boolean | Date | null | undefined>;
 
-/** Локали Discord, в которые раскладываются наши локали для `setNameLocalizations`. */
+/** Discord locales our locales map to for `setNameLocalizations`. */
 const DISCORD_LOCALES: Record<Locale, readonly string[]> = {
   ru: ['ru'],
   en: ['en-US', 'en-GB'],
@@ -29,7 +29,7 @@ export class I18n {
     for (const locale of SUPPORTED_LOCALES) this.messages.set(locale, new Map());
   }
 
-  /** Регистрирует словари модуля; ключи получают префикс `namespace.`. */
+  /** Registers a module's dictionaries; keys get the `namespace.` prefix. */
   register(namespace: string, dictionaries: Partial<Record<Locale, Dictionary>>): void {
     for (const [locale, dict] of Object.entries(dictionaries) as [Locale, Dictionary][]) {
       flatten(dict, namespace, this.messages.get(locale)!);
@@ -40,7 +40,7 @@ export class I18n {
     return this.messages.get(locale)!.has(key);
   }
 
-  /** Перевод с фолбэком: локаль → локаль по умолчанию → сам ключ. */
+  /** Translation with fallback: locale → default locale → the key itself. */
   t(locale: Locale, key: string, vars?: TranslationVars): string {
     const resolved = this.messages.get(locale)!.has(key) ? locale : this.defaultLocale;
     const source = this.messages.get(resolved)!.get(key);
@@ -56,20 +56,20 @@ export class I18n {
   }
 
   /**
-   * Строка словаря как есть, без ICU-форматирования: для шаблонов сообщений
-   * с плейсхолдерами вида `{user.mention}`, которые ICU считает ошибкой.
+   * A dictionary string as is, without ICU formatting: for message templates
+   * with placeholders like `{user.mention}` that ICU treats as an error.
    */
   raw(locale: Locale, key: string): string {
     return this.messages.get(locale)!.get(key) ?? this.messages.get(this.defaultLocale)!.get(key) ?? key;
   }
 
-  /** Discord locale (`ru`, `en-US`, …) → поддерживаемая локаль. */
+  /** Discord locale (`ru`, `en-US`, …) → a supported locale. */
   resolveLocale(discordLocale: string | null | undefined): Locale {
     const base = discordLocale?.split('-')[0];
     return (SUPPORTED_LOCALES as readonly string[]).includes(base ?? '') ? (base as Locale) : this.defaultLocale;
   }
 
-  /** Переводы ключа во все локали Discord — для имён и описаний slash-команд. */
+  /** Translations of a key into all Discord locales — for slash command names and descriptions. */
   localizations(key: string): Record<string, string> {
     const result: Record<string, string> = {};
     for (const locale of SUPPORTED_LOCALES) {

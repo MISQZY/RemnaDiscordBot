@@ -11,7 +11,7 @@ import { clearSessionCookie, setSessionCookie } from '../plugins/session.js';
 
 const STATE_TTL_SEC = 10 * 60;
 
-/** Только относительные пути веба — без открытого редиректа на чужой домен. */
+/** Only relative web paths — no open redirect to another domain. */
 export function safeRedirectPath(path: string | undefined, fallback: string): string {
   if (!path || !path.startsWith('/') || path.startsWith('//') || path.startsWith('/\\')) return fallback;
   return path;
@@ -56,7 +56,7 @@ export function authRoutes({ db, redis, oauth, sessions, options }: AuthRouteDep
         if (error) throw ApiError.unauthorized(`Discord authorization was declined: ${error}`);
         if (!code || !state) throw ApiError.badRequest('Missing OAuth code or state');
 
-        // State одноразовый: удаляем сразу, чтобы его нельзя было использовать повторно.
+        // The state is single-use: delete it right away so it cannot be reused.
         const key = RedisKeys.oauthState(state);
         const redirect = await redis.get(key);
         await redis.del(key);

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { generate, push } from '@bot/db/sqlite-tools';
 import type { TestProject } from 'vitest/node';
 
-/** Готовит SQLite-шаблон со схемой один раз на запуск; тесты копируют его в свои базы. */
+/** Prepares the SQLite template with the schema once per run; tests copy it into their own databases. */
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
   generate();
 

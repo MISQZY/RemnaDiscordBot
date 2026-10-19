@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createTestRedis } from './redis.js';
 
-/** Проверяет, что мок поддерживает команды, на которые опирается код бота. */
+/** Checks that the mock supports the commands the bot's code relies on. */
 describe('createTestRedis', () => {
   it('isolates data between instances', async () => {
     const a = createTestRedis();

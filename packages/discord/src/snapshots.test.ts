@@ -6,7 +6,7 @@ import { GuildSnapshotReader, GuildSnapshotWriter } from './snapshots.js';
 const GUILD = '111111111111111111';
 const BOT_ROLE = '333333333333333333';
 
-/** Минимальная in-memory замена Redis для команд, которые используют снапшоты. */
+/** Minimal in-memory Redis stand-in for the commands snapshots use. */
 function fakeRedis(): Redis {
   const data = new Map<string, string>();
   const redis = {

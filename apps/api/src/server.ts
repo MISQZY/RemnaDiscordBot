@@ -20,7 +20,7 @@ import { healthRoutes } from './routes/health.js';
 
 export async function buildServer(deps: ApiDeps): Promise<FastifyInstance> {
   const app = Fastify({
-    // pino 10 совместим с логгером Fastify по интерфейсу, но не по дженерикам типов.
+    // pino 10 matches Fastify's logger interface but not its type generics.
     loggerInstance: deps.logger as unknown as FastifyBaseLogger,
     genReqId: () => `req_${randomUUID()}`,
     trustProxy: true,

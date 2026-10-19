@@ -31,7 +31,7 @@ describe('sameCommand', () => {
   });
 });
 
-/** Discord REST в памяти: хранит команды по маршрутам. */
+/** In-memory Discord REST: stores commands by route. */
 function fakeDiscord(initial: { global?: object[]; guild?: object[] } = {}) {
   const store = new Map<string, { id: string; name: string }[]>([
     [`/applications/${APP}/commands`, (initial.global ?? []) as never],

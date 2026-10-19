@@ -63,7 +63,7 @@ export class ModuleRegistry {
     return this;
   }
 
-  /** Обработчик задачи по типу `<moduleId>:<job>`. */
+  /** Job handler by type `<moduleId>:<job>`. */
   findJob(type: string): Registered<JobHandler> | undefined {
     const separator = type.indexOf(':');
     const module = this.modules.get(type.slice(0, separator));
@@ -87,12 +87,12 @@ export class ModuleRegistry {
     return this.commands.get(name);
   }
 
-  /** Обработчик команд, которых нет в реестре. */
+  /** Handler for commands that are not in the registry. */
   fallbackCommand(): Registered<FallbackCommand> | undefined {
     return this.fallback;
   }
 
-  /** Ищет обработчик по префиксу `customId`: `lvl:page:2` → `lvl`. */
+  /** Finds a handler by `customId` prefix: `lvl:page:2` → `lvl`. */
   findComponent(customId: string): Registered<ComponentHandler> | undefined {
     return this.components.get(customId.split(':', 1)[0]!);
   }
@@ -105,7 +105,7 @@ export class ModuleRegistry {
     return this.events.get(event) ?? [];
   }
 
-  /** Объединение intents всех модулей и базовых, нужных самому боту. */
+  /** Union of all modules' intents and the base ones the bot itself needs. */
   intents(base: readonly GatewayIntentBits[] = []): GatewayIntentBits[] {
     const all = new Set(base);
     for (const module of this.modules.values()) {
@@ -114,12 +114,12 @@ export class ModuleRegistry {
     return [...all];
   }
 
-  /** Объединение partials всех модулей. */
+  /** Union of all modules' partials. */
   partials(): Partials[] {
     return [...new Set(this.all().flatMap((module) => module.bot?.partials ?? []))];
   }
 
-  /** Регистрирует словари модулей в i18n под неймспейсом `<moduleId>`. */
+  /** Registers modules' dictionaries in i18n under the `<moduleId>` namespace. */
   registerLocales(i18n: I18n): void {
     for (const module of this.modules.values()) {
       if (module.locales) i18n.register(module.id, module.locales);

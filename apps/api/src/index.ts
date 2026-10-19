@@ -42,10 +42,10 @@ const config = new ConfigService({
   locales: { localeOf: (guildId) => guildLocales.get(guildId), i18n },
   logger,
 });
-// Другие реплики API тоже меняют конфиги — локальный кэш нужно сбрасывать.
+// Other API replicas change configs too — the local cache must be invalidated.
 const unsubscribeConfig = await subscribeConfigInvalidation(redis, logger, (message) => {
   config.invalidate(message);
-  // Инвалидация всей гильдии — могли смениться общие настройки, в том числе язык.
+  // Whole-guild invalidation — general settings, including the language, may have changed.
   if (!message.moduleId) guildLocales.invalidate(message.guildId);
 });
 
@@ -65,7 +65,7 @@ const app = await buildServer({
   options: {
     publicUrl: env.API_PUBLIC_URL,
     webOrigin: env.WEB_ORIGIN ?? env.API_PUBLIC_URL,
-    // Пока веба нет, после входа попадаем в Swagger UI самого API.
+    // Until the web app exists, login lands on the API Swagger UI.
     defaultRedirect: env.WEB_ORIGIN ? '/' : '/docs',
     clientId: env.DISCORD_CLIENT_ID,
     sessionSecret: env.SESSION_SECRET,

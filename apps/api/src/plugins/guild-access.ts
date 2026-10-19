@@ -6,14 +6,14 @@ import { requireSession } from './session.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
-    /** Гильдия из `:guildId`, к которой у пользователя проверен доступ. */
+    /** The guild from `:guildId` the user was checked to have access to. */
     guild: UserGuild | null;
   }
 }
 
 /**
- * Доступ к `/v1/guilds/:guildId/*`: пользователь вошёл, может управлять гильдией
- * (владелец, Administrator или Manage Server) и бот есть на сервере.
+ * Access to `/v1/guilds/:guildId/*`: the user is logged in, can manage the guild
+ * (owner, Administrator or Manage Server) and the bot is on the server.
  */
 export function requireGuildAccess(userGuilds: UserGuildService): preHandlerAsyncHookHandler {
   return async (request: FastifyRequest) => {

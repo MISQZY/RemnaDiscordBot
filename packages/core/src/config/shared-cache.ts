@@ -2,7 +2,7 @@ import type { Redis } from 'ioredis';
 import { RedisKeys } from '../redis-keys.js';
 import type { StoredConfig } from './store.js';
 
-/** Кэш, общий для всех процессов и кластеров. `null` — в БД записи нет. */
+/** Cache shared by all processes and clusters. `null` — no row in the database. */
 export interface SharedConfigCache {
   get(guildId: string, moduleId: string): Promise<StoredConfig | null | undefined>;
   set(guildId: string, moduleId: string, value: StoredConfig | null): Promise<void>;

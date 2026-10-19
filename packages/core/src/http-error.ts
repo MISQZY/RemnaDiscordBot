@@ -3,8 +3,8 @@ import type { ApiErrorBody, ApiErrorCode } from '@bot/contracts';
 export type HttpErrorDetails = NonNullable<ApiErrorBody['error']['details']>;
 
 /**
- * Ожидаемая ошибка HTTP: API превращает её в `{ error: { code, message, details } }`.
- * Модули бросают её из своих роутов (`/v1/guilds/:guildId/modules/<id>/…`).
+ * An expected HTTP error: the API turns it into `{ error: { code, message, details } }`.
+ * Modules throw it from their routes (`/v1/guilds/:guildId/modules/<id>/…`).
  */
 export class HttpError extends Error {
   constructor(

@@ -1,6 +1,6 @@
 import type { APIEmbed } from 'discord.js';
 
-/** Сборка записей журнала из простых данных — без discord.js, чтобы легко тестировать. */
+/** Builds log entries from plain data — without discord.js, so they are easy to test. */
 
 export type Translate = (key: string, vars?: Record<string, string | number>) => string;
 

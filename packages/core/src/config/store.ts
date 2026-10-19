@@ -1,11 +1,11 @@
 import type { Prisma, PrismaClient } from '@bot/db';
 
-/** Конфиг модуля в том виде, в каком он лежит в БД (до валидации). */
+/** A module config as stored in the database (before validation). */
 export interface StoredConfig {
   enabled: boolean;
   config: unknown;
   version: number;
-  /** ISO-время последнего изменения — основа ETag в API. */
+  /** ISO time of the last change — the basis of the API ETag. */
   updatedAt: string;
 }
 

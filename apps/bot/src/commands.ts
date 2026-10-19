@@ -5,7 +5,7 @@ import { Routes, type APIApplicationCommand, type REST, type RESTPostAPIChatInpu
 
 type CommandBody = RESTPostAPIChatInputApplicationCommandsJSONBody;
 
-/** JSON slash-команд всех модулей с переводами из их словарей. */
+/** Slash command JSON of all modules with translations from their dictionaries. */
 export function collectCommandPayloads(registry: ModuleRegistry): CommandBody[] {
   const i18n = new I18n();
   registerCoreLocales(i18n);
@@ -13,10 +13,10 @@ export function collectCommandPayloads(registry: ModuleRegistry): CommandBody[] 
   return localizedCommandPayloads(registry, i18n);
 }
 
-/** Поля команды, которые мы задаём; остальное (id, version…) Discord добавляет сам. */
+/** Command fields we set; the rest (id, version…) Discord adds itself. */
 const COMPARED_KEYS = ['name', 'description', 'options', 'name_localizations', 'description_localizations', 'default_member_permissions', 'contexts'] as const;
 
-/** Канонический вид для сравнения: без пустых значений и с упорядоченными ключами. */
+/** Canonical form for comparison: no empty values and sorted keys. */
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
   if (value === null || typeof value !== 'object') return value;
@@ -33,7 +33,7 @@ export function sameCommand(existing: Partial<APIApplicationCommand>, desired: C
 }
 
 export interface SyncOptions {
-  /** Тестовая гильдия: команды появляются сразу, глобальные очищаются, чтобы не было дублей. */
+  /** Dev guild: commands appear instantly; global ones are cleared to avoid duplicates. */
   guildId?: string;
   applicationId?: string;
   logger: Logger;
@@ -47,8 +47,8 @@ export interface SyncResult {
 }
 
 /**
- * Приводит slash-команды модулей в Discord к актуальному виду, меняя только отличия:
- * у Discord дневной лимит на создание команд.
+ * Brings the modules' slash commands in Discord up to date, changing only differences:
+ * Discord has a daily limit on command creation.
  */
 export async function syncCommands(rest: REST, body: CommandBody[], { guildId, applicationId, logger }: SyncOptions): Promise<SyncResult> {
   const appId = applicationId ?? ((await rest.get(Routes.currentApplication())) as { id: string }).id;
@@ -66,7 +66,7 @@ export async function syncCommands(rest: REST, body: CommandBody[], { guildId, a
     return result;
   }
 
-  // В гильдии живут и пользовательские команды — обновляем по одной, ничего чужого не трогая.
+  // The guild also has custom commands — update one by one without touching anything else.
   const guildRoute = Routes.applicationGuildCommands(appId, guildId);
   const existing = new Map(((await rest.get(guildRoute)) as APIApplicationCommand[]).map((c) => [c.name, c]));
   for (const command of body) {

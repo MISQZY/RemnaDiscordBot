@@ -21,7 +21,7 @@ export const COMPONENT_PREFIX = 'lvl';
 async function leaderboardPage(ctx: InteractionContext<LevelingConfig>, guildId: string, page: number) {
   const { items, total } = await new LevelingService(ctx.db).leaderboard(guildId, page, PAGE_SIZE);
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  // Лидерборд и карточку уровня видят все — на языке сервера.
+  // Everyone sees the leaderboard and the rank card — use the server's language.
   const lines = items.map((e) => `**${e.rank}.** <@${e.userId}> · ${ctx.tGuild('leveling.levelShort', { level: e.level })} · ${e.xp} XP`);
 
   const embed = new EmbedBuilder()
@@ -76,7 +76,7 @@ export const leaderboard = defineCommand<LevelingConfig>({
   },
 });
 
-/** Кнопки «◀ ▶» лидерборда: `lvl:page:<n>`. */
+/** Leaderboard "◀ ▶" buttons: `lvl:page:<n>`. */
 export const leaderboardPager = defineComponent<LevelingConfig>({
   async handle(interaction, ctx) {
     if (!interaction.isButton() || !interaction.guildId) return;

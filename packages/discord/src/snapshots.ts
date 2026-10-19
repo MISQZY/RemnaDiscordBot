@@ -5,7 +5,7 @@ import type { Redis } from 'ioredis';
 import { z } from 'zod';
 import { toGuildChannel, toGuildEmoji, toGuildMeta, toGuildRole } from './mappers.js';
 
-/** Бот пишет снапшоты гильдий в Redis, чтобы API отдавал вебу каналы и роли без gateway. */
+/** The bot writes guild snapshots to Redis so the API can serve channels and roles without the gateway. */
 export class GuildSnapshotWriter {
   constructor(private readonly redis: Redis) {}
 

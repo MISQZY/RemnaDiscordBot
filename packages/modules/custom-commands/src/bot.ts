@@ -10,7 +10,7 @@ import { matchTrigger } from './matching.js';
 
 type Ctx = BotModuleContext<CustomCommandsConfig>;
 
-/** Триггеры гильдии нужны на каждое сообщение. Изменения из API видны через ≤ 30 с. */
+/** A guild's triggers are needed for every message. API changes become visible within ≤ 30 s. */
 const triggerCache = new LRUCache<string, CommandDto[]>({ max: 10_000, ttl: 30_000 });
 
 async function guildTriggers(ctx: Ctx, guildId: string): Promise<CommandDto[]> {
@@ -23,14 +23,14 @@ async function guildTriggers(ctx: Ctx, guildId: string): Promise<CommandDto[]> {
   return triggers;
 }
 
-/** Канал и роли разрешены (пустой список — без ограничений). */
+/** The channel and roles are allowed (an empty list means no restriction). */
 export function isAllowed(command: Pick<CommandDto, 'allowedChannelIds' | 'allowedRoleIds'>, channelId: string, roleIds: readonly string[]): boolean {
   if (command.allowedChannelIds.length > 0 && !command.allowedChannelIds.includes(channelId)) return false;
   if (command.allowedRoleIds.length > 0 && !command.allowedRoleIds.some((id) => roleIds.includes(id))) return false;
   return true;
 }
 
-/** Кулдаун на пользователя в Redis — общий для кластеров. `true` — можно выполнять. */
+/** Per-user cooldown in Redis — shared by clusters. `true` — may run. */
 async function takeCooldown(ctx: Ctx, command: CommandDto, userId: string): Promise<boolean> {
   if (command.cooldownSec === 0) return true;
   return (await ctx.redis.set(`custom-commands:cd:${command.id}:${userId}`, '1', 'EX', command.cooldownSec, 'NX')) === 'OK';
@@ -55,7 +55,7 @@ function render(command: CommandDto, member: GuildMember, channel: { id: string;
 const countUse = (ctx: Ctx, command: CommandDto) =>
   ctx.db.customCommand.update({ where: { id: command.id }, data: { uses: { increment: 1 } } }).catch(() => undefined);
 
-/** Slash-команды гильдии, которых нет в реестре модулей. */
+/** The guild's slash commands that are not in the module registry. */
 export const customSlashCommand: FallbackCommand<CustomCommandsConfig> = {
   async execute(interaction, ctx) {
     if (!interaction.inCachedGuild()) return;
@@ -86,7 +86,7 @@ export const customSlashCommand: FallbackCommand<CustomCommandsConfig> = {
   },
 };
 
-/** Автоответы: первый подходящий триггер гильдии. */
+/** Auto-replies: the guild's first matching trigger. */
 export async function onMessage(ctx: Ctx, message: Message): Promise<void> {
   if (!message.inGuild() || message.author.bot || !message.member || !message.content) return;
   const config = await ctx.getConfig(message.guildId);

@@ -13,7 +13,7 @@ function zodDetails(error: z.ZodError): Details {
   }));
 }
 
-/** Все ошибки отдаются в едином формате `ApiErrorBody`. */
+/** All errors are returned in the common `ApiErrorBody` format. */
 export function registerErrorHandler(app: FastifyInstance): void {
   app.setErrorHandler((error: FastifyError | Error, request, reply) => {
     const send = (statusCode: number, body: Omit<ApiErrorBody['error'], 'requestId'>) =>

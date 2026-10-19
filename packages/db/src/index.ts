@@ -29,17 +29,17 @@ export function createPrismaClient({ url, logQueries = false }: CreatePrismaClie
   });
 }
 
-/** `file:…` — локальная SQLite-база (режим dev:local), иначе Postgres. */
+/** `file:…` — a local SQLite database (dev:local mode), otherwise Postgres. */
 export const isSqliteUrl = (url: string) => url.startsWith('file:');
 
 /**
- * Клиент по URL: Postgres или SQLite-клиент для локального режима.
- * Схемы совпадают, отличается только провайдер, поэтому тип общий.
+ * Client by URL: Postgres or the SQLite client for local mode.
+ * The schemas match and only the provider differs, so the type is shared.
  */
 export async function createDatabaseClient(url: string): Promise<PrismaClient> {
   if (!isSqliteUrl(url)) return createPrismaClient({ url });
 
-  // SQLite-клиент генерируется отдельно (`pnpm db:sqlite`), поэтому без статического импорта.
+  // The SQLite client is generated separately (`pnpm db:sqlite`), hence no static import.
   const specifier = '@bot/db/sqlite';
   const { PrismaClient: SqliteClient } = (await import(specifier)) as {
     PrismaClient: new (options: { datasourceUrl: string }) => PrismaClient;
@@ -48,8 +48,8 @@ export async function createDatabaseClient(url: string): Promise<PrismaClient> {
 }
 
 /**
- * Нарушение уникального ключа (P2002). Проверка по коду, а не `instanceof`:
- * у Postgres- и SQLite-клиента разные классы ошибок.
+ * Unique constraint violation (P2002). Checked by code rather than `instanceof`:
+ * the Postgres and SQLite clients have different error classes.
  */
 export function isUniqueViolation(err: unknown): boolean {
   return typeof err === 'object' && err !== null && (err as { code?: unknown }).code === 'P2002';

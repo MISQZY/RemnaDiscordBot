@@ -14,7 +14,7 @@ describe('notifications API', () => {
     t.app.inject({ method, url: `${base}${url}`, headers: { cookie }, ...(payload ? { payload } : {}) });
 
   beforeAll(async () => {
-    // Провайдеры создаются лениво при первом запросе — подменяем сеть до него.
+    // Providers are created lazily on the first request — stub the network before it.
     vi.stubGlobal('fetch', vi.fn(async () => new Response(feed)));
     t = await createTestApp({ modules: [notifications] });
     t.oauth.guilds = [{ id: GUILD_ID, name: 'Managed', icon: null, owner: true, permissions: '0' }];

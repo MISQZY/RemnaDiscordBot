@@ -1,7 +1,7 @@
 import { guildVars, userVars, type TemplateVars } from '@bot/templates';
 import type { Guild, GuildMember, PartialGuildMember, User } from 'discord.js';
 
-/** Плейсхолдеры `{user.*}`, `{member.*}`, `{guild.*}` из объектов discord.js. */
+/** `{user.*}`, `{member.*}`, `{guild.*}` placeholders from discord.js objects. */
 export function memberTemplateVars(member: GuildMember | PartialGuildMember): TemplateVars {
   return {
     ...userTemplateVars(member.user, member),

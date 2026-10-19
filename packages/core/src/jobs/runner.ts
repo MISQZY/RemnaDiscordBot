@@ -6,13 +6,13 @@ import type { ModuleRegistry } from '../registry.js';
 
 export interface JobRunnerOptions {
   batchSize?: number;
-  /** Сколько задача считается занятой воркером. */
+  /** How long a job counts as taken by a worker. */
   lockMs?: number;
   maxAttempts?: number;
   timeoutMs?: number;
 }
 
-/** Экспоненциальная задержка повтора: 10 с, 20 с, 40 с… но не больше часа. */
+/** Exponential retry delay: 10s, 20s, 40s… capped at one hour. */
 export function retryDelayMs(attempts: number): number {
   return Math.min(10_000 * 2 ** Math.max(attempts - 1, 0), 60 * 60_000);
 }
@@ -25,7 +25,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
-/** Сервисы и конфиг модуля — то, что получают задачи и периодические задачи. */
+/** Services and module config — what jobs and interval tasks receive. */
 export function moduleServices(services: CoreServices, module: AnyModule): ModuleServices<unknown> {
   return {
     ...services,
@@ -35,7 +35,7 @@ export function moduleServices(services: CoreServices, module: AnyModule): Modul
   };
 }
 
-/** Выполняет отложенные задачи модулей из `ScheduledAction`. */
+/** Runs modules' scheduled jobs from `ScheduledAction`. */
 export class JobRunner {
   private timer: NodeJS.Timeout | undefined;
   private running: Promise<unknown> = Promise.resolve();
@@ -50,7 +50,7 @@ export class JobRunner {
     this.options = { batchSize: 20, lockMs: 60_000, maxAttempts: 5, timeoutMs: 30_000, ...options };
   }
 
-  /** Один проход: забрать готовые задачи и выполнить. Возвращает число задач. */
+  /** One pass: claim due jobs and run them. Returns the number of jobs. */
   async tick(): Promise<number> {
     const { batchSize, lockMs, maxAttempts } = this.options;
     const actions = await this.services.scheduler.claimDue({ limit: batchSize, lockMs, maxAttempts });
@@ -97,8 +97,8 @@ export class JobRunner {
 }
 
 /**
- * Периодические задачи модулей. Блокировка в Redis на период гарантирует,
- * что при нескольких воркерах задача выполнится один раз за период.
+ * Modules' interval tasks. A Redis lock for the period guarantees
+ * that with several workers a task runs once per period.
  */
 export class IntervalRunner {
   private readonly timers: NodeJS.Timeout[] = [];
@@ -108,7 +108,7 @@ export class IntervalRunner {
     private readonly registry: ModuleRegistry,
   ) {}
 
-  /** Запускает задачу, если в этом периоде её ещё никто не запускал. */
+  /** Runs the task unless someone already ran it in this period. */
   async runOnce(moduleId: string, name: string): Promise<boolean> {
     const module = this.registry.get(moduleId);
     const task = module?.intervals?.[name];

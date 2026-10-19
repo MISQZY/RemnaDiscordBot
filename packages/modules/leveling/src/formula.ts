@@ -1,9 +1,9 @@
-/** Опыт для перехода с уровня `level` на следующий (как у MEE6/JuniperBot). */
+/** XP needed to go from `level` to the next one (as in MEE6/JuniperBot). */
 export function xpToNextLevel(level: number): number {
   return 5 * level ** 2 + 50 * level + 100;
 }
 
-/** Суммарный опыт, нужный для достижения уровня `level`. */
+/** Total XP needed to reach `level`. */
 export function totalXpForLevel(level: number): number {
   let total = 0;
   for (let l = 0; l < level; l++) total += xpToNextLevel(l);
@@ -20,7 +20,7 @@ export function levelFromXp(xp: number): number {
   return level;
 }
 
-/** Прогресс внутри текущего уровня — для карточки `/rank`. */
+/** Progress within the current level — for the `/rank` card. */
 export function levelProgress(xp: number): { level: number; current: number; needed: number } {
   const level = levelFromXp(xp);
   return { level, current: xp - totalXpForLevel(level), needed: xpToNextLevel(level) };

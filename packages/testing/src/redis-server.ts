@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { createServer, type AddressInfo, type Socket } from 'node:net';
 import type { Redis } from 'ioredis';
 
-// CommonJS-пакет; повторяет API ioredis, поэтому типизируется им.
+// A CommonJS package; it mirrors ioredis's API, so it is typed with it.
 const RedisMock = createRequire(import.meta.url)('ioredis-mock') as new (options: { port: number }) => Redis;
 
 export interface MemoryRedisServer {
@@ -13,7 +13,7 @@ export interface MemoryRedisServer {
 
 type Reply = string | number | null | Buffer | Error | Reply[];
 
-/** Методы клиента, которые не являются командами Redis. */
+/** Client methods that are not Redis commands. */
 const NOT_COMMANDS = new Set(['duplicate', 'disconnect', 'connect', 'on', 'once', 'off', 'emit', 'pipeline', 'multi', 'exec']);
 
 function encode(reply: Reply): string {
@@ -25,7 +25,7 @@ function encode(reply: Reply): string {
   return `$${Buffer.byteLength(value)}\r\n${value}\r\n`;
 }
 
-/** Разбирает одну команду RESP (массив bulk-строк) или inline-команду. `null` — данных пока мало. */
+/** Parses one RESP command (an array of bulk strings) or an inline command. `null` — not enough data yet. */
 function parseCommand(buffer: Buffer, offset: number): { args: string[]; next: number } | null {
   const lineEnd = (from: number) => {
     const index = buffer.indexOf('\r\n', from);
@@ -58,12 +58,12 @@ function parseCommand(buffer: Buffer, offset: number): { args: string[]; next: n
 }
 
 /**
- * Redis-совместимый сервер в памяти поверх ioredis-mock — для локального запуска
- * нескольких процессов (бот, API) без установленного Redis и контейнеров.
- * Поддерживает обычные команды, MULTI/EXEC и SUBSCRIBE/PUBLISH. Данные не сохраняются.
+ * A Redis-compatible in-memory server on top of ioredis-mock — for running
+ * several processes locally (bot, API) without an installed Redis or containers.
+ * Supports regular commands, MULTI/EXEC and SUBSCRIBE/PUBLISH. Data is not persisted.
  */
 export async function startMemoryRedisServer({ port = 0, host = '127.0.0.1' } = {}): Promise<MemoryRedisServer> {
-  // Каждый сервер — отдельное хранилище: мок делит данные по «порту».
+  // Each server is a separate store: the mock partitions data by "port".
   const store = new RedisMock({ port: 50_000 + Math.floor(Math.random() * 10_000) });
   const sockets = new Set<Socket>();
 
@@ -118,7 +118,7 @@ export async function startMemoryRedisServer({ port = 0, host = '127.0.0.1' } = 
           return write(results);
         }
         case 'HELLO':
-          // Как Redis < 6: клиент откатывается с RESP3 на RESP2, которым отвечает сервер.
+          // Like Redis < 6: the client falls back from RESP3 to RESP2, which this server speaks.
           return write(new Error(`unknown command '${name}'`));
         case 'PING':
           return write(args[0] ?? 'PONG');
@@ -160,7 +160,7 @@ export async function startMemoryRedisServer({ port = 0, host = '127.0.0.1' } = 
       while (parsed) {
         const { args } = parsed;
         buffer = buffer.subarray(parsed.next);
-        // Команды выполняются строго по порядку — ответы должны идти в порядке запросов.
+        // Commands run strictly in order — replies must follow the order of requests.
         if (args.length > 0) queue = queue.then(() => execute(args));
         parsed = buffer.length > 0 ? parseCommand(buffer, 0) : null;
       }

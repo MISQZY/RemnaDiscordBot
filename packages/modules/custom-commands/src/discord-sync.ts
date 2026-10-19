@@ -11,7 +11,7 @@ import {
 } from 'discord.js';
 import type { CommandDto } from './config.js';
 
-/** Имя опции для `{args}` в slash-команде. */
+/** Option name for `{args}` in a slash command. */
 export const ARGS_OPTION = 'text';
 
 const usesArgs = (command: Pick<CommandDto, 'response'>) => JSON.stringify(command.response).includes('{args}');
@@ -28,14 +28,14 @@ export function slashCommandBody(command: Pick<CommandDto, 'name' | 'description
   };
 }
 
-/** Синхронизация пользовательских slash-команд с Discord через REST (guild-команды). */
+/** Syncs custom slash commands with Discord via REST (guild commands). */
 export class DiscordCommandSync {
   private applicationId: Promise<string> | undefined;
   private globalNames: { names: Set<string>; expiresAt: number } | undefined;
 
   constructor(private readonly rest: REST) {}
 
-  /** Имена глобальных команд бота — их нельзя занимать пользовательскими. */
+  /** Names of the bot's global commands — custom commands cannot take them. */
   async reservedNames(): Promise<Set<string>> {
     if (this.globalNames && this.globalNames.expiresAt > Date.now()) return this.globalNames.names;
     const commands = (await this.rest.get(Routes.applicationCommands(await this.appId()))) as { name: string }[];
@@ -49,7 +49,7 @@ export class DiscordCommandSync {
     }
   }
 
-  /** Создаёт или обновляет команду; возвращает её ID в Discord. */
+  /** Creates or updates the command; returns its Discord ID. */
   async upsert(guildId: string, command: Pick<CommandDto, 'name' | 'description' | 'response' | 'discordCommandId'>): Promise<string> {
     const appId = await this.appId();
     const body = slashCommandBody(command);
@@ -58,7 +58,7 @@ export class DiscordCommandSync {
         await this.rest.patch(Routes.applicationGuildCommand(appId, guildId, command.discordCommandId), { body });
         return command.discordCommandId;
       } catch (err) {
-        // Команду удалили в Discord вручную — создаём заново.
+        // The command was deleted in Discord manually — create it again.
         if (!(err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownApplicationCommand)) throw err;
       }
     }

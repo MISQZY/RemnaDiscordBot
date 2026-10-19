@@ -75,7 +75,7 @@ export function levelingApi(app: FastifyInstance, ctx: ApiModuleContext<Leveling
   );
 }
 
-/** Публичный лидерборд — если его разрешили в настройках. */
+/** Public leaderboard — when allowed in the settings. */
 export function levelingPublicApi(app: FastifyInstance, ctx: ModuleServices<LevelingConfig>): void {
   leaderboardRoute(app, new LevelingService(ctx.db), async (id) => {
     if (!(await ctx.getConfig(id)).publicLeaderboard) throw HttpError.notFound();

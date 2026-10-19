@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { Snowflake } from './common.js';
 
-/** Снапшоты гильдии, которые бот кладёт в Redis, а API отдаёт вебу. */
+/** Guild snapshots the bot puts into Redis and the API serves to the web app. */
 
 export const GuildMeta = z.object({
   id: Snowflake,
@@ -29,7 +29,7 @@ export const GuildRole = z.object({
   color: z.number().int(),
   position: z.number().int(),
   managed: z.boolean(),
-  /** Роль ниже роли бота — бот может её выдавать. */
+  /** The role is below the bot's role — the bot can assign it. */
   manageable: z.boolean(),
 });
 export type GuildRole = z.infer<typeof GuildRole>;

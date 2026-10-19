@@ -3,7 +3,7 @@ import { defineCommand, publishConfigInvalidation } from '@bot/core';
 import { InteractionContextType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import type { GeneralConfig } from '../config.js';
 
-/** Язык сервера: на нём бот пишет то, что видят все (журналы, анонсы, итоги модерации). */
+/** Server language: the bot uses it for what everyone sees (logs, announcements, moderation results). */
 export const language = defineCommand<GeneralConfig>({
   data: new SlashCommandBuilder()
     .setName('language')
@@ -25,7 +25,7 @@ export const language = defineCommand<GeneralConfig>({
     await ctx.db.guild.upsert({ where: { id: guildId }, create: { id: guildId, locale }, update: { locale } });
     await ctx.db.dashboardAuditLog.create({ data: { guildId, userId: interaction.user.id, action: 'guild.update', diff: { after: { locale } } } });
     ctx.guildLocales.invalidate(guildId);
-    // Сбросить язык и в других процессах (кластеры, API, воркер).
+    // Invalidate the language in other processes too (clusters, API, worker).
     await publishConfigInvalidation(ctx.redis, { guildId });
 
     await interaction.reply({ content: ctx.i18n.t(locale, 'general.language.changed'), flags: MessageFlags.Ephemeral });

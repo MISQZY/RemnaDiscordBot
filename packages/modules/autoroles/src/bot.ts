@@ -6,7 +6,7 @@ import { persistedRoles } from './persistence.js';
 
 const REASON = 'Autoroles';
 
-/** Только роли, которые бот может выдать (ниже его роли и не управляемые интеграцией). */
+/** Only roles the bot can assign (below its role and not managed by an integration). */
 function assignable(member: GuildMember, roleIds: readonly string[]): string[] {
   return roleIds.filter((id) => {
     const role = member.guild.roles.cache.get(id);
@@ -48,7 +48,7 @@ export async function onMemberJoin(ctx: BotModuleContext<AutorolesConfig>, membe
 }
 
 export async function onMemberLeave(ctx: BotModuleContext<AutorolesConfig>, member: GuildMember | PartialGuildMember): Promise<void> {
-  // Вышел до отложенной выдачи — задача больше не нужна.
+  // Left before the delayed grant — the job is no longer needed.
   await ctx.scheduler.cancel(joinRolesKey(member.guild.id, member.id));
 
   const config = await ctx.getConfig(member.guild.id);
@@ -66,7 +66,7 @@ export async function onMemberLeave(ctx: BotModuleContext<AutorolesConfig>, memb
   });
 }
 
-/** Нажатие кнопки или выбор в списке панели ролей. */
+/** A button click or dropdown pick on a role panel. */
 export const panelComponent = defineComponent<AutorolesConfig>({
   async handle(interaction, ctx) {
     if (!interaction.inCachedGuild() || interaction.isModalSubmit()) return;

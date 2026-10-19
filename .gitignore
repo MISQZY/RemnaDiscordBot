@@ -1,7 +1,7 @@
-# Документация (Obsidian vault) — локальная
+# Documentation (Obsidian vault) — local only
 docs/
 
-# ИИ-инструменты и их правила — локальные
+# AI tools and their rules — local only
 CLAUDE.md
 CLAUDE.local.md
 AGENTS.md
@@ -15,27 +15,27 @@ AGENTS.md
 GEMINI.md
 .github/copilot-instructions.md
 
-# Зависимости и сборка
+# Dependencies and build output
 node_modules/
 dist/
 build/
 .turbo/
 coverage/
 
-# Окружение
+# Environment
 .env
 .env.*
 !.env.example
 
-# Логи / IDE
+# Logs / IDE
 *.log
 .DS_Store
 .idea/
 .vscode/*
 !.vscode/extensions.json
 
-# Сгенерированный SQLite-клиент для тестов
+# Generated SQLite client for tests
 packages/db/generated/
 
-# Локальная SQLite-база режима dev:local
+# Local SQLite database of dev:local mode
 .local/

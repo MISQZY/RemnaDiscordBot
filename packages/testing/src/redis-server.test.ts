@@ -2,7 +2,7 @@ import { Redis } from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startMemoryRedisServer, type MemoryRedisServer } from './redis-server.js';
 
-/** Настоящий клиент ioredis против сервера — так же к нему подключаются бот и API. */
+/** A real ioredis client against the server — the same way the bot and the API connect. */
 describe('startMemoryRedisServer', () => {
   let server: MemoryRedisServer;
   const clients: Redis[] = [];

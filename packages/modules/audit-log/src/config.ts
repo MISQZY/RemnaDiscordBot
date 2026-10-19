@@ -5,7 +5,7 @@ export const LogCategory = z.enum(['messages', 'members', 'voice', 'server', 'mo
 export type LogCategory = z.infer<typeof LogCategory>;
 
 export const AuditLogConfig = z.object({
-  /** Канал для каждой категории; `null` — категория не логируется. */
+  /** A channel per category; `null` — the category is not logged. */
   channels: z.object({
     messages: Snowflake.nullable(),
     members: Snowflake.nullable(),

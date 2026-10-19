@@ -84,7 +84,7 @@ export function notificationsApi(providers: () => Map<ProviderId, FeedProvider>)
               sourceId: source.id,
               channelId: input.channelId,
               mentionRoleId: input.mentionRoleId,
-              // Шаблон по умолчанию — на языке сервера.
+              // The default template is in the server's language.
               message: (input.message ?? {
                 content: ctx.i18n.raw(await ctx.guildLocales.get(guildId), `notifications.defaults.${input.provider}`),
               }) as Prisma.InputJsonValue,
@@ -131,7 +131,7 @@ export function notificationsApi(providers: () => Map<ProviderId, FeedProvider>)
         const { guildId, subscriptionId } = params(request);
         const row = await findSubscription(guildId, subscriptionId!);
         await ctx.db.notificationSubscription.delete({ where: { id: row.id } });
-        // Источник без подписок больше не нужен — его перестанут опрашивать.
+        // A source without subscriptions is no longer needed — it stops being polled.
         await ctx.db.notificationSource.deleteMany({ where: { id: row.sourceId, subscriptions: { none: {} } } });
         return reply.status(204).send(null);
       },
