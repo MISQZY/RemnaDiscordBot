@@ -1,9 +1,8 @@
 import type { ApiErrorBody } from '@bot/contracts';
-import { UnknownModuleError } from '@bot/core';
+import { HttpError, UnknownModuleError } from '@bot/core';
 import type { FastifyError, FastifyInstance } from 'fastify';
 import { hasZodFastifySchemaValidationErrors, isResponseSerializationError } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { ApiError } from '../errors.js';
 
 type Details = NonNullable<ApiErrorBody['error']['details']>;
 
@@ -20,7 +19,7 @@ export function registerErrorHandler(app: FastifyInstance): void {
     const send = (statusCode: number, body: Omit<ApiErrorBody['error'], 'requestId'>) =>
       reply.status(statusCode).send({ error: { ...body, requestId: request.id } } satisfies ApiErrorBody);
 
-    if (error instanceof ApiError) {
+    if (error instanceof HttpError) {
       return send(error.statusCode, { code: error.code, message: error.message, details: error.details });
     }
     if (hasZodFastifySchemaValidationErrors(error)) {

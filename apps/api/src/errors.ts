@@ -1,19 +1,8 @@
-import type { ApiErrorBody, ApiErrorCode } from '@bot/contracts';
+import { HttpError, type HttpErrorDetails } from '@bot/core';
 
-type ErrorDetails = NonNullable<ApiErrorBody['error']['details']>;
-
-/** Ожидаемая ошибка API: превращается в ответ `{ error: { code, message, details } }`. */
-export class ApiError extends Error {
-  constructor(
-    readonly statusCode: number,
-    readonly code: ApiErrorCode,
-    message: string,
-    readonly details?: ErrorDetails,
-  ) {
-    super(message);
-  }
-
-  static badRequest(message: string, details?: ErrorDetails) {
+/** Ошибки API: общий `HttpError` ядра плюс фабрики для частых случаев. */
+export class ApiError extends HttpError {
+  static override badRequest(message: string, details?: HttpErrorDetails) {
     return new ApiError(400, 'VALIDATION_FAILED', message, details);
   }
 
@@ -29,7 +18,7 @@ export class ApiError extends Error {
     return new ApiError(403, 'BOT_NOT_IN_GUILD', 'The bot is not a member of this guild');
   }
 
-  static notFound(message = 'Not found') {
+  static override notFound(message = 'Not found') {
     return new ApiError(404, 'NOT_FOUND', message);
   }
 
