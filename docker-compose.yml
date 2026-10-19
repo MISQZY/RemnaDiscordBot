@@ -35,7 +35,9 @@ services:
   migrate:
     build:
       context: .
-      dockerfile: docker/bot.Dockerfile
+      dockerfile: docker/app.Dockerfile
+      args: { APP: bot }
+    image: discord-bot/bot
     profiles: [app]
     working_dir: /repo/packages/db
     command: ["pnpm", "db:deploy"]
@@ -49,13 +51,36 @@ services:
   bot:
     build:
       context: .
-      dockerfile: docker/bot.Dockerfile
+      dockerfile: docker/app.Dockerfile
+      args: { APP: bot }
+    image: discord-bot/bot
     profiles: [app]
     restart: unless-stopped
     env_file: .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-bot}:${POSTGRES_PASSWORD:-bot}@postgres:5432/${POSTGRES_DB:-bot}
       REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      args: { APP: api, HEALTH_PORT: 3000 }
+    image: discord-bot/api
+    profiles: [app]
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bot}:${POSTGRES_PASSWORD:-bot}@postgres:5432/${POSTGRES_DB:-bot}
+      REDIS_URL: redis://redis:6379
+      API_HOST: 0.0.0.0
+    ports:
+      - "127.0.0.1:3000:3000"
     depends_on:
       redis:
         condition: service_healthy
