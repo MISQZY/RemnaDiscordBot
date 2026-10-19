@@ -60,15 +60,22 @@ model DashboardAuditLog {
   @@index([guildId, createdAt])
 }
 
-/// Отложенные действия — источник правды для задач в очередях.
+/// Отложенные действия (снятие бана, задержанная выдача роли…). Воркер забирает их атомарно.
 model ScheduledAction {
-  id        String    @id @default(cuid())
-  guildId   String
-  type      String
-  payload   Json
-  runAt     DateTime
-  doneAt    DateTime?
-  createdAt DateTime  @default(now())
+  id          String    @id @default(cuid())
+  /// Необязательный ключ: повторное планирование с тем же ключом заменяет задачу, по нему же отмена.
+  key         String?   @unique
+  guildId     String
+  /// `<moduleId>:<job>`
+  type        String
+  payload     Json
+  runAt       DateTime
+  doneAt      DateTime?
+  /// Задача взята воркером до этого момента; после — может быть взята снова.
+  lockedUntil DateTime?
+  attempts    Int       @default(0)
+  lastError   String?
+  createdAt   DateTime  @default(now())
 
   @@index([runAt, doneAt])
   @@index([guildId])
