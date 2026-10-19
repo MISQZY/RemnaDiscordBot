@@ -4,6 +4,7 @@ import {
   ModuleRegistry,
   PrismaConfigStore,
   RedisConfigCache,
+  Scheduler,
   publishConfigInvalidation,
   registerCoreLocales,
   subscribeConfigInvalidation,
@@ -13,6 +14,7 @@ import { GuildSnapshotReader } from '@bot/discord';
 import { I18n } from '@bot/i18n';
 import { createLogger } from '@bot/logger';
 import { modules } from '@bot/module-list';
+import { REST } from 'discord.js';
 import { Redis } from 'ioredis';
 import { HttpDiscordOAuth } from './auth/discord-oauth.js';
 import { loadApiEnv } from './env.js';
@@ -48,6 +50,8 @@ const app = await buildServer({
   bus: new EventBus(logger),
   registry,
   config,
+  scheduler: new Scheduler(db),
+  rest: new REST().setToken(env.DISCORD_TOKEN),
   snapshots: new GuildSnapshotReader(redis),
   oauth: new HttpDiscordOAuth(env.DISCORD_CLIENT_ID, env.DISCORD_CLIENT_SECRET),
   options: {

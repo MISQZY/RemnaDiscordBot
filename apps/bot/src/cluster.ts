@@ -5,6 +5,7 @@ import {
   ModuleRegistry,
   PrismaConfigStore,
   RedisConfigCache,
+  Scheduler,
   publishConfigInvalidation,
   registerCoreLocales,
   subscribeConfigInvalidation,
@@ -64,7 +65,8 @@ const config = new ConfigService({
 });
 const unsubscribeConfig = await subscribeConfigInvalidation(redis, logger, (message) => config.invalidate(message));
 
-new Dispatcher({ client, logger, db, redis, i18n, bus, config }, registry).attach();
+const scheduler = new Scheduler(db);
+new Dispatcher({ client, logger, db, redis, i18n, bus, config, scheduler, rest: client.rest }, registry).attach();
 new GuildLifecycle(db, new GuildSnapshotWriter(redis), logger).attach(client);
 const stopHeartbeat = startHeartbeat(client, redis, logger, { clusterId: info.CLUSTER, shards: info.SHARD_LIST });
 

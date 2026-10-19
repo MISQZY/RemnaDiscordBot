@@ -15,6 +15,8 @@ export const RedisKeys = {
   oauthState: (state: string) => `oauth:state:${state}`,
   /** Гильдии пользователя из Discord — кэш на минуту: эндпоинт жёстко лимитирован. */
   userGuilds: (userId: string) => `user:${userId}:guilds`,
+  /** Блокировка периодической задачи воркера на один период. */
+  intervalLock: (moduleId: string, name: string) => `lock:interval:${moduleId}:${name}`,
 } as const;
 
 export const RedisChannels = {

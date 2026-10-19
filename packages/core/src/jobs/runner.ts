@@ -1,0 +1,140 @@
+import type { ScheduledAction } from '@bot/db';
+import type { CoreServices, ModuleServices } from '../context.js';
+import type { AnyModule } from '../module.js';
+import { RedisKeys } from '../redis-keys.js';
+import type { ModuleRegistry } from '../registry.js';
+
+export interface JobRunnerOptions {
+  batchSize?: number;
+  /** Сколько задача считается занятой воркером. */
+  lockMs?: number;
+  maxAttempts?: number;
+  timeoutMs?: number;
+}
+
+/** Экспоненциальная задержка повтора: 10 с, 20 с, 40 с… но не больше часа. */
+export function retryDelayMs(attempts: number): number {
+  return Math.min(10_000 * 2 ** Math.max(attempts - 1, 0), 60 * 60_000);
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Job timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+/** Сервисы и конфиг модуля — то, что получают задачи и периодические задачи. */
+export function moduleServices(services: CoreServices, module: AnyModule): ModuleServices<unknown> {
+  return {
+    ...services,
+    logger: services.logger.child({ moduleId: module.id }),
+    moduleId: module.id,
+    getConfig: async (guildId) => (await services.config.get(guildId, module.id)).config,
+  };
+}
+
+/** Выполняет отложенные задачи модулей из `ScheduledAction`. */
+export class JobRunner {
+  private timer: NodeJS.Timeout | undefined;
+  private running: Promise<unknown> = Promise.resolve();
+  private stopped = false;
+  private readonly options: Required<JobRunnerOptions>;
+
+  constructor(
+    private readonly services: CoreServices,
+    private readonly registry: ModuleRegistry,
+    options: JobRunnerOptions = {},
+  ) {
+    this.options = { batchSize: 20, lockMs: 60_000, maxAttempts: 5, timeoutMs: 30_000, ...options };
+  }
+
+  /** Один проход: забрать готовые задачи и выполнить. Возвращает число задач. */
+  async tick(): Promise<number> {
+    const { batchSize, lockMs, maxAttempts } = this.options;
+    const actions = await this.services.scheduler.claimDue({ limit: batchSize, lockMs, maxAttempts });
+    await Promise.all(actions.map((action) => this.run(action)));
+    return actions.length;
+  }
+
+  start(pollMs: number): void {
+    const loop = async () => {
+      if (this.stopped) return;
+      this.running = this.tick().catch((err: unknown) => this.services.logger.error({ err }, 'Job tick failed'));
+      await this.running;
+      if (!this.stopped) this.timer = setTimeout(() => void loop(), pollMs);
+    };
+    void loop();
+  }
+
+  async stop(): Promise<void> {
+    this.stopped = true;
+    clearTimeout(this.timer);
+    await this.running;
+  }
+
+  private async run(action: ScheduledAction): Promise<void> {
+    const { scheduler, logger } = this.services;
+    const entry = this.registry.findJob(action.type);
+    if (!entry) {
+      await scheduler.fail(action.id, `Unknown job type ${action.type}`, null);
+      logger.error({ actionId: action.id, type: action.type }, 'Unknown job type');
+      return;
+    }
+
+    try {
+      const ctx = { ...moduleServices(this.services, entry.module), guildId: action.guildId };
+      await withTimeout(Promise.resolve(entry.item(action.payload, ctx)), this.options.timeoutMs);
+      await scheduler.complete(action.id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const giveUp = action.attempts >= this.options.maxAttempts;
+      await scheduler.fail(action.id, message, giveUp ? null : new Date(Date.now() + retryDelayMs(action.attempts)));
+      logger.warn({ err, actionId: action.id, type: action.type, attempts: action.attempts, giveUp }, 'Job failed');
+    }
+  }
+}
+
+/**
+ * Периодические задачи модулей. Блокировка в Redis на период гарантирует,
+ * что при нескольких воркерах задача выполнится один раз за период.
+ */
+export class IntervalRunner {
+  private readonly timers: NodeJS.Timeout[] = [];
+
+  constructor(
+    private readonly services: CoreServices,
+    private readonly registry: ModuleRegistry,
+  ) {}
+
+  /** Запускает задачу, если в этом периоде её ещё никто не запускал. */
+  async runOnce(moduleId: string, name: string): Promise<boolean> {
+    const module = this.registry.get(moduleId);
+    const task = module?.intervals?.[name];
+    if (!module || !task) throw new Error(`Unknown interval ${moduleId}:${name}`);
+
+    const lock = await this.services.redis.set(RedisKeys.intervalLock(moduleId, name), '1', 'PX', task.everyMs, 'NX');
+    if (!lock) return false;
+    try {
+      await task.run(moduleServices(this.services, module));
+    } catch (err) {
+      this.services.logger.error({ err, moduleId, interval: name }, 'Interval task failed');
+    }
+    return true;
+  }
+
+  start(): void {
+    for (const module of this.registry.all()) {
+      for (const [name, task] of Object.entries(module.intervals ?? {})) {
+        const timer = setInterval(() => void this.runOnce(module.id, name), task.everyMs);
+        timer.unref();
+        this.timers.push(timer);
+      }
+    }
+  }
+
+  stop(): void {
+    for (const timer of this.timers) clearInterval(timer);
+  }
+}

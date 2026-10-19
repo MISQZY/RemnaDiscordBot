@@ -2,7 +2,7 @@ import { ModuleId } from '@bot/contracts';
 import type { I18n } from '@bot/i18n';
 import type { ClientEvents, GatewayIntentBits } from 'discord.js';
 import { CORE_NAMESPACE } from './locales.js';
-import type { AnyModule, ComponentHandler, EventHandlers, SlashCommand } from './module.js';
+import type { AnyModule, ComponentHandler, EventHandlers, JobHandler, SlashCommand } from './module.js';
 
 export interface Registered<T> {
   module: AnyModule;
@@ -55,6 +55,14 @@ export class ModuleRegistry {
       this.events.set(name, list);
     }
     return this;
+  }
+
+  /** Обработчик задачи по типу `<moduleId>:<job>`. */
+  findJob(type: string): Registered<JobHandler> | undefined {
+    const separator = type.indexOf(':');
+    const module = this.modules.get(type.slice(0, separator));
+    const handler = separator > 0 ? module?.jobs?.[type.slice(separator + 1)] : undefined;
+    return module && handler ? { module, item: handler } : undefined;
   }
 
   get(id: string): AnyModule | undefined {

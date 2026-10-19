@@ -86,6 +86,9 @@ importers:
       discord-api-types:
         specifier: 0.38.56
         version: 0.38.56
+      discord.js:
+        specifier: 14.27.0
+        version: 14.27.0
       fastify:
         specifier: 5.12.7
         version: 5.12.7

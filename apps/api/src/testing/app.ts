@@ -6,6 +6,7 @@ import {
   PrismaConfigStore,
   RedisConfigCache,
   RedisKeys,
+  Scheduler,
   publishConfigInvalidation,
   registerCoreLocales,
   type AnyModule,
@@ -14,6 +15,7 @@ import { GuildSnapshotReader } from '@bot/discord';
 import { I18n } from '@bot/i18n';
 import { createLogger } from '@bot/logger';
 import { createTestDatabase, createTestRedis, type TestDatabase } from '@bot/testing';
+import { REST } from 'discord.js';
 import type { FastifyInstance } from 'fastify';
 import type { Redis } from 'ioredis';
 import type { ApiDeps } from '../deps.js';
@@ -60,6 +62,8 @@ export async function createTestApp({ modules = [], rateLimitPerMinute = 0 }: Te
       publish: (message) => publishConfigInvalidation(redis, message),
       logger,
     }),
+    scheduler: new Scheduler(database.db),
+    rest: new REST(),
     snapshots: new GuildSnapshotReader(redis),
     oauth,
     options: {

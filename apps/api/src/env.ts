@@ -10,6 +10,8 @@ const ApiEnv = z.object({
   API_PUBLIC_URL: z.url().default('http://localhost:3000'),
   /** Адрес веб-платформы: CORS и редирект после входа. Пока веба нет — Swagger на самом API. */
   WEB_ORIGIN: z.url().optional(),
+  /** Токен бота: API пишет в Discord от имени бота (публикация сообщений, тестовые отправки). */
+  DISCORD_TOKEN: z.string().min(1),
   DISCORD_CLIENT_ID: z.string().min(1),
   DISCORD_CLIENT_SECRET: z.string().min(1),
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters'),

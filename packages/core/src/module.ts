@@ -12,7 +12,7 @@ import type {
 } from 'discord.js';
 import type { FastifyInstance } from 'fastify';
 import type { z } from 'zod';
-import type { ApiModuleContext, BotModuleContext } from './context.js';
+import type { ApiModuleContext, BotModuleContext, JobContext, ModuleServices } from './context.js';
 import type { ConfigIssue, GuildEntities } from './validation.js';
 
 /** Контекст interaction: контекст модуля + локаль пользователя. */
@@ -72,6 +72,18 @@ export interface ModuleDefinition<TSchema extends z.ZodType = z.ZodType> {
    * Доступ к гильдии уже проверен; `request.params.guildId` — ID гильдии.
    */
   api?: (app: FastifyInstance, ctx: ApiModuleContext<z.output<TSchema>>) => Promise<void> | void;
+  /** Отложенные задачи: тип `<moduleId>:<имя>`, планируются через `ctx.scheduler`, выполняет воркер. */
+  jobs?: Record<string, JobHandler<z.output<TSchema>>>;
+  /** Периодические задачи воркера (флаш счётчиков, поллинг источников). */
+  intervals?: Record<string, IntervalTask<z.output<TSchema>>>;
+}
+
+/** Обработчик задачи; `payload` модуль валидирует сам. Ошибка — повтор с задержкой. */
+export type JobHandler<TConfig = unknown> = (payload: unknown, ctx: JobContext<TConfig>) => Promise<void>;
+
+export interface IntervalTask<TConfig = unknown> {
+  everyMs: number;
+  run(ctx: ModuleServices<TConfig>): Promise<void>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- реестр хранит модули с разными схемами

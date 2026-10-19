@@ -1,20 +1,10 @@
-import type { ConfigService, EventBus, ModuleRegistry } from '@bot/core';
-import type { PrismaClient } from '@bot/db';
+import type { CoreServices, ModuleRegistry } from '@bot/core';
 import type { GuildSnapshotReader } from '@bot/discord';
-import type { I18n } from '@bot/i18n';
-import type { Logger } from '@bot/logger';
-import type { Redis } from 'ioredis';
 import type { DiscordOAuth } from './auth/discord-oauth.js';
 
 /** Всё, от чего зависит сервер; собирается в index.ts, в тестах — из SQLite, мока Redis и фейка Discord. */
-export interface ApiDeps {
-  logger: Logger;
-  db: PrismaClient;
-  redis: Redis;
-  i18n: I18n;
-  bus: EventBus;
+export interface ApiDeps extends CoreServices {
   registry: ModuleRegistry;
-  config: ConfigService;
   snapshots: GuildSnapshotReader;
   oauth: DiscordOAuth;
   options: ApiOptions;

@@ -1,5 +1,5 @@
 import { ModuleConfigPatch, ModuleConfigReplace, ModuleId, ModuleInfo, ModuleState, Snowflake } from '@bot/contracts';
-import { UnknownModuleError, type AnyModule, type ConfigPatch, type ResolvedConfig } from '@bot/core';
+import { moduleServices, UnknownModuleError, type AnyModule, type ConfigPatch, type ResolvedConfig } from '@bot/core';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod, ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -193,16 +193,7 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
         const register = module.api;
         await guildScope.register(
           async (moduleScope) => {
-            await register(moduleScope, {
-              logger: deps.logger.child({ moduleId: module.id }),
-              db: deps.db,
-              redis: deps.redis,
-              i18n: deps.i18n,
-              bus: deps.bus,
-              config: deps.config,
-              moduleId: module.id,
-              getConfig: async (guildId) => (await config.get(guildId, module.id)).config,
-            });
+            await register(moduleScope, moduleServices(deps, module));
           },
           { prefix: `/v1/guilds/:guildId/modules/${module.id}` },
         );
