@@ -2,6 +2,7 @@ import { defineModule, EntityChecker } from '@bot/core';
 import { GatewayIntentBits } from 'discord.js';
 import { autorolesApi } from './api.js';
 import { onMemberJoin, onMemberLeave, panelComponent } from './bot.js';
+import { autorolesCommand } from './commands.js';
 import { AutorolesConfig, defaultAutorolesConfig } from './config.js';
 import { assignJoinRoles } from './jobs.js';
 import { locales } from './locales.js';
@@ -28,6 +29,7 @@ export default defineModule({
       guildMemberAdd: onMemberJoin,
       guildMemberRemove: onMemberLeave,
     },
+    commands: [autorolesCommand],
     components: { [COMPONENT_PREFIX]: panelComponent },
   },
   jobs: { assignJoinRoles },
