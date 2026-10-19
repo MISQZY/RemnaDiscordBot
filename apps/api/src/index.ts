@@ -77,7 +77,7 @@ const app = await buildServer({
     secureCookies: env.API_PUBLIC_URL.startsWith('https://'),
     linkClients: env.LINK_CLIENTS,
     docs: true,
-    rateLimitPerMinute: 120,
+    rateLimitPerMinute: env.API_RATE_LIMIT_PER_MINUTE,
   },
 });
 

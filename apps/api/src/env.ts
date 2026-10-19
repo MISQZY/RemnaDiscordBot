@@ -7,6 +7,8 @@ const ApiEnv = z.object({
   LOG_LEVEL: z.string().default('info'),
   API_HOST: z.string().default('127.0.0.1'),
   API_PORT: z.coerce.number().int().positive().default(3000),
+  /** Global request limit per minute per user/IP; 0 — unlimited (load tests). */
+  API_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().nonnegative().default(120),
   /** Internal port for Prometheus `/metrics`; not published outside the Docker network. */
   API_METRICS_PORT: z.coerce.number().int().positive().default(9464),
   /** Bearer token required by `/metrics`; set it when the metrics port is published outside the Docker network. */
