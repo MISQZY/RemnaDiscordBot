@@ -7,6 +7,8 @@ export const RedisKeys = {
   guildChannels: (guildId: string) => `guild:${guildId}:channels`,
   guildRoles: (guildId: string) => `guild:${guildId}:roles`,
   guildEmojis: (guildId: string) => `guild:${guildId}:emojis`,
+  clusterHeartbeat: (clusterId: number) => `bot:cluster:${clusterId}`,
+  clusterHeartbeatPattern: 'bot:cluster:*',
 } as const;
 
 export const RedisChannels = {

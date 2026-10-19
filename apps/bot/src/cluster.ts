@@ -19,6 +19,7 @@ import { Client, Events, GatewayIntentBits, Options } from 'discord.js';
 import { Redis } from 'ioredis';
 import { loadClusterEnv } from './env.js';
 import { GuildLifecycle } from './lifecycle/guilds.js';
+import { startHeartbeat } from './lifecycle/heartbeat.js';
 
 const env = loadClusterEnv();
 const info = getInfo();
@@ -65,6 +66,7 @@ const unsubscribeConfig = await subscribeConfigInvalidation(redis, logger, (mess
 
 new Dispatcher({ client, logger, db, redis, i18n, bus, config }, registry).attach();
 new GuildLifecycle(db, new GuildSnapshotWriter(redis), logger).attach(client);
+const stopHeartbeat = startHeartbeat(client, redis, logger, { clusterId: info.CLUSTER, shards: info.SHARD_LIST });
 
 client.once(Events.ClientReady, (ready) => {
   client.cluster.triggerReady();
@@ -79,6 +81,7 @@ async function shutdown(signal: string): Promise<void> {
   shuttingDown = true;
   logger.info({ signal }, 'Cluster shutting down');
   try {
+    await stopHeartbeat();
     await client.destroy();
     await unsubscribeConfig();
     await redis.quit();
