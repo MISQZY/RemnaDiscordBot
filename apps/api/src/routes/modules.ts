@@ -32,6 +32,11 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
     return module;
   };
 
+  const guildEntities = async (guildId: string) => ({
+    channels: (await snapshots.getChannels(guildId)) ?? [],
+    roles: (await snapshots.getRoles(guildId)) ?? [],
+  });
+
   /** Общий путь записи: If-Match → валидация и сохранение → аудит → новый ETag. */
   async function applyUpdate(
     request: FastifyRequest,
@@ -53,10 +58,7 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
 
     if (module.validateConfig) {
       const parsed = module.configSchema.parse(patch.config ?? current.config);
-      const issues = module.validateConfig(parsed, {
-        channels: (await snapshots.getChannels(guildId)) ?? [],
-        roles: (await snapshots.getRoles(guildId)) ?? [],
-      });
+      const issues = module.validateConfig(parsed, await guildEntities(guildId));
       if (issues.length > 0) {
         throw ApiError.badRequest(
           'Config references unknown or unusable channels or roles',
@@ -196,6 +198,7 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
             await register(moduleScope, {
               ...moduleServices(deps, module),
               currentUserId: (request) => requireSession(request).userId,
+              guildEntities,
             });
           },
           { prefix: `/v1/guilds/:guildId/modules/${module.id}` },

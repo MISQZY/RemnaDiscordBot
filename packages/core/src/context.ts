@@ -7,6 +7,7 @@ import type { Redis } from 'ioredis';
 import type { EventBus } from './bus.js';
 import type { ConfigService } from './config/service.js';
 import type { Scheduler } from './jobs/scheduler.js';
+import type { GuildEntities } from './validation.js';
 
 /** Общие сервисы процесса (бот, API, воркер), доступные модулям. */
 export interface CoreServices {
@@ -35,6 +36,8 @@ export interface ModuleServices<TConfig> extends CoreServices {
 export interface ApiModuleContext<TConfig> extends ModuleServices<TConfig> {
   /** Discord ID вошедшего пользователя; доступ к гильдии уже проверен. */
   currentUserId(request: FastifyRequest): string;
+  /** Каналы и роли гильдии из снапшота — для проверки ссылок в данных модуля. */
+  guildEntities(guildId: string): Promise<GuildEntities>;
 }
 
 /** Контекст отложенной задачи модуля в воркере. */
