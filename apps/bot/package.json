@@ -21,7 +21,7 @@
     "@bot/discord": "workspace:*",
     "@bot/i18n": "workspace:*",
     "@bot/logger": "workspace:*",
-    "@bot/module-general": "workspace:*",
+    "@bot/module-list": "workspace:*",
     "discord-hybrid-sharding": "3.0.1",
     "discord.js": "14.27.0",
     "ioredis": "6.0.0",

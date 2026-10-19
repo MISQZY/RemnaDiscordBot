@@ -12,12 +12,12 @@ import {
 import { GuildSnapshotWriter } from '@bot/discord';
 import { I18n } from '@bot/i18n';
 import { createLogger } from '@bot/logger';
+import { modules } from '@bot/module-list';
 import { ClusterClient, getInfo } from 'discord-hybrid-sharding';
 import { Client, Events, GatewayIntentBits, Options } from 'discord.js';
 import { loadClusterEnv } from './env.js';
 import { createDatabase, createRedis, isLocalDatabase, isMemoryRedis } from './infra.js';
 import { GuildLifecycle } from './lifecycle/guilds.js';
-import { modules } from './modules.js';
 
 const env = loadClusterEnv();
 const info = getInfo();

@@ -1,9 +1,9 @@
 import { ModuleRegistry } from '@bot/core';
 import { createLogger } from '@bot/logger';
+import { modules } from '@bot/module-list';
 import { REST, Routes } from 'discord.js';
 import { collectCommandPayloads } from './commands.js';
 import { loadDeployEnv } from './env.js';
-import { modules } from './modules.js';
 
 /**
  * Регистрирует slash-команды всех модулей (bulk overwrite).

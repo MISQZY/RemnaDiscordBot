@@ -59,9 +59,9 @@ importers:
       '@bot/logger':
         specifier: workspace:*
         version: link:../../packages/logger
-      '@bot/module-general':
+      '@bot/module-list':
         specifier: workspace:*
-        version: link:../../packages/modules/general
+        version: link:../../packages/module-list
       discord-hybrid-sharding:
         specifier: 3.0.1
         version: 3.0.1
@@ -187,6 +187,19 @@ importers:
       pino-pretty:
         specifier: 13.2.0
         version: 13.2.0
+    devDependencies:
+      '@bot/config':
+        specifier: workspace:*
+        version: link:../config
+
+  packages/module-list:
+    dependencies:
+      '@bot/core':
+        specifier: workspace:*
+        version: link:../core
+      '@bot/module-general':
+        specifier: workspace:*
+        version: link:../modules/general
     devDependencies:
       '@bot/config':
         specifier: workspace:*

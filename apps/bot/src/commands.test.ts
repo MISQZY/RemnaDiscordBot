@@ -1,7 +1,7 @@
 import { ModuleRegistry } from '@bot/core';
+import { modules } from '@bot/module-list';
 import { describe, expect, it } from 'vitest';
 import { collectCommandPayloads } from './commands.js';
-import { modules } from './modules.js';
 
 describe('collectCommandPayloads', () => {
   it('serializes commands of all registered modules', () => {
