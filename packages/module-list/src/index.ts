@@ -2,6 +2,7 @@ import type { AnyModule } from '@bot/core';
 import auditLog from '@bot/module-audit-log';
 import autoroles from '@bot/module-autoroles';
 import general from '@bot/module-general';
+import leveling from '@bot/module-leveling';
 import moderation from '@bot/module-moderation';
 import welcome from '@bot/module-welcome';
 
@@ -9,4 +10,4 @@ import welcome from '@bot/module-welcome';
  * Модули платформы — единый список для бота, API и воркера.
  * Порядок задаёт порядок вызова обработчиков событий.
  */
-export const modules: AnyModule[] = [general, welcome, autoroles, moderation, auditLog];
+export const modules: AnyModule[] = [general, welcome, autoroles, moderation, auditLog, leveling];
