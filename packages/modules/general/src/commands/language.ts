@@ -22,8 +22,16 @@ export const language = defineCommand<GeneralConfig>({
     const guildId = interaction.guildId!;
     const locale = Locale.parse(interaction.options.getString('language', true));
 
+    const before = await ctx.db.guild.findUnique({ where: { id: guildId }, select: { locale: true } });
     await ctx.db.guild.upsert({ where: { id: guildId }, create: { id: guildId, locale }, update: { locale } });
-    await ctx.db.dashboardAuditLog.create({ data: { guildId, userId: interaction.user.id, action: 'guild.update', diff: { after: { locale } } } });
+    await ctx.db.dashboardAuditLog.create({
+      data: {
+        guildId,
+        userId: interaction.user.id,
+        action: 'guild.update',
+        diff: { before: { locale: before?.locale ?? null }, after: { locale } },
+      },
+    });
     ctx.guildLocales.invalidate(guildId);
     // Invalidate the language in other processes too (clusters, API, worker).
     await publishConfigInvalidation(ctx.redis, { guildId });

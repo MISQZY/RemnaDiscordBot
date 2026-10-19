@@ -67,9 +67,16 @@ export const modules = defineCommand<GeneralConfig>({
     }
 
     const enabled = sub === 'enable';
+    const wasEnabled = await ctx.config.isEnabled(guildId, id);
     await ctx.config.update(guildId, id, { enabled }, interaction.user.id);
     await ctx.db.dashboardAuditLog.create({
-      data: { guildId, userId: interaction.user.id, moduleId: id, action: enabled ? 'module.enable' : 'module.disable' },
+      data: {
+        guildId,
+        userId: interaction.user.id,
+        moduleId: id,
+        action: enabled ? 'module.enable' : 'module.disable',
+        diff: { before: { enabled: wasEnabled }, after: { enabled } },
+      },
     });
     await interaction.reply({
       content: ctx.t(enabled ? 'general.modules.enabled' : 'general.modules.disabled', { module: moduleName(ctx, id) }),
