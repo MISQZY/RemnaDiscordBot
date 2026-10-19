@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../bus.js';
 import type { BotServices } from '../context.js';
 import { registerCoreLocales } from '../locales.js';
+import { metrics } from '../metrics.js';
 import { defineCommand } from '../module.js';
 import { ModuleRegistry } from '../registry.js';
 import { createTestModule, testLogger } from '../testing/fixtures.js';
@@ -79,6 +80,19 @@ describe('Dispatcher events', () => {
 
     expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ moduleId: 'leveling' }), message);
     expect(failing).toHaveBeenCalledOnce();
+  });
+
+  it('counts dispatched events and handler failures', async () => {
+    const { dispatcher } = setup();
+    const value = async (counter: { get(): ReturnType<typeof metrics.events.get> }, labels: Record<string, string>) =>
+      (await counter.get()).values.find((v) => Object.entries(labels).every(([k, l]) => (v.labels as Record<string, unknown>)[k] === l))?.value ?? 0;
+    const before = await value(metrics.handlerErrors, { module: 'broken', handler: 'event:messageCreate' });
+    const delivered = await value(metrics.events, { module: 'leveling', event: 'messageCreate' });
+
+    await dispatcher.dispatchEvent('messageCreate', [{ guildId: GUILD }]);
+
+    expect(await value(metrics.handlerErrors, { module: 'broken', handler: 'event:messageCreate' })).toBe(before + 1);
+    expect(await value(metrics.events, { module: 'leveling', event: 'messageCreate' })).toBe(delivered + 1);
   });
 
   it('skips modules disabled for the guild', async () => {

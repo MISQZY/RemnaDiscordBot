@@ -1,5 +1,6 @@
 import type { ScheduledAction } from '@bot/db';
 import type { CoreServices, ModuleServices } from '../context.js';
+import { metrics } from '../metrics.js';
 import type { AnyModule } from '../module.js';
 import { RedisKeys } from '../redis-keys.js';
 import type { ModuleRegistry } from '../registry.js';
@@ -79,6 +80,7 @@ export class JobRunner {
     const entry = this.registry.findJob(action.type);
     if (!entry) {
       await scheduler.fail(action.id, `Unknown job type ${action.type}`, null);
+      metrics.jobs.inc({ job: action.type, status: 'unknown' });
       logger.error({ actionId: action.id, type: action.type }, 'Unknown job type');
       return;
     }
@@ -87,10 +89,12 @@ export class JobRunner {
       const ctx = { ...moduleServices(this.services, entry.module), guildId: action.guildId };
       await withTimeout(Promise.resolve(entry.item(action.payload, ctx)), this.options.timeoutMs);
       await scheduler.complete(action.id);
+      metrics.jobs.inc({ job: action.type, status: 'ok' });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const giveUp = action.attempts >= this.options.maxAttempts;
       await scheduler.fail(action.id, message, giveUp ? null : new Date(Date.now() + retryDelayMs(action.attempts)));
+      metrics.jobs.inc({ job: action.type, status: giveUp ? 'given_up' : 'retry' });
       logger.warn({ err, actionId: action.id, type: action.type, attempts: action.attempts, giveUp }, 'Job failed');
     }
   }
@@ -119,6 +123,7 @@ export class IntervalRunner {
     try {
       await task.run(moduleServices(this.services, module));
     } catch (err) {
+      metrics.handlerErrors.inc({ module: moduleId, handler: `interval:${name}` });
       this.services.logger.error({ err, moduleId, interval: name }, 'Interval task failed');
     }
     return true;

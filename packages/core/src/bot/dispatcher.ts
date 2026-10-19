@@ -9,6 +9,7 @@ import {
   type Locale as DiscordLocale,
 } from 'discord.js';
 import type { BotModuleContext, BotServices } from '../context.js';
+import { metrics } from '../metrics.js';
 import type { AnyModule, InteractionContext, SlashCommand } from '../module.js';
 import { RedisKeys } from '../redis-keys.js';
 import type { ModuleRegistry } from '../registry.js';
@@ -61,8 +62,10 @@ export class Dispatcher {
         try {
           if (guildId && !(await this.services.config.isEnabled(guildId, module.id))) return;
           const handler = item as LooseEventHandler;
+          metrics.events.inc({ event, module: module.id });
           await withTimeout(Promise.resolve(handler(this.moduleContext(module), ...args)), timeoutMs, `${module.id}:${event}`);
         } catch (err) {
+          metrics.handlerErrors.inc({ module: module.id, handler: `event:${event}` });
           this.services.logger.error({ err, moduleId: module.id, event, guildId }, 'Event handler failed');
         }
       }),
@@ -96,7 +99,7 @@ export class Dispatcher {
           return;
         }
 
-        await entry.item.execute(interaction, ctx);
+        await this.timeCommand(entry.module, interaction.commandName, () => entry.item.execute(interaction, ctx));
         return;
       }
 
@@ -109,7 +112,12 @@ export class Dispatcher {
           await interaction.reply(this.ephemeral(ctx.t('core.moduleDisabled', { module: this.moduleName(entry.module, ctx), id: entry.module.id })));
           return;
         }
-        await entry.item.handle(interaction, ctx);
+        try {
+          await entry.item.handle(interaction, ctx);
+        } catch (err) {
+          metrics.handlerErrors.inc({ module: entry.module.id, handler: 'component' });
+          throw err;
+        }
       }
     } catch (err) {
       this.services.logger.error({ err, interactionId: interaction.id, guildId: interaction.guildId }, 'Interaction failed');
@@ -121,7 +129,21 @@ export class Dispatcher {
   private async runFallback(interaction: ChatInputCommandInteraction): Promise<void> {
     const fallback = this.registry.fallbackCommand();
     if (!fallback || !(await this.isEnabledFor(fallback.module, interaction.guildId))) return;
-    await fallback.item.execute(interaction, await this.interactionContext(fallback.module, interaction));
+    const ctx = await this.interactionContext(fallback.module, interaction);
+    await this.timeCommand(fallback.module, 'fallback', () => fallback.item.execute(interaction, ctx));
+  }
+
+  /** Records the command duration and counts its failure against the module. */
+  private async timeCommand(module: AnyModule, command: string, execute: () => unknown): Promise<void> {
+    const end = metrics.commandDuration.startTimer({ command });
+    try {
+      await execute();
+      end({ status: 'ok' });
+    } catch (err) {
+      end({ status: 'error' });
+      metrics.handlerErrors.inc({ module: module.id, handler: `command:${command}` });
+      throw err;
+    }
   }
 
   private async isEnabledFor(module: AnyModule, guildId: string | null): Promise<boolean> {

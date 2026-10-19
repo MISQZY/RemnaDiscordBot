@@ -12,6 +12,7 @@ export * from './http-error.js';
 export * from './jobs/runner.js';
 export * from './jobs/scheduler.js';
 export * from './locales.js';
+export * from './metrics.js';
 export * from './module.js';
 export * from './redis-keys.js';
 export * from './registry.js';

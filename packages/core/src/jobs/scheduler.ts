@@ -70,6 +70,13 @@ export class Scheduler {
     return this.db.scheduledAction.findMany({ where: { id: { in: claimed } }, orderBy: { runAt: 'asc' } });
   }
 
+  /** Jobs still waiting longer than `graceMs` after their run time — workers are down or cannot keep up. */
+  async countOverdue(graceMs: number, maxAttempts: number): Promise<number> {
+    return this.db.scheduledAction.count({
+      where: { doneAt: null, attempts: { lt: maxAttempts }, runAt: { lt: new Date(Date.now() - graceMs) } },
+    });
+  }
+
   async complete(id: string): Promise<void> {
     await this.db.scheduledAction.update({ where: { id }, data: { doneAt: new Date(), lockedUntil: null, lastError: null } });
   }
