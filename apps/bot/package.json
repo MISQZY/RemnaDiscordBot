@@ -9,7 +9,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint src",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "deploy-commands": "tsx --conditions=development --env-file-if-exists=../../.env src/deploy-commands.ts"
   },
   "dependencies": {
     "@bot/contracts": "workspace:*",

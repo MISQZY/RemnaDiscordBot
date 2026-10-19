@@ -12,7 +12,8 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "check": "turbo run lint typecheck test"
+    "check": "turbo run lint typecheck test",
+    "deploy-commands": "pnpm --filter @bot/bot deploy-commands"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
