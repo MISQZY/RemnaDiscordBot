@@ -2,7 +2,7 @@
 //   node scripts/sqlite.mjs generate          — схема + клиент в generated/sqlite
 //   node scripts/sqlite.mjs push <file.db>    — создать таблицы в файле БД
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -39,9 +39,15 @@ function prisma(args, env = {}) {
   if (result.status !== 0) throw new Error(`prisma ${args.join(' ')} failed`);
 }
 
-export function generate() {
+/** Генерирует клиент, если схема изменилась с прошлого раза (или с `force`). */
+export function generate({ force = false } = {}) {
+  const schema = buildSchema();
+  const upToDate =
+    existsSync(resolve(outDir, 'client/index.js')) && existsSync(target) && readFileSync(target, 'utf8') === schema;
+  if (upToDate && !force) return;
+
   mkdirSync(outDir, { recursive: true });
-  writeFileSync(target, buildSchema());
+  writeFileSync(target, schema);
   prisma(['generate', '--no-hints']);
 }
 
@@ -56,7 +62,7 @@ export function push(databaseFile) {
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const [command, file] = process.argv.slice(2);
-  if (command === 'generate') generate();
+  if (command === 'generate') generate({ force: process.argv.includes('--force') });
   else if (command === 'push' && file) push(file);
   else {
     process.stderr.write('Usage: sqlite.mjs generate | push <file.db>\n');

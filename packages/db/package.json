@@ -13,7 +13,10 @@
       "types": "./generated/sqlite/client/index.d.ts",
       "default": "./generated/sqlite/client/index.js"
     },
-    "./sqlite-tools": "./scripts/sqlite.mjs"
+    "./sqlite-tools": {
+      "types": "./scripts/sqlite.d.mts",
+      "default": "./scripts/sqlite.mjs"
+    }
   },
   "scripts": {
     "postinstall": "prisma generate",
