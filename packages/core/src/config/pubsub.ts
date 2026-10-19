@@ -17,6 +17,7 @@ export async function subscribeConfigInvalidation(
   onMessage: (message: ConfigInvalidation) => void,
 ): Promise<() => Promise<void>> {
   const subscriber = redis.duplicate();
+  subscriber.on('error', (err) => logger.error({ err }, 'Redis subscriber error'));
   subscriber.on('message', (channel: string, raw: string) => {
     if (channel !== RedisChannels.configInvalidate) return;
     try {
