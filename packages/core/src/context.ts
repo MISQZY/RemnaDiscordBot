@@ -20,6 +20,12 @@ export interface BotServices extends CoreServices {
   client: Client;
 }
 
+/** Контекст роутов модуля в API. */
+export interface ApiModuleContext<TConfig> extends CoreServices {
+  moduleId: string;
+  getConfig(guildId: string): Promise<TConfig>;
+}
+
 /** Контекст, который получает обработчик модуля в боте. */
 export interface BotModuleContext<TConfig> extends BotServices {
   moduleId: string;

@@ -29,6 +29,15 @@
   },
   "devDependencies": {
     "@bot/config": "workspace:*",
-    "@bot/testing": "workspace:*"
+    "@bot/testing": "workspace:*",
+    "fastify": "5.12.7"
+  },
+  "peerDependencies": {
+    "fastify": "^5.12.7"
+  },
+  "peerDependenciesMeta": {
+    "fastify": {
+      "optional": true
+    }
   }
 }

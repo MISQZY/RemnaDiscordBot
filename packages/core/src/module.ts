@@ -10,8 +10,9 @@ import type {
   ModalSubmitInteraction,
   RESTPostAPIChatInputApplicationCommandsJSONBody,
 } from 'discord.js';
+import type { FastifyInstance } from 'fastify';
 import type { z } from 'zod';
-import type { BotModuleContext } from './context.js';
+import type { ApiModuleContext, BotModuleContext } from './context.js';
 
 /** Контекст interaction: контекст модуля + локаль пользователя. */
 export interface InteractionContext<TConfig> extends BotModuleContext<TConfig> {
@@ -60,6 +61,11 @@ export interface ModuleDefinition<TSchema extends z.ZodType = z.ZodType> {
   alwaysEnabled?: boolean;
   locales?: Partial<Record<Locale, Dictionary>>;
   bot?: BotFacet<z.output<TSchema>>;
+  /**
+   * Роуты модуля в API, монтируются в `/v1/guilds/:guildId/modules/<id>`.
+   * Доступ к гильдии уже проверен; `request.params.guildId` — ID гильдии.
+   */
+  api?: (app: FastifyInstance, ctx: ApiModuleContext<z.output<TSchema>>) => Promise<void> | void;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- реестр хранит модули с разными схемами
