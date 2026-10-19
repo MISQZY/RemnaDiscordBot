@@ -8,3 +8,8 @@ onlyBuiltDependencies:
   - '@prisma/engines'
   - esbuild
   - prisma
+
+peerDependencyRules:
+  allowedVersions:
+    # ioredis-mock не импортирует ioredis во время работы; мок используется только в тестах.
+    ioredis-mock>ioredis: '6'

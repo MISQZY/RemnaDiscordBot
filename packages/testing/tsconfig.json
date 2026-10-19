@@ -1,0 +1,4 @@
+{
+  "extends": "@bot/config/tsconfig.base.json",
+  "include": ["src"]
+}

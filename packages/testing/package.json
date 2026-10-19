@@ -1,0 +1,41 @@
+{
+  "name": "@bot/testing",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./global-setup": {
+      "development": "./src/global-setup.ts",
+      "types": "./dist/global-setup.d.ts",
+      "default": "./dist/global-setup.js"
+    },
+    "./vitest": {
+      "development": "./src/vitest.ts",
+      "types": "./dist/vitest.d.ts",
+      "default": "./dist/vitest.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@bot/db": "workspace:*",
+    "ioredis": "6.0.0",
+    "ioredis-mock": "8.13.1"
+  },
+  "devDependencies": {
+    "@bot/config": "workspace:*",
+    "vitest": "5.0.5"
+  },
+  "peerDependencies": {
+    "vitest": "5.0.5"
+  }
+}
