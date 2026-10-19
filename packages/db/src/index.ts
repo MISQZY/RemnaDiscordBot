@@ -11,6 +11,8 @@ export type {
   MemberRoleBackup,
   ModCase,
   ModCaseCounter,
+  NotificationSource,
+  NotificationSubscription,
   RolePanel,
   ScheduledAction,
 } from '@prisma/client';

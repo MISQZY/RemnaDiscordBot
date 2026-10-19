@@ -188,3 +188,39 @@ model CustomCommand {
 
   @@unique([guildId, name])
 }
+
+/// Внешний источник оповещений (канал YouTube, стример Twitch) — один на всю платформу.
+model NotificationSource {
+  id            String    @id @default(cuid())
+  /// `youtube` | `twitch`
+  provider      String
+  /// ID канала YouTube или пользователя Twitch.
+  externalId    String
+  name          String
+  /// Последнее объявленное видео или стрим — чтобы не повторяться.
+  lastItemId    String?
+  lastCheckedAt DateTime?
+  createdAt     DateTime  @default(now())
+
+  subscriptions NotificationSubscription[]
+
+  @@unique([provider, externalId])
+}
+
+/// Подписка гильдии на источник: куда и каким сообщением объявлять (модуль notifications).
+model NotificationSubscription {
+  id            String   @id @default(cuid())
+  guildId       String
+  sourceId      String
+  channelId     String
+  mentionRoleId String?
+  /// MessageTemplate анонса.
+  message       Json
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  source NotificationSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, sourceId])
+  @@index([sourceId])
+}
