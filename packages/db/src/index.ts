@@ -6,6 +6,7 @@ export type {
   DashboardUser,
   Guild,
   GuildModuleConfig,
+  MemberLevel,
   MemberRoleBackup,
   ModCase,
   ModCaseCounter,
