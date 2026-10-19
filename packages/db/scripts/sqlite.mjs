@@ -30,13 +30,16 @@ function buildSchema() {
     .replace('provider = "prisma-client-js"', 'provider = "prisma-client-js"\n  output   = "./client"');
 }
 
+/** Запускает Prisma CLI молча; вывод показывается только при ошибке. */
 function prisma(args, env = {}) {
   const result = spawnSync(process.execPath, [prismaCli, ...args, '--schema', target], {
     cwd: root,
     env: { ...process.env, ...env, PRISMA_HIDE_UPDATE_MESSAGE: '1' },
-    stdio: 'inherit',
+    encoding: 'utf8',
   });
-  if (result.status !== 0) throw new Error(`prisma ${args.join(' ')} failed`);
+  if (result.status !== 0) {
+    throw new Error(`prisma ${args.join(' ')} failed:\n${result.stdout}${result.stderr}`);
+  }
 }
 
 /** Генерирует клиент, если схема изменилась с прошлого раза (или с `force`). */
