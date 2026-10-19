@@ -26,7 +26,7 @@ const durationOption = (o: SlashCommandStringOption, required: boolean) =>
     .setDescription('Duration: 10m, 2h, 7d…')
     .setRequired(required);
 
-function base(name: string, description: string, ru: string, permission: bigint) {
+function base(name: string, description: string, permission: bigint) {
   return new SlashCommandBuilder()
     .setName(name)
     .setDescription(description)
@@ -89,7 +89,7 @@ async function done(interaction: ChatInputCommandInteraction, ctx: Ctx, action: 
 }
 
 export const ban = defineCommand<ModerationConfig>({
-  data: base('ban', 'Ban a member', 'Забанить участника', PermissionFlagsBits.BanMembers)
+  data: base('ban', 'Ban a member', PermissionFlagsBits.BanMembers)
     .addUserOption(userOption)
     .addStringOption((o) => durationOption(o, false))
     .addStringOption(reasonOption)
@@ -111,7 +111,7 @@ export const ban = defineCommand<ModerationConfig>({
 });
 
 export const unban = defineCommand<ModerationConfig>({
-  data: base('unban', 'Unban a user', 'Разбанить пользователя', PermissionFlagsBits.BanMembers)
+  data: base('unban', 'Unban a user', PermissionFlagsBits.BanMembers)
     .addUserOption((o) => userOption(o).setDescription('User ID or mention'))
     .addStringOption(reasonOption),
   async execute(interaction, ctx) {
@@ -124,7 +124,7 @@ export const unban = defineCommand<ModerationConfig>({
 });
 
 export const kick = defineCommand<ModerationConfig>({
-  data: base('kick', 'Kick a member', 'Выгнать участника', PermissionFlagsBits.KickMembers).addUserOption(userOption).addStringOption(reasonOption),
+  data: base('kick', 'Kick a member', PermissionFlagsBits.KickMembers).addUserOption(userOption).addStringOption(reasonOption),
   async execute(interaction, ctx) {
     const prepared = await prepare(interaction, ctx, 'kick');
     if (!prepared) return;
@@ -139,7 +139,7 @@ export const kick = defineCommand<ModerationConfig>({
 });
 
 export const mute = defineCommand<ModerationConfig>({
-  data: base('mute', 'Time out a member', 'Замутить участника (тайм-аут)', PermissionFlagsBits.ModerateMembers)
+  data: base('mute', 'Time out a member', PermissionFlagsBits.ModerateMembers)
     .addUserOption(userOption)
     .addStringOption((o) => durationOption(o, true))
     .addStringOption(reasonOption),
@@ -153,7 +153,7 @@ export const mute = defineCommand<ModerationConfig>({
 });
 
 export const unmute = defineCommand<ModerationConfig>({
-  data: base('unmute', 'Remove a time out', 'Снять тайм-аут', PermissionFlagsBits.ModerateMembers).addUserOption(userOption).addStringOption(reasonOption),
+  data: base('unmute', 'Remove a time out', PermissionFlagsBits.ModerateMembers).addUserOption(userOption).addStringOption(reasonOption),
   async execute(interaction, ctx) {
     const prepared = await prepare(interaction, ctx, null);
     if (!prepared) return;
@@ -164,7 +164,7 @@ export const unmute = defineCommand<ModerationConfig>({
 });
 
 export const warn = defineCommand<ModerationConfig>({
-  data: base('warn', 'Warn a member', 'Выдать предупреждение', PermissionFlagsBits.ModerateMembers)
+  data: base('warn', 'Warn a member', PermissionFlagsBits.ModerateMembers)
     .addUserOption(userOption)
     .addStringOption((o) => reasonOption(o).setRequired(true)),
   async execute(interaction, ctx) {
@@ -183,7 +183,7 @@ export const warn = defineCommand<ModerationConfig>({
 });
 
 export const warns = defineCommand<ModerationConfig>({
-  data: base('warns', 'Active warnings of a member', 'Активные предупреждения участника', PermissionFlagsBits.ModerateMembers).addUserOption(userOption),
+  data: base('warns', 'Active warnings of a member', PermissionFlagsBits.ModerateMembers).addUserOption(userOption),
   async execute(interaction, ctx) {
     const user = interaction.options.getUser('user', true);
     const list = await new ModerationService(ctx).activeWarnings(interaction.guildId!, user.id);
@@ -199,7 +199,7 @@ export const warns = defineCommand<ModerationConfig>({
 });
 
 export const unwarn = defineCommand<ModerationConfig>({
-  data: base('unwarn', 'Remove a warning', 'Снять предупреждение', PermissionFlagsBits.ModerateMembers)
+  data: base('unwarn', 'Remove a warning', PermissionFlagsBits.ModerateMembers)
     .addIntegerOption((o) =>
       o.setName('case').setDescription('Warning case number').setRequired(true).setMinValue(1),
     )
@@ -218,7 +218,7 @@ export const unwarn = defineCommand<ModerationConfig>({
 });
 
 export const caseCommand = defineCommand<ModerationConfig>({
-  data: base('case', 'Show a moderation case', 'Показать кейс модерации', PermissionFlagsBits.ModerateMembers).addIntegerOption((o) =>
+  data: base('case', 'Show a moderation case', PermissionFlagsBits.ModerateMembers).addIntegerOption((o) =>
     o.setName('number').setDescription('Case number').setRequired(true).setMinValue(1),
   ),
   async execute(interaction, ctx) {
@@ -233,7 +233,7 @@ export const caseCommand = defineCommand<ModerationConfig>({
 });
 
 export const clear = defineCommand<ModerationConfig>({
-  data: base('clear', 'Delete recent messages', 'Удалить последние сообщения', PermissionFlagsBits.ManageMessages)
+  data: base('clear', 'Delete recent messages', PermissionFlagsBits.ManageMessages)
     .addIntegerOption((o) =>
       o.setName('amount').setDescription('How many').setRequired(true).setMinValue(1).setMaxValue(100),
     )
