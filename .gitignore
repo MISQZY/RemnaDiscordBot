@@ -39,3 +39,6 @@ packages/db/generated/
 
 # Local SQLite database of dev:local mode
 .local/
+
+# Database dumps of backup.sh and deploy.sh
+backups/

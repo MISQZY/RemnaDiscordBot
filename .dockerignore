@@ -7,3 +7,4 @@ docs
 .env
 .env.*
 *.log
+backups
