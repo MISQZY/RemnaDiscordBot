@@ -41,7 +41,7 @@ describe('/autoroles', () => {
     await autorolesCommand.execute(interaction as never, ctx);
 
     expect(update).toHaveBeenCalledWith(GUILD, 'autoroles', { config: expect.objectContaining({ joinRoles: { humans: [ROLE], bots: [], delaySec: 0 } }) }, '9');
-    expect(replyFn).toHaveBeenCalledWith(expect.objectContaining({ content: 'autoroles.commands.joinAdded' }));
+    expect(replyFn).toHaveBeenCalledWith(expect.objectContaining({ content: 'autoroles.reply.joinAdded' }));
   });
 
   it('refuses roles above the bot', async () => {
@@ -50,6 +50,6 @@ describe('/autoroles', () => {
     await autorolesCommand.execute(interaction as never, ctx);
 
     expect(update).not.toHaveBeenCalled();
-    expect(replyFn).toHaveBeenCalledWith(expect.objectContaining({ content: 'autoroles.commands.higherRole' }));
+    expect(replyFn).toHaveBeenCalledWith(expect.objectContaining({ content: 'autoroles.reply.higherRole' }));
   });
 });

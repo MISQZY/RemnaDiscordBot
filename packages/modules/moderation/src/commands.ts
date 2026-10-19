@@ -17,22 +17,19 @@ import { ModerationService } from './service.js';
 type Ctx = InteractionContext<ModerationConfig>;
 
 const userOption = (o: SlashCommandUserOption) =>
-  o.setName('user').setNameLocalizations({ ru: 'участник' }).setDescription('Member').setDescriptionLocalizations({ ru: 'Участник' }).setRequired(true);
+  o.setName('user').setDescription('Member').setRequired(true);
 const reasonOption = (o: SlashCommandStringOption) =>
-  o.setName('reason').setNameLocalizations({ ru: 'причина' }).setDescription('Reason').setDescriptionLocalizations({ ru: 'Причина' }).setMaxLength(500);
+  o.setName('reason').setDescription('Reason').setMaxLength(500);
 const durationOption = (o: SlashCommandStringOption, required: boolean) =>
   o
     .setName('duration')
-    .setNameLocalizations({ ru: 'срок' })
     .setDescription('Duration: 10m, 2h, 7d…')
-    .setDescriptionLocalizations({ ru: 'Срок: 10м, 2ч, 7д…' })
     .setRequired(required);
 
 function base(name: string, description: string, ru: string, permission: bigint) {
   return new SlashCommandBuilder()
     .setName(name)
     .setDescription(description)
-    .setDescriptionLocalizations({ ru })
     .setDefaultMemberPermissions(permission)
     .setContexts(InteractionContextType.Guild);
 }
@@ -99,9 +96,7 @@ export const ban = defineCommand<ModerationConfig>({
     .addIntegerOption((o) =>
       o
         .setName('delete_days')
-        .setNameLocalizations({ ru: 'удалить_дней' })
         .setDescription('Delete messages from the last N days')
-        .setDescriptionLocalizations({ ru: 'Удалить сообщения за последние N дней' })
         .setMinValue(0)
         .setMaxValue(7),
     ),
@@ -117,7 +112,7 @@ export const ban = defineCommand<ModerationConfig>({
 
 export const unban = defineCommand<ModerationConfig>({
   data: base('unban', 'Unban a user', 'Разбанить пользователя', PermissionFlagsBits.BanMembers)
-    .addUserOption((o) => userOption(o).setDescription('User ID or mention').setDescriptionLocalizations({ ru: 'ID или упоминание' }))
+    .addUserOption((o) => userOption(o).setDescription('User ID or mention'))
     .addStringOption(reasonOption),
   async execute(interaction, ctx) {
     const prepared = await prepare(interaction, ctx, null);
@@ -206,7 +201,7 @@ export const warns = defineCommand<ModerationConfig>({
 export const unwarn = defineCommand<ModerationConfig>({
   data: base('unwarn', 'Remove a warning', 'Снять предупреждение', PermissionFlagsBits.ModerateMembers)
     .addIntegerOption((o) =>
-      o.setName('case').setNameLocalizations({ ru: 'кейс' }).setDescription('Warning case number').setDescriptionLocalizations({ ru: 'Номер кейса' }).setRequired(true).setMinValue(1),
+      o.setName('case').setDescription('Warning case number').setRequired(true).setMinValue(1),
     )
     .addStringOption(reasonOption),
   async execute(interaction, ctx) {
@@ -224,7 +219,7 @@ export const unwarn = defineCommand<ModerationConfig>({
 
 export const caseCommand = defineCommand<ModerationConfig>({
   data: base('case', 'Show a moderation case', 'Показать кейс модерации', PermissionFlagsBits.ModerateMembers).addIntegerOption((o) =>
-    o.setName('number').setNameLocalizations({ ru: 'номер' }).setDescription('Case number').setDescriptionLocalizations({ ru: 'Номер кейса' }).setRequired(true).setMinValue(1),
+    o.setName('number').setDescription('Case number').setRequired(true).setMinValue(1),
   ),
   async execute(interaction, ctx) {
     const number = interaction.options.getInteger('number', true);
@@ -240,9 +235,9 @@ export const caseCommand = defineCommand<ModerationConfig>({
 export const clear = defineCommand<ModerationConfig>({
   data: base('clear', 'Delete recent messages', 'Удалить последние сообщения', PermissionFlagsBits.ManageMessages)
     .addIntegerOption((o) =>
-      o.setName('amount').setNameLocalizations({ ru: 'количество' }).setDescription('How many').setDescriptionLocalizations({ ru: 'Сколько' }).setRequired(true).setMinValue(1).setMaxValue(100),
+      o.setName('amount').setDescription('How many').setRequired(true).setMinValue(1).setMaxValue(100),
     )
-    .addUserOption((o) => o.setName('user').setNameLocalizations({ ru: 'участник' }).setDescription('Only from this member').setDescriptionLocalizations({ ru: 'Только этого участника' })),
+    .addUserOption((o) => o.setName('user').setDescription('Only from this member')),
   cooldownMs: 5_000,
   async execute(interaction, ctx) {
     const channel = interaction.channel;

@@ -3,6 +3,142 @@ import type { Dictionary } from '@bot/i18n';
 
 export const locales: Record<Locale, Dictionary> = {
   ru: {
+    commands: {
+      ban: {
+        description: 'Забанить участника',
+        options: {
+          user: {
+            name: 'участник',
+            description: 'Участник',
+          },
+          duration: {
+            name: 'срок',
+            description: 'Срок: 10м, 2ч, 7д…',
+          },
+          reason: {
+            name: 'причина',
+            description: 'Причина',
+          },
+          delete_days: {
+            name: 'удалить_дней',
+            description: 'Удалить сообщения за последние N дней',
+          },
+        },
+      },
+      unban: {
+        description: 'Разбанить пользователя',
+        options: {
+          user: {
+            name: 'участник',
+            description: 'ID или упоминание',
+          },
+          reason: {
+            name: 'причина',
+            description: 'Причина',
+          },
+        },
+      },
+      kick: {
+        description: 'Выгнать участника',
+        options: {
+          user: {
+            name: 'участник',
+            description: 'Участник',
+          },
+          reason: {
+            name: 'причина',
+            description: 'Причина',
+          },
+        },
+      },
+      mute: {
+        description: 'Замутить участника (тайм-аут)',
+        options: {
+          user: {
+            name: 'участник',
+            description: 'Участник',
+          },
+          duration: {
+            name: 'срок',
+            description: 'Срок: 10м, 2ч, 7д…',
+          },
+          reason: {
+            name: 'причина',
+            description: 'Причина',
+          },
+        },
+      },
+      unmute: {
+        description: 'Снять тайм-аут',
+        options: {
+          user: {
+            name: 'участник',
+            description: 'Участник',
+          },
+          reason: {
+            name: 'причина',
+            description: 'Причина',
+          },
+        },
+      },
+      warn: {
+        description: 'Выдать предупреждение',
+        options: {
+          user: {
+            name: 'участник',
+            description: 'Участник',
+          },
+          reason: {
+            name: 'причина',
+            description: 'Причина',
+          },
+        },
+      },
+      warns: {
+        description: 'Активные предупреждения участника',
+        options: {
+          user: {
+            name: 'участник',
+            description: 'Участник',
+          },
+        },
+      },
+      unwarn: {
+        description: 'Снять предупреждение',
+        options: {
+          case: {
+            name: 'кейс',
+            description: 'Номер кейса',
+          },
+          reason: {
+            name: 'причина',
+            description: 'Причина',
+          },
+        },
+      },
+      case: {
+        description: 'Показать кейс модерации',
+        options: {
+          number: {
+            name: 'номер',
+            description: 'Номер кейса',
+          },
+        },
+      },
+      clear: {
+        description: 'Удалить последние сообщения',
+        options: {
+          amount: {
+            name: 'количество',
+            description: 'Сколько',
+          },
+          user: {
+            name: 'участник',
+            description: 'Только этого участника',
+          },
+        },
+      },
+    },
     name: 'Модерация',
     actions: { ban: 'Бан', unban: 'Разбан', kick: 'Кик', mute: 'Мут', unmute: 'Снятие мута', warn: 'Предупреждение' },
     case: {
@@ -50,6 +186,142 @@ export const locales: Record<Locale, Dictionary> = {
     },
   },
   en: {
+    commands: {
+      ban: {
+        description: 'Ban a member',
+        options: {
+          user: {
+            name: 'user',
+            description: 'Member',
+          },
+          duration: {
+            name: 'duration',
+            description: 'Duration: 10m, 2h, 7d…',
+          },
+          reason: {
+            name: 'reason',
+            description: 'Reason',
+          },
+          delete_days: {
+            name: 'delete_days',
+            description: 'Delete messages from the last N days',
+          },
+        },
+      },
+      unban: {
+        description: 'Unban a user',
+        options: {
+          user: {
+            name: 'user',
+            description: 'User ID or mention',
+          },
+          reason: {
+            name: 'reason',
+            description: 'Reason',
+          },
+        },
+      },
+      kick: {
+        description: 'Kick a member',
+        options: {
+          user: {
+            name: 'user',
+            description: 'Member',
+          },
+          reason: {
+            name: 'reason',
+            description: 'Reason',
+          },
+        },
+      },
+      mute: {
+        description: 'Time out a member',
+        options: {
+          user: {
+            name: 'user',
+            description: 'Member',
+          },
+          duration: {
+            name: 'duration',
+            description: 'Duration: 10m, 2h, 7d…',
+          },
+          reason: {
+            name: 'reason',
+            description: 'Reason',
+          },
+        },
+      },
+      unmute: {
+        description: 'Remove a time out',
+        options: {
+          user: {
+            name: 'user',
+            description: 'Member',
+          },
+          reason: {
+            name: 'reason',
+            description: 'Reason',
+          },
+        },
+      },
+      warn: {
+        description: 'Warn a member',
+        options: {
+          user: {
+            name: 'user',
+            description: 'Member',
+          },
+          reason: {
+            name: 'reason',
+            description: 'Reason',
+          },
+        },
+      },
+      warns: {
+        description: 'Active warnings of a member',
+        options: {
+          user: {
+            name: 'user',
+            description: 'Member',
+          },
+        },
+      },
+      unwarn: {
+        description: 'Remove a warning',
+        options: {
+          case: {
+            name: 'case',
+            description: 'Warning case number',
+          },
+          reason: {
+            name: 'reason',
+            description: 'Reason',
+          },
+        },
+      },
+      case: {
+        description: 'Show a moderation case',
+        options: {
+          number: {
+            name: 'number',
+            description: 'Case number',
+          },
+        },
+      },
+      clear: {
+        description: 'Delete recent messages',
+        options: {
+          amount: {
+            name: 'amount',
+            description: 'How many',
+          },
+          user: {
+            name: 'user',
+            description: 'Only from this member',
+          },
+        },
+      },
+    },
     name: 'Moderation',
     actions: { ban: 'Ban', unban: 'Unban', kick: 'Kick', mute: 'Mute', unmute: 'Unmute', warn: 'Warning' },
     case: {

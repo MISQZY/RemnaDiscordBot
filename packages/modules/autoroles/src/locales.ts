@@ -3,6 +3,157 @@ import type { Dictionary } from '@bot/i18n';
 
 export const locales: Record<Locale, Dictionary> = {
   ru: {
+    commands: {
+      autoroles: {
+        description: 'Роли при входе, восстановление ролей и панели ролей',
+        list: {
+          name: 'list',
+          description: 'Показать настройки авторолей',
+        },
+        join: {
+          name: 'join',
+          description: 'Роли при входе',
+          add: {
+            name: 'add',
+            description: 'Выдавать роль новым участникам',
+            options: {
+              role: {
+                name: 'роль',
+                description: 'Роль',
+              },
+            },
+          },
+          remove: {
+            name: 'remove',
+            description: 'Перестать выдавать роль при входе',
+            options: {
+              role: {
+                name: 'роль',
+                description: 'Роль',
+              },
+            },
+          },
+          delay: {
+            name: 'delay',
+            description: 'Задержка перед выдачей ролей при входе',
+            options: {
+              seconds: {
+                name: 'секунды',
+                description: '0–3600',
+              },
+            },
+          },
+        },
+        persistence: {
+          name: 'persistence',
+          description: 'Восстанавливать роли вернувшимся участникам',
+          on: {
+            name: 'on',
+            description: 'Включить восстановление ролей',
+          },
+          off: {
+            name: 'off',
+            description: 'Выключить восстановление ролей',
+          },
+        },
+        panel: {
+          name: 'panel',
+          description: 'Панели самостоятельного выбора ролей',
+          create: {
+            name: 'create',
+            description: 'Создать панель ролей',
+            options: {
+              channel: {
+                name: 'канал',
+                description: 'Куда отправить панель',
+              },
+              role: {
+                name: 'роль',
+                description: 'Первая роль',
+              },
+              text: {
+                name: 'текст',
+                description: 'Текст над кнопками',
+              },
+              kind: {
+                name: 'вид',
+                description: 'Кнопки или выпадающий список',
+                choices: {
+                  buttons: 'Кнопки',
+                  select: 'Выпадающий список',
+                },
+              },
+              mode: {
+                name: 'режим',
+                description: 'Как работает выбор',
+                choices: {
+                  toggle: 'Выдать или снять',
+                  add: 'Только выдать',
+                  remove: 'Только снять',
+                  unique: 'Одна из панели',
+                },
+              },
+            },
+          },
+          'add-role': {
+            name: 'add-role',
+            description: 'Добавить роль в панель',
+            options: {
+              panel: {
+                name: 'панель',
+                description: 'Панель ролей',
+              },
+              role: {
+                name: 'роль',
+                description: 'Роль',
+              },
+              label: {
+                name: 'подпись',
+                description: 'Подпись кнопки',
+              },
+              emoji: {
+                name: 'эмодзи',
+                description: 'Эмодзи',
+              },
+            },
+          },
+          'remove-role': {
+            name: 'remove-role',
+            description: 'Убрать роль из панели',
+            options: {
+              panel: {
+                name: 'панель',
+                description: 'Панель ролей',
+              },
+              role: {
+                name: 'роль',
+                description: 'Роль',
+              },
+            },
+          },
+          publish: {
+            name: 'publish',
+            description: 'Отправить или обновить сообщение панели',
+            options: {
+              panel: {
+                name: 'панель',
+                description: 'Панель ролей',
+              },
+            },
+          },
+          delete: {
+            name: 'delete',
+            description: 'Удалить панель и её сообщение',
+            options: {
+              panel: {
+                name: 'панель',
+                description: 'Панель ролей',
+              },
+            },
+          },
+        },
+      },
+    },
     name: 'Автороли',
     added: 'Выданы роли: {roles}',
     removed: 'Сняты роли: {roles}',
@@ -10,7 +161,7 @@ export const locales: Record<Locale, Dictionary> = {
     limit: 'Можно выбрать не больше {max, plural, one {# роли} other {# ролей}} из этой панели.',
     cannotManage: 'Часть ролей бот выдать не может — сообщите администратору.',
     panelMissing: 'Эта панель ролей больше не существует.',
-    commands: {
+    reply: {
       none: 'нет',
       on: 'включено',
       off: 'выключено',
@@ -38,6 +189,157 @@ export const locales: Record<Locale, Dictionary> = {
     },
   },
   en: {
+    commands: {
+      autoroles: {
+        description: 'Join roles, role restore and role panels',
+        list: {
+          name: 'list',
+          description: 'Show autoroles settings',
+        },
+        join: {
+          name: 'join',
+          description: 'Roles given on join',
+          add: {
+            name: 'add',
+            description: 'Give this role to new members',
+            options: {
+              role: {
+                name: 'role',
+                description: 'Role',
+              },
+            },
+          },
+          remove: {
+            name: 'remove',
+            description: 'Stop giving this role on join',
+            options: {
+              role: {
+                name: 'role',
+                description: 'Role',
+              },
+            },
+          },
+          delay: {
+            name: 'delay',
+            description: 'Delay before join roles are given',
+            options: {
+              seconds: {
+                name: 'seconds',
+                description: '0–3600',
+              },
+            },
+          },
+        },
+        persistence: {
+          name: 'persistence',
+          description: 'Restore roles when members come back',
+          on: {
+            name: 'on',
+            description: 'Enable role restore',
+          },
+          off: {
+            name: 'off',
+            description: 'Disable role restore',
+          },
+        },
+        panel: {
+          name: 'panel',
+          description: 'Self-assignable role panels',
+          create: {
+            name: 'create',
+            description: 'Create a role panel',
+            options: {
+              channel: {
+                name: 'channel',
+                description: 'Where to post the panel',
+              },
+              role: {
+                name: 'role',
+                description: 'First role',
+              },
+              text: {
+                name: 'text',
+                description: 'Text above the buttons',
+              },
+              kind: {
+                name: 'kind',
+                description: 'Buttons or a dropdown',
+                choices: {
+                  buttons: 'Buttons',
+                  select: 'Dropdown',
+                },
+              },
+              mode: {
+                name: 'mode',
+                description: 'How picking works',
+                choices: {
+                  toggle: 'Toggle',
+                  add: 'Only add',
+                  remove: 'Only remove',
+                  unique: 'One of the panel',
+                },
+              },
+            },
+          },
+          'add-role': {
+            name: 'add-role',
+            description: 'Add a role to a panel',
+            options: {
+              panel: {
+                name: 'panel',
+                description: 'Role panel',
+              },
+              role: {
+                name: 'role',
+                description: 'Role',
+              },
+              label: {
+                name: 'label',
+                description: 'Button label',
+              },
+              emoji: {
+                name: 'emoji',
+                description: 'Emoji',
+              },
+            },
+          },
+          'remove-role': {
+            name: 'remove-role',
+            description: 'Remove a role from a panel',
+            options: {
+              panel: {
+                name: 'panel',
+                description: 'Role panel',
+              },
+              role: {
+                name: 'role',
+                description: 'Role',
+              },
+            },
+          },
+          publish: {
+            name: 'publish',
+            description: 'Post or update the panel message',
+            options: {
+              panel: {
+                name: 'panel',
+                description: 'Role panel',
+              },
+            },
+          },
+          delete: {
+            name: 'delete',
+            description: 'Delete a panel and its message',
+            options: {
+              panel: {
+                name: 'panel',
+                description: 'Role panel',
+              },
+            },
+          },
+        },
+      },
+    },
     name: 'Autoroles',
     added: 'Roles added: {roles}',
     removed: 'Roles removed: {roles}',
@@ -45,7 +347,7 @@ export const locales: Record<Locale, Dictionary> = {
     limit: 'You can pick at most {max, plural, one {# role} other {# roles}} from this panel.',
     cannotManage: 'The bot cannot manage some of these roles — please tell an administrator.',
     panelMissing: 'This role panel no longer exists.',
-    commands: {
+    reply: {
       none: 'none',
       on: 'enabled',
       off: 'disabled',

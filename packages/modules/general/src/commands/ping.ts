@@ -5,8 +5,7 @@ import type { GeneralConfig } from '../config.js';
 export const ping = defineCommand<GeneralConfig>({
   data: new SlashCommandBuilder()
     .setName('ping')
-    .setDescription('Check bot latency')
-    .setDescriptionLocalizations({ ru: 'Проверить задержку бота' }),
+    .setDescription('Check bot latency'),
   cooldownMs: 3_000,
   async execute(interaction, ctx) {
     const roundtrip = Math.max(Date.now() - interaction.createdTimestamp, 0);

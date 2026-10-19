@@ -3,6 +3,54 @@ import type { Dictionary } from '@bot/i18n';
 
 export const locales: Record<Locale, Dictionary> = {
   ru: {
+    commands: {
+      ping: {
+        description: 'Проверить задержку бота',
+      },
+      help: {
+        description: 'Показать доступные команды',
+      },
+      modules: {
+        description: 'Включить или выключить модули бота',
+        list: {
+          name: 'list',
+          description: 'Показать модули и их состояние',
+        },
+        enable: {
+          name: 'enable',
+          description: 'Включить модуль',
+          options: {
+            module: {
+              name: 'модуль',
+              description: 'Модуль',
+            },
+          },
+        },
+        disable: {
+          name: 'disable',
+          description: 'Выключить модуль',
+          options: {
+            module: {
+              name: 'модуль',
+              description: 'Модуль',
+            },
+          },
+        },
+      },
+      language: {
+        description: 'Язык сервера для публичных сообщений бота',
+        options: {
+          language: {
+            name: 'язык',
+            description: 'Язык',
+            choices: {
+              ru: 'Русский',
+              en: 'English',
+            },
+          },
+        },
+      },
+    },
     name: 'Основное',
     ping: {
       reply: '🏓 Понг! Gateway: {ws} мс · ответ: {roundtrip} мс',
@@ -24,6 +72,54 @@ export const locales: Record<Locale, Dictionary> = {
     },
   },
   en: {
+    commands: {
+      ping: {
+        description: 'Check bot latency',
+      },
+      help: {
+        description: 'Show available commands',
+      },
+      modules: {
+        description: 'Enable or disable bot modules',
+        list: {
+          name: 'list',
+          description: 'Show modules and their status',
+        },
+        enable: {
+          name: 'enable',
+          description: 'Enable a module',
+          options: {
+            module: {
+              name: 'module',
+              description: 'Module',
+            },
+          },
+        },
+        disable: {
+          name: 'disable',
+          description: 'Disable a module',
+          options: {
+            module: {
+              name: 'module',
+              description: 'Module',
+            },
+          },
+        },
+      },
+      language: {
+        description: 'Server language for public bot messages',
+        options: {
+          language: {
+            name: 'language',
+            description: 'Language',
+            choices: {
+              ru: 'Русский',
+              en: 'English',
+            },
+          },
+        },
+      },
+    },
     name: 'General',
     ping: {
       reply: '🏓 Pong! Gateway: {ws} ms · roundtrip: {roundtrip} ms',

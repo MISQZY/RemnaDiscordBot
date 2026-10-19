@@ -4,6 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { helpSections } from './commands/help.js';
 import general from './index.js';
 
+const i18n = new I18n('ru');
+new ModuleRegistry([general]).registerLocales(i18n);
+
 describe('general module', () => {
   it('registers with valid defaults and commands', () => {
     const registry = new ModuleRegistry([general]);
@@ -31,6 +34,7 @@ describe('general module', () => {
       ]),
       extraCommands: [{ name: 'rules', description: 'Server rules' }],
       locale: 'ru',
+      i18n,
       moduleName: (id) => ({ general: 'Основное', 'custom-commands': 'Свои команды' })[id] ?? id,
     });
 
@@ -41,7 +45,7 @@ describe('general module', () => {
       '</modules list:3> — Показать модули и их состояние',
       '</modules enable:3> — Включить модуль',
       '</modules disable:3> — Выключить модуль',
-      '`/language` — Server language for public bot messages',
+      '`/language` — Язык сервера для публичных сообщений бота',
     ]);
     expect(sections[1]!.lines).toEqual(['`/rules` — Server rules']);
   });
@@ -53,6 +57,7 @@ describe('general module', () => {
       commandIds: new Map(),
       extraCommands: [],
       locale: 'en-US',
+      i18n,
       moduleName: (id) => id,
     });
     expect(sections).toEqual([]);

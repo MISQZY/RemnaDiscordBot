@@ -1,4 +1,5 @@
-import { defineCommand, type AnyModule } from '@bot/core';
+import { defineCommand, localizeCommand, type AnyModule } from '@bot/core';
+import type { I18n } from '@bot/i18n';
 import { EmbedBuilder, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import type { GeneralConfig } from '../config.js';
 
@@ -15,6 +16,8 @@ export interface HelpInput {
   /** Команды гильдии, которых нет в модулях (пользовательские). */
   extraCommands: { name: string; description: string }[];
   locale: string;
+  /** Словари модулей — тексты команд берутся из них. */
+  i18n: I18n;
   moduleName(id: string): string;
 }
 
@@ -47,7 +50,7 @@ function leaves(node: CommandNode, path: string[] = []): { path: string[]; node:
 }
 
 /** Разделы справки: команды включённых модулей, собранные из реестра автоматически. */
-export function helpSections({ modules, enabled, commandIds, extraCommands, locale, moduleName }: HelpInput): HelpSection[] {
+export function helpSections({ modules, enabled, commandIds, extraCommands, locale, i18n, moduleName }: HelpInput): HelpSection[] {
   const sections: HelpSection[] = [];
   for (const module of modules) {
     const commands = module.bot?.commands ?? [];
@@ -55,7 +58,7 @@ export function helpSections({ modules, enabled, commandIds, extraCommands, loca
     sections.push({
       title: moduleName(module.id),
       lines: commands.flatMap((command) =>
-        leaves(command.data.toJSON() as CommandNode).map(({ path, node }) => {
+        leaves(localizeCommand(command.data.toJSON(), i18n, module.id) as CommandNode).map(({ path, node }) => {
           const localized = node.description_localizations?.[locale];
           return `${mention(path, commandIds)} — ${localized ?? node.description}`;
         }),
@@ -74,8 +77,7 @@ export function helpSections({ modules, enabled, commandIds, extraCommands, loca
 export const help = defineCommand<GeneralConfig>({
   data: new SlashCommandBuilder()
     .setName('help')
-    .setDescription('Show available commands')
-    .setDescriptionLocalizations({ ru: 'Показать доступные команды' }),
+    .setDescription('Show available commands'),
   cooldownMs: 5_000,
   async execute(interaction, ctx) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -97,6 +99,7 @@ export const help = defineCommand<GeneralConfig>({
       commandIds,
       extraCommands: [...(guild?.values() ?? [])].filter((c) => !moduleCommands.has(c.name)).map((c) => ({ name: c.name, description: c.description })),
       locale: interaction.locale,
+      i18n: ctx.i18n,
       moduleName: (id) => (ctx.i18n.has(`${id}.name`, ctx.locale) ? ctx.t(`${id}.name`) : id),
     });
 

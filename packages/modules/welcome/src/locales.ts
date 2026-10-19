@@ -3,6 +3,26 @@ import type { Dictionary } from '@bot/i18n';
 
 export const locales: Record<Locale, Dictionary> = {
   ru: {
+    commands: {
+      welcome: {
+        description: 'Приветствия',
+        test: {
+          name: 'test',
+          description: 'Отправить тестовое сообщение, как будто вы зашли или вышли',
+          options: {
+            kind: {
+              name: 'тип',
+              description: 'Какое сообщение отправить',
+              choices: {
+                join: 'Приветствие',
+                leave: 'Прощание',
+                dm: 'Личное сообщение',
+              },
+            },
+          },
+        },
+      },
+    },
     name: 'Приветствия',
     defaults: {
       join: 'Добро пожаловать на **{guild.name}**, {user.mention}! Ты наш {guild.memberCount}-й участник.',
@@ -15,6 +35,26 @@ export const locales: Record<Locale, Dictionary> = {
     },
   },
   en: {
+    commands: {
+      welcome: {
+        description: 'Welcome messages',
+        test: {
+          name: 'test',
+          description: 'Send a test message as if you just joined or left',
+          options: {
+            kind: {
+              name: 'kind',
+              description: 'Which message to send',
+              choices: {
+                join: 'Join',
+                leave: 'Leave',
+                dm: 'Direct message',
+              },
+            },
+          },
+        },
+      },
+    },
     name: 'Welcome',
     defaults: {
       join: 'Welcome to **{guild.name}**, {user.mention}! You are member #{guild.memberCount}.',

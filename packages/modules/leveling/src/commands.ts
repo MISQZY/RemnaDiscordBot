@@ -39,9 +39,8 @@ export const rank = defineCommand<LevelingConfig>({
   data: new SlashCommandBuilder()
     .setName('rank')
     .setDescription('Show level and XP')
-    .setDescriptionLocalizations({ ru: 'Показать уровень и опыт' })
     .setContexts(InteractionContextType.Guild)
-    .addUserOption((o) => o.setName('user').setNameLocalizations({ ru: 'участник' }).setDescription('Member').setDescriptionLocalizations({ ru: 'Участник' })),
+    .addUserOption((o) => o.setName('user').setDescription('Member')),
   cooldownMs: 3_000,
   async execute(interaction, ctx) {
     const user = interaction.options.getUser('user') ?? interaction.user;
@@ -70,7 +69,6 @@ export const leaderboard = defineCommand<LevelingConfig>({
   data: new SlashCommandBuilder()
     .setName('leaderboard')
     .setDescription('Top members by XP')
-    .setDescriptionLocalizations({ ru: 'Лучшие участники по опыту' })
     .setContexts(InteractionContextType.Guild),
   cooldownMs: 5_000,
   async execute(interaction, ctx) {
@@ -91,25 +89,22 @@ export const xp = defineCommand<LevelingConfig>({
   data: new SlashCommandBuilder()
     .setName('xp')
     .setDescription('Change member XP')
-    .setDescriptionLocalizations({ ru: 'Изменить опыт участника' })
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .setContexts(InteractionContextType.Guild)
     .addStringOption((o) =>
       o
         .setName('action')
-        .setNameLocalizations({ ru: 'действие' })
         .setDescription('What to do')
-        .setDescriptionLocalizations({ ru: 'Что сделать' })
         .setRequired(true)
         .addChoices(
-          { name: 'Add', name_localizations: { ru: 'Добавить' }, value: 'add' },
-          { name: 'Remove', name_localizations: { ru: 'Отнять' }, value: 'remove' },
-          { name: 'Set', name_localizations: { ru: 'Установить' }, value: 'set' },
+          { name: 'Add', value: 'add' },
+          { name: 'Remove', value: 'remove' },
+          { name: 'Set', value: 'set' },
         ),
     )
-    .addUserOption((o) => o.setName('user').setNameLocalizations({ ru: 'участник' }).setDescription('Member').setDescriptionLocalizations({ ru: 'Участник' }).setRequired(true))
+    .addUserOption((o) => o.setName('user').setDescription('Member').setRequired(true))
     .addIntegerOption((o) =>
-      o.setName('amount').setNameLocalizations({ ru: 'количество' }).setDescription('XP').setDescriptionLocalizations({ ru: 'Опыт' }).setRequired(true).setMinValue(0).setMaxValue(10_000_000),
+      o.setName('amount').setDescription('XP').setRequired(true).setMinValue(0).setMaxValue(10_000_000),
     ),
   async execute(interaction, ctx) {
     const action = interaction.options.getString('action', true);

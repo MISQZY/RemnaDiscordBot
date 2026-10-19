@@ -12,26 +12,23 @@ export const modules = defineCommand<GeneralConfig>({
   data: new SlashCommandBuilder()
     .setName('modules')
     .setDescription('Enable or disable bot modules')
-    .setDescriptionLocalizations({ ru: 'Включить или выключить модули бота' })
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .setContexts(InteractionContextType.Guild)
-    .addSubcommand((sub) => sub.setName('list').setDescription('Show modules and their status').setDescriptionLocalizations({ ru: 'Показать модули и их состояние' }))
+    .addSubcommand((sub) => sub.setName('list').setDescription('Show modules and their status'))
     .addSubcommand((sub) =>
       sub
         .setName('enable')
         .setDescription('Enable a module')
-        .setDescriptionLocalizations({ ru: 'Включить модуль' })
         .addStringOption((o) =>
-          o.setName('module').setNameLocalizations({ ru: 'модуль' }).setDescription('Module').setDescriptionLocalizations({ ru: 'Модуль' }).setRequired(true).setAutocomplete(true),
+          o.setName('module').setDescription('Module').setRequired(true).setAutocomplete(true),
         ),
     )
     .addSubcommand((sub) =>
       sub
         .setName('disable')
         .setDescription('Disable a module')
-        .setDescriptionLocalizations({ ru: 'Выключить модуль' })
         .addStringOption((o) =>
-          o.setName('module').setNameLocalizations({ ru: 'модуль' }).setDescription('Module').setDescriptionLocalizations({ ru: 'Модуль' }).setRequired(true).setAutocomplete(true),
+          o.setName('module').setDescription('Module').setRequired(true).setAutocomplete(true),
         ),
     ),
   cooldownMs: 2_000,

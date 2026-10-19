@@ -7,25 +7,21 @@ export const welcomeCommand = defineCommand<WelcomeConfig>({
   data: new SlashCommandBuilder()
     .setName('welcome')
     .setDescription('Welcome messages')
-    .setDescriptionLocalizations({ ru: 'Приветствия' })
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .setContexts(InteractionContextType.Guild)
     .addSubcommand((sub) =>
       sub
         .setName('test')
         .setDescription('Send a test message as if you just joined or left')
-        .setDescriptionLocalizations({ ru: 'Отправить тестовое сообщение, как будто вы зашли или вышли' })
         .addStringOption((option) =>
           option
             .setName('kind')
-            .setNameLocalizations({ ru: 'тип' })
             .setDescription('Which message to send')
-            .setDescriptionLocalizations({ ru: 'Какое сообщение отправить' })
             .setRequired(true)
             .addChoices(
-              { name: 'Join', name_localizations: { ru: 'Приветствие' }, value: 'join' },
-              { name: 'Leave', name_localizations: { ru: 'Прощание' }, value: 'leave' },
-              { name: 'Direct message', name_localizations: { ru: 'Личное сообщение' }, value: 'dm' },
+              { name: 'Join', value: 'join' },
+              { name: 'Leave', value: 'leave' },
+              { name: 'Direct message', value: 'dm' },
             ),
         ),
     ),
