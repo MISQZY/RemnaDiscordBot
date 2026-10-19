@@ -1,7 +1,7 @@
 import { defineModule, EntityChecker } from '@bot/core';
 import { GatewayIntentBits } from 'discord.js';
 import { welcomeApi } from './api.js';
-import { welcomeCommand } from './commands/welcome.js';
+import { messageModalHandler, MODAL_PREFIX, welcomeCommand } from './commands/welcome.js';
 import { defaultWelcomeConfig, WelcomeConfig } from './config.js';
 import { greet } from './greet.js';
 import { locales } from './locales.js';
@@ -28,6 +28,7 @@ export default defineModule({
     // Member join and leave events require the privileged Server Members intent.
     intents: [GatewayIntentBits.GuildMembers],
     commands: [welcomeCommand],
+    components: { [MODAL_PREFIX]: messageModalHandler },
     events: {
       guildMemberAdd: async (ctx, member) => {
         const config = await ctx.getConfig(member.guild.id);
