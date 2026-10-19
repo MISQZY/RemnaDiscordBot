@@ -35,6 +35,7 @@
   },
   "devDependencies": {
     "@bot/config": "workspace:*",
+    "@bot/module-moderation": "workspace:*",
     "@bot/testing": "workspace:*"
   }
 }

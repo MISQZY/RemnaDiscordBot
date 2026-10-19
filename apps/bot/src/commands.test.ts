@@ -7,7 +7,9 @@ describe('collectCommandPayloads', () => {
   it('serializes commands of all registered modules', () => {
     const payloads = collectCommandPayloads(new ModuleRegistry(modules));
 
-    expect(payloads.map((p) => p.name).sort()).toEqual(['help', 'ping', 'welcome']);
+    expect(payloads.map((p) => p.name).sort()).toEqual(
+      ['ban', 'case', 'clear', 'help', 'kick', 'mute', 'ping', 'unban', 'unmute', 'unwarn', 'warn', 'warns', 'welcome'],
+    );
     expect(payloads.find((p) => p.name === 'ping')).toMatchObject({
       description: 'Check bot latency',
       description_localizations: { ru: 'Проверить задержку бота' },
