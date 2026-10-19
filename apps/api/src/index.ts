@@ -1,0 +1,77 @@
+import {
+  ConfigService,
+  EventBus,
+  ModuleRegistry,
+  PrismaConfigStore,
+  RedisConfigCache,
+  publishConfigInvalidation,
+  registerCoreLocales,
+  subscribeConfigInvalidation,
+} from '@bot/core';
+import { createDatabaseClient } from '@bot/db';
+import { GuildSnapshotReader } from '@bot/discord';
+import { I18n } from '@bot/i18n';
+import { createLogger } from '@bot/logger';
+import { modules } from '@bot/module-list';
+import { Redis } from 'ioredis';
+import { loadApiEnv } from './env.js';
+import { buildServer } from './server.js';
+
+const env = loadApiEnv();
+const logger = createLogger({ service: 'api', level: env.LOG_LEVEL });
+
+const db = await createDatabaseClient(env.DATABASE_URL);
+const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: 3 });
+redis.on('error', (err) => logger.error({ err }, 'Redis error'));
+
+const registry = new ModuleRegistry(modules);
+const i18n = new I18n(env.DEFAULT_LOCALE);
+registerCoreLocales(i18n);
+registry.registerLocales(i18n);
+
+const config = new ConfigService({
+  registry,
+  store: new PrismaConfigStore(db),
+  sharedCache: new RedisConfigCache(redis),
+  publish: (message) => publishConfigInvalidation(redis, message),
+  logger,
+});
+// Другие реплики API тоже меняют конфиги — локальный кэш нужно сбрасывать.
+const unsubscribeConfig = await subscribeConfigInvalidation(redis, logger, (message) => config.invalidate(message));
+
+const app = await buildServer({
+  logger,
+  db,
+  redis,
+  i18n,
+  bus: new EventBus(logger),
+  registry,
+  config,
+  snapshots: new GuildSnapshotReader(redis),
+  options: {
+    publicUrl: env.API_PUBLIC_URL,
+    webOrigin: env.WEB_ORIGIN ?? env.API_PUBLIC_URL,
+    docs: true,
+  },
+});
+
+let shuttingDown = false;
+async function shutdown(signal: string): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info({ signal }, 'API shutting down');
+  try {
+    await app.close();
+    await unsubscribeConfig();
+    await redis.quit();
+    await db.$disconnect();
+  } catch (err) {
+    logger.error({ err }, 'Error during shutdown');
+  } finally {
+    process.exit(0);
+  }
+}
+process.on('SIGINT', () => void shutdown('SIGINT'));
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+
+await app.listen({ host: env.API_HOST, port: env.API_PORT });
