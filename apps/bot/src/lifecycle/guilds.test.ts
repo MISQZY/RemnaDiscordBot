@@ -3,7 +3,7 @@ import type { GuildSnapshotWriter } from '@bot/discord';
 import { createLogger } from '@bot/logger';
 import type { Guild } from 'discord.js';
 import { describe, expect, it, vi } from 'vitest';
-import { GuildLifecycle } from './guilds.js';
+import { GuildLifecycle, initialLocale } from './guilds.js';
 
 const GUILD = '111111111111111111';
 
@@ -26,14 +26,22 @@ function setup() {
   return { db, snapshots, lifecycle };
 }
 
-const guild = (available = true) => ({ id: GUILD, name: 'Test', available }) as unknown as Guild;
+const guild = (available = true, preferredLocale = 'ru') => ({ id: GUILD, name: 'Test', available, preferredLocale }) as unknown as Guild;
+
+describe('initialLocale', () => {
+  it('takes the server language from Discord and falls back to English', () => {
+    expect(initialLocale(guild(true, 'ru'))).toBe('ru');
+    expect(initialLocale(guild(true, 'en-GB'))).toBe('en');
+    expect(initialLocale(guild(true, 'de'))).toBe('en');
+  });
+});
 
 describe('GuildLifecycle', () => {
   it('upserts the guild and writes a snapshot on join', async () => {
     const { db, snapshots, lifecycle } = setup();
     await lifecycle.join(guild());
 
-    expect(db.guild.upsert).toHaveBeenCalledWith({ where: { id: GUILD }, create: { id: GUILD }, update: { leftAt: null } });
+    expect(db.guild.upsert).toHaveBeenCalledWith({ where: { id: GUILD }, create: { id: GUILD, locale: 'ru' }, update: { leftAt: null } });
     expect(snapshots.writeGuild).toHaveBeenCalledOnce();
   });
 

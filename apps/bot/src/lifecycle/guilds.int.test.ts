@@ -20,6 +20,7 @@ function fakeGuild(id = GUILD): Guild {
     memberCount: 3,
     shardId: 0,
     available: true,
+    preferredLocale: 'ru',
     channels: manager([{ id: '444444444444444444', name: 'general', type: 0, parentId: null, position: 0 }]),
     roles: manager([{ id, name: '@everyone', color: 0, position: 0, managed: false, editable: false, guild }]),
     emojis: manager([]),

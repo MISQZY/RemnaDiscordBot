@@ -1,7 +1,17 @@
+import { SUPPORTED_LOCALES, type Locale } from '@bot/contracts';
 import type { PrismaClient } from '@bot/db';
 import type { GuildSnapshotWriter } from '@bot/discord';
 import type { Logger } from '@bot/logger';
 import { Events, type Client, type Guild } from 'discord.js';
+
+/**
+ * Язык нового сервера — из его настроек в Discord; если такого языка у бота нет, английский.
+ * Выбранный позже язык (`/language`, API) не перезаписывается.
+ */
+export function initialLocale(guild: Pick<Guild, 'preferredLocale'>): Locale {
+  const base = guild.preferredLocale?.split('-')[0];
+  return (SUPPORTED_LOCALES as readonly string[]).includes(base ?? '') ? (base as Locale) : 'en';
+}
 
 /**
  * Платформенная часть, не зависящая от модулей: учёт гильдий в БД
@@ -44,7 +54,7 @@ export class GuildLifecycle {
   async join(guild: Guild): Promise<void> {
     await this.db.guild.upsert({
       where: { id: guild.id },
-      create: { id: guild.id },
+      create: { id: guild.id, locale: initialLocale(guild) },
       update: { leftAt: null },
     });
     await this.snapshots.writeGuild(guild);
@@ -62,7 +72,11 @@ export class GuildLifecycle {
   /** При старте кластера: гильдии могли добавиться, пока бот был выключен. */
   async syncAll(guilds: Guild[]): Promise<void> {
     for (const guild of guilds) {
-      await this.db.guild.upsert({ where: { id: guild.id }, create: { id: guild.id }, update: { leftAt: null } });
+      await this.db.guild.upsert({
+        where: { id: guild.id },
+        create: { id: guild.id, locale: initialLocale(guild) },
+        update: { leftAt: null },
+      });
       await this.snapshots.writeGuild(guild);
     }
     this.logger.info({ guilds: guilds.length }, 'Guilds synced');

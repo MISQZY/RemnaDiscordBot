@@ -41,6 +41,7 @@ describe('general module', () => {
       '</modules list:3> — Показать модули и их состояние',
       '</modules enable:3> — Включить модуль',
       '</modules disable:3> — Выключить модуль',
+      '`/language` — Server language for public bot messages',
     ]);
     expect(sections[1]!.lines).toEqual(['`/rules` — Server rules']);
   });

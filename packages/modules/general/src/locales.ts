@@ -12,6 +12,9 @@ export const locales: Record<Locale, Dictionary> = {
       empty: 'Нет доступных команд.',
       disabled: 'Выключено модулей с командами: {count} — смотрите /modules list',
     },
+    language: {
+      changed: 'Язык сервера: русский. На нём бот пишет журналы, анонсы и итоги модерации.',
+    },
     modules: {
       title: 'Модули бота',
       hint: 'Включить: /modules enable · выключить: /modules disable',
@@ -29,6 +32,9 @@ export const locales: Record<Locale, Dictionary> = {
       title: 'Bot commands',
       empty: 'No commands available.',
       disabled: 'Modules with commands that are disabled: {count} — see /modules list',
+    },
+    language: {
+      changed: 'Server language: English. The bot uses it for logs, announcements and moderation results.',
     },
     modules: {
       title: 'Bot modules',
