@@ -80,3 +80,36 @@ model ScheduledAction {
   @@index([runAt, doneAt])
   @@index([guildId])
 }
+
+/// Панель самостоятельного выбора ролей: сообщение с кнопками или выпадающим списком (модуль autoroles).
+model RolePanel {
+  id        String   @id @default(cuid())
+  guildId   String
+  channelId String
+  /// Сообщение в Discord; `null` — панель ещё не опубликована.
+  messageId String?
+  /// `buttons` | `select`
+  kind      String
+  /// `toggle` | `add` | `remove` | `unique`
+  mode      String
+  maxRoles  Int?
+  /// MessageTemplate — текст над кнопками.
+  message   Json
+  /// [{ roleId, label, emoji?, style?, description? }]
+  items     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId])
+}
+
+/// Роли участника на момент выхода — для восстановления при возвращении (модуль autoroles).
+model MemberRoleBackup {
+  guildId String
+  userId  String
+  /// JSON-массив ID ролей.
+  roleIds Json
+  savedAt DateTime @updatedAt
+
+  @@id([guildId, userId])
+}

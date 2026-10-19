@@ -1,7 +1,15 @@
 import { PrismaClient } from '@prisma/client';
 
 export { Prisma, PrismaClient } from '@prisma/client';
-export type { DashboardAuditLog, DashboardUser, Guild, GuildModuleConfig, ScheduledAction } from '@prisma/client';
+export type {
+  DashboardAuditLog,
+  DashboardUser,
+  Guild,
+  GuildModuleConfig,
+  MemberRoleBackup,
+  RolePanel,
+  ScheduledAction,
+} from '@prisma/client';
 
 export interface CreatePrismaClientOptions {
   url?: string;
