@@ -10,12 +10,14 @@ import {
   subscribeConfigInvalidation,
 } from '@bot/core';
 import { createPrismaClient } from '@bot/db';
+import { GuildSnapshotWriter } from '@bot/discord';
 import { I18n } from '@bot/i18n';
 import { createLogger } from '@bot/logger';
 import { ClusterClient, getInfo } from 'discord-hybrid-sharding';
 import { Client, Events, GatewayIntentBits, Options } from 'discord.js';
 import { Redis } from 'ioredis';
 import { loadClusterEnv } from './env.js';
+import { GuildLifecycle } from './lifecycle/guilds.js';
 import { modules } from './modules.js';
 
 const env = loadClusterEnv();
@@ -59,6 +61,7 @@ const config = new ConfigService({
 const unsubscribeConfig = await subscribeConfigInvalidation(redis, logger, (message) => config.invalidate(message));
 
 new Dispatcher({ client, logger, db, redis, i18n, bus, config }, registry).attach();
+new GuildLifecycle(db, new GuildSnapshotWriter(redis), logger).attach(client);
 
 client.once(Events.ClientReady, (ready) => {
   client.cluster.triggerReady();
