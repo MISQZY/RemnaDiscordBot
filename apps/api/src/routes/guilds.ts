@@ -8,6 +8,7 @@ import {
   GuildSettingsPatch,
   Snowflake,
 } from '@bot/contracts';
+import { publishConfigInvalidation } from '@bot/core';
 import type { PrismaClient } from '@bot/db';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -31,7 +32,7 @@ async function readSettings(db: PrismaClient, guildId: string): Promise<GuildSet
   };
 }
 
-export function guildRoutes({ db, snapshots }: ApiDeps, userGuilds: UserGuildService): FastifyPluginAsyncZod {
+export function guildRoutes({ db, redis, snapshots, guildLocales }: ApiDeps, userGuilds: UserGuildService): FastifyPluginAsyncZod {
   return async (app) => {
     app.addHook('preHandler', requireGuildAccess(userGuilds));
 
@@ -80,6 +81,9 @@ export function guildRoutes({ db, snapshots }: ApiDeps, userGuilds: UserGuildSer
           create: { id: guildId, ...after },
           update: after,
         });
+        // Язык и другие общие настройки читают все процессы — сбрасываем их кэши.
+        guildLocales.invalidate(guildId);
+        await publishConfigInvalidation(redis, { guildId });
         await recordAudit(db, {
           guildId,
           userId: requireSession(request).userId,

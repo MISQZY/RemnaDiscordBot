@@ -6,6 +6,7 @@ import type { FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
 import type { EventBus } from './bus.js';
 import type { ConfigService } from './config/service.js';
+import type { GuildLocales } from './guild-locales.js';
 import type { Scheduler } from './jobs/scheduler.js';
 import type { ModuleRegistry } from './registry.js';
 import type { GuildEntities } from './validation.js';
@@ -19,6 +20,8 @@ export interface CoreServices {
   bus: EventBus;
   config: ConfigService;
   scheduler: Scheduler;
+  /** Язык гильдии для публичных сообщений. */
+  guildLocales: GuildLocales;
   /** Discord REST от имени бота: работает без gateway (API, воркер). */
   rest: REST;
 }

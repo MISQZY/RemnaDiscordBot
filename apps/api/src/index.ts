@@ -1,6 +1,7 @@
 import {
   ConfigService,
   EventBus,
+  GuildLocales,
   ModuleRegistry,
   PrismaConfigStore,
   RedisConfigCache,
@@ -40,7 +41,12 @@ const config = new ConfigService({
   logger,
 });
 // Другие реплики API тоже меняют конфиги — локальный кэш нужно сбрасывать.
-const unsubscribeConfig = await subscribeConfigInvalidation(redis, logger, (message) => config.invalidate(message));
+const guildLocales = new GuildLocales(db, i18n);
+const unsubscribeConfig = await subscribeConfigInvalidation(redis, logger, (message) => {
+  config.invalidate(message);
+  // Инвалидация всей гильдии — могли смениться общие настройки, в том числе язык.
+  if (!message.moduleId) guildLocales.invalidate(message.guildId);
+});
 
 const app = await buildServer({
   logger,
@@ -51,6 +57,7 @@ const app = await buildServer({
   registry,
   config,
   scheduler: new Scheduler(db),
+  guildLocales,
   rest: new REST().setToken(env.DISCORD_TOKEN),
   snapshots: new GuildSnapshotReader(redis),
   oauth: new HttpDiscordOAuth(env.DISCORD_CLIENT_ID, env.DISCORD_CLIENT_SECRET),

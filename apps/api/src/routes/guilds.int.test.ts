@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { subscribeConfigInvalidation } from '@bot/core';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TEST_USER } from '../testing/fake-oauth.js';
 import { CHANNEL_ID, createTestApp, GUILD_ID, login, ROLE_ID, seedGuildSnapshot, type TestApp } from '../testing/app.js';
 
@@ -77,7 +78,11 @@ describe('guild routes', () => {
     expect((await get(`/v1/guilds/${GUILD_ID}/emojis`)).json()).toEqual([]);
   });
 
-  it('updates settings and records the change', async () => {
+  it('updates settings, records the change and invalidates the guild everywhere', async () => {
+    const invalidated = vi.fn();
+    const unsubscribe = await subscribeConfigInvalidation(t.redis, t.deps.logger, invalidated);
+    expect(await t.deps.guildLocales.get(GUILD_ID)).toBe('ru');
+
     const response = await t.app.inject({
       method: 'PATCH',
       url: `/v1/guilds/${GUILD_ID}`,
@@ -88,6 +93,9 @@ describe('guild routes', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ locale: 'en', timezone: 'Europe/Moscow', modRoleIds: [ROLE_ID] });
     expect((await get(`/v1/guilds/${GUILD_ID}`)).json()).toMatchObject({ settings: { locale: 'en' } });
+    expect(await t.deps.guildLocales.get(GUILD_ID)).toBe('en');
+    await vi.waitFor(() => expect(invalidated).toHaveBeenCalledWith({ guildId: GUILD_ID }));
+    await unsubscribe();
 
     const audit = (await get(`/v1/guilds/${GUILD_ID}/audit`)).json();
     expect(audit.items[0]).toMatchObject({ action: 'guild.update', userId: TEST_USER.id });

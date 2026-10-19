@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import {
   ConfigService,
   EventBus,
+  GuildLocales,
   IntervalRunner,
   JobRunner,
   ModuleRegistry,
@@ -40,7 +41,12 @@ const config = new ConfigService({
   publish: (message) => publishConfigInvalidation(redis, message),
   logger,
 });
-const unsubscribeConfig = await subscribeConfigInvalidation(redis, logger, (message) => config.invalidate(message));
+const guildLocales = new GuildLocales(db, i18n);
+const unsubscribeConfig = await subscribeConfigInvalidation(redis, logger, (message) => {
+  config.invalidate(message);
+  // Инвалидация всей гильдии — могли смениться общие настройки, в том числе язык.
+  if (!message.moduleId) guildLocales.invalidate(message.guildId);
+});
 
 const services: CoreServices = {
   logger,
@@ -50,6 +56,7 @@ const services: CoreServices = {
   bus: new EventBus(logger),
   config,
   scheduler: new Scheduler(db),
+  guildLocales,
   rest: new REST().setToken(env.DISCORD_TOKEN),
 };
 

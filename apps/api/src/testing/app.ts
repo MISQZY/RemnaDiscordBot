@@ -2,6 +2,7 @@ import type { GuildChannel, GuildMeta, GuildRole } from '@bot/contracts';
 import {
   ConfigService,
   EventBus,
+  GuildLocales,
   ModuleRegistry,
   PrismaConfigStore,
   RedisConfigCache,
@@ -65,6 +66,7 @@ export async function createTestApp({ modules = [], rateLimitPerMinute = 0 }: Te
       logger,
     }),
     scheduler: new Scheduler(database.db),
+    guildLocales: new GuildLocales(database.db, i18n),
     rest: rest.asRest(),
     snapshots: new GuildSnapshotReader(redis),
     oauth,

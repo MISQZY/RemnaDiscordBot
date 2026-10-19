@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { z } from 'zod';
 import { EventBus } from '../bus.js';
 import { ConfigService } from '../config/service.js';
+import { GuildLocales } from '../guild-locales.js';
 import { PrismaConfigStore } from '../config/store.js';
 import type { CoreServices } from '../context.js';
 import { defineModule } from '../module.js';
@@ -48,6 +49,7 @@ describe('scheduler and job runner', () => {
       bus: new EventBus(testLogger),
       config: new ConfigService({ registry, store: new PrismaConfigStore(database.db), logger: testLogger }),
       scheduler: new Scheduler(database.db),
+      guildLocales: new GuildLocales(database.db, new I18n('ru')),
       rest: new REST(),
     };
   });

@@ -2,6 +2,7 @@ import {
   ConfigService,
   Dispatcher,
   EventBus,
+  GuildLocales,
   ModuleRegistry,
   PrismaConfigStore,
   RedisConfigCache,
@@ -64,10 +65,15 @@ const config = new ConfigService({
   publish: (message) => publishConfigInvalidation(redis, message),
   logger,
 });
-const unsubscribeConfig = await subscribeConfigInvalidation(redis, logger, (message) => config.invalidate(message));
+const guildLocales = new GuildLocales(db, i18n);
+const unsubscribeConfig = await subscribeConfigInvalidation(redis, logger, (message) => {
+  config.invalidate(message);
+  // Инвалидация всей гильдии — могли смениться общие настройки, в том числе язык.
+  if (!message.moduleId) guildLocales.invalidate(message.guildId);
+});
 
 const scheduler = new Scheduler(db);
-new Dispatcher({ client, logger, db, redis, i18n, bus, config, scheduler, rest: client.rest, registry }, registry).attach();
+new Dispatcher({ client, logger, db, redis, i18n, bus, config, scheduler, guildLocales, rest: client.rest, registry }, registry).attach();
 new GuildLifecycle(db, new GuildSnapshotWriter(redis), logger).attach(client);
 const stopHeartbeat = startHeartbeat(client, redis, logger, { clusterId: info.CLUSTER, shards: info.SHARD_LIST });
 

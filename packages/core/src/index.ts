@@ -6,6 +6,7 @@ export * from './config/service.js';
 export * from './config/shared-cache.js';
 export * from './config/store.js';
 export * from './context.js';
+export * from './guild-locales.js';
 export * from './http-error.js';
 export * from './jobs/runner.js';
 export * from './jobs/scheduler.js';
