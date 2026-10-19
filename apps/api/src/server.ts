@@ -14,6 +14,7 @@ import { authRoutes } from './routes/auth.js';
 import { guildRoutes } from './routes/guilds.js';
 import { meRoutes } from './routes/me.js';
 import { moduleRoutes } from './routes/modules.js';
+import { statusRoutes } from './routes/status.js';
 import { healthRoutes } from './routes/health.js';
 
 export async function buildServer(deps: ApiDeps): Promise<FastifyInstance> {
@@ -50,6 +51,7 @@ export async function buildServer(deps: ApiDeps): Promise<FastifyInstance> {
   });
 
   await app.register(healthRoutes(deps));
+  await app.register(statusRoutes(deps));
   await app.register(authRoutes({ ...deps, sessions }));
 
   app.decorateRequest('guild', null);
