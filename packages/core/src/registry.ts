@@ -1,6 +1,6 @@
 import { ModuleId } from '@bot/contracts';
 import type { I18n } from '@bot/i18n';
-import type { ClientEvents } from 'discord.js';
+import type { ClientEvents, GatewayIntentBits } from 'discord.js';
 import { CORE_NAMESPACE } from './locales.js';
 import type { AnyModule, ComponentHandler, EventHandlers, SlashCommand } from './module.js';
 
@@ -84,6 +84,15 @@ export class ModuleRegistry {
 
   subscribers(event: keyof ClientEvents): Registered<AnyEventHandler>[] {
     return this.events.get(event) ?? [];
+  }
+
+  /** Объединение intents всех модулей и базовых, нужных самому боту. */
+  intents(base: readonly GatewayIntentBits[] = []): GatewayIntentBits[] {
+    const all = new Set(base);
+    for (const module of this.modules.values()) {
+      for (const intent of module.bot?.intents ?? []) all.add(intent);
+    }
+    return [...all];
   }
 
   /** Регистрирует словари модулей в i18n под неймспейсом `<moduleId>`. */

@@ -5,6 +5,7 @@ import type {
   Awaitable,
   ChatInputCommandInteraction,
   ClientEvents,
+  GatewayIntentBits,
   MessageComponentInteraction,
   ModalSubmitInteraction,
   RESTPostAPIChatInputApplicationCommandsJSONBody,
@@ -38,6 +39,8 @@ export type EventHandlers<TConfig> = {
 };
 
 export interface BotFacet<TConfig> {
+  /** Gateway intents, нужные модулю; бот подключается с их объединением. */
+  intents?: GatewayIntentBits[];
   commands?: SlashCommand<TConfig>[];
   events?: EventHandlers<TConfig>;
   /** Обработчики компонентов по префиксу `customId` (часть до первого `:`). */

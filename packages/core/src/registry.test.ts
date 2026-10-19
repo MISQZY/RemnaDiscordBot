@@ -1,3 +1,4 @@
+import { GatewayIntentBits } from 'discord.js';
 import { describe, expect, it, vi } from 'vitest';
 import { EventBus } from './bus.js';
 import { ModuleRegistry } from './registry.js';
@@ -12,6 +13,24 @@ describe('ModuleRegistry', () => {
     expect(registry.findComponent('welcome-btn:test:1')?.module.id).toBe('welcome');
     expect(registry.subscribers('messageCreate')).toHaveLength(2);
     expect(registry.subscribedEvents()).toEqual(['messageCreate']);
+  });
+
+  it('merges gateway intents of all modules', () => {
+    const leveling = createTestModule('leveling');
+    leveling.bot!.intents = [GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent];
+    const welcome = createTestModule('welcome');
+    welcome.bot!.intents = [GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages];
+
+    const intents = new ModuleRegistry([leveling, welcome]).intents([GatewayIntentBits.Guilds]);
+
+    expect(intents.sort()).toEqual(
+      [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers,
+      ].sort(),
+    );
   });
 
   it('rejects duplicate and invalid module ids', () => {
