@@ -37,7 +37,9 @@ packages/testing      SQLite и in-memory Redis для тестов и лока�
 | `custom-commands` | свои slash-команды и автоответы по триггерам |
 | `notifications` | оповещения о новых видео YouTube и стримах Twitch |
 
-Модули включаются и настраиваются через API (`/v1/guilds/:id/modules/:module`).
+Модули включаются командой `/modules enable <модуль>` в Discord или через API (`/v1/guilds/:id/modules/:module`). Модерация включена по умолчанию.
+
+Slash-команды бот синхронизирует с Discord сам при старте. С `DISCORD_DEV_GUILD_ID` они регистрируются в тестовой гильдии (появляются сразу), а глобальные копии удаляются, чтобы не было дублей.
 
 > [!IMPORTANT]
 > Модули используют привилегированные intents. Включите их в Developer Portal → Bot → Privileged Gateway Intents:
@@ -52,7 +54,6 @@ packages/testing      SQLite и in-memory Redis для тестов и лока�
 corepack enable
 pnpm install
 cp .env.example .env          # DISCORD_TOKEN, DISCORD_CLIENT_ID, для API — DISCORD_CLIENT_SECRET
-pnpm deploy-commands          # зарегистрировать slash-команды
 pnpm dev:local                # бот + API на SQLite и in-memory Redis
 ```
 
@@ -84,7 +85,7 @@ pnpm dev                      # бот, воркер и API в watch-режим�
 | `pnpm check` | lint + typecheck + все тесты |
 | `pnpm db:migrate` | новая миграция по изменениям схемы |
 | `pnpm db:deploy` | применить миграции |
-| `pnpm deploy-commands` | регистрация slash-команд (с `--global` — глобально) |
+| `pnpm deploy-commands` | ручная синхронизация slash-команд (обычно не нужна — бот делает это при старте; с `--global` — глобально) |
 
 Состояние бота: `GET http://localhost:3001/health`.
 
