@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MessageTemplate, ModuleId, Snowflake } from './index.js';
+import { GuildSettingsPatch, MessageTemplate, ModuleId, Snowflake } from './index.js';
 
 describe('Snowflake', () => {
   it('accepts Discord IDs', () => {
@@ -35,5 +35,12 @@ describe('MessageTemplate', () => {
   it('rejects empty messages', () => {
     expect(MessageTemplate.safeParse({ content: '  ' }).success).toBe(false);
     expect(MessageTemplate.safeParse({}).success).toBe(false);
+  });
+});
+
+describe('GuildSettingsPatch', () => {
+  it('accepts known time zones and rejects unknown ones', () => {
+    expect(GuildSettingsPatch.safeParse({ timezone: 'Europe/Moscow' }).success).toBe(true);
+    expect(GuildSettingsPatch.safeParse({ timezone: 'Mars/Olympus' }).success).toBe(false);
   });
 });
