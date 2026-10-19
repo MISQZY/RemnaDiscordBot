@@ -20,6 +20,9 @@ const leveling = defineModule({
       return { guildId, xpPerMessage: (await ctx.getConfig(guildId)).xpPerMessage };
     });
   },
+  publicApi: (app) => {
+    app.get('/board', async () => ({ public: true }));
+  },
 });
 
 const general = defineModule({
@@ -153,6 +156,17 @@ describe('module routes', () => {
       { path: ['config', 'channelId'], message: 'Channel 599999999999999999 not found' },
       { path: ['config', 'roleIds', 0], message: 'The bot cannot assign role @everyone' },
     ]);
+  });
+
+  it('serves public module routes only while the module is enabled', async () => {
+    const publicUrl = `/v1/public/guilds/${GUILD_ID}/modules/leveling/board`;
+    await send('PATCH', url('/leveling'), { enabled: false });
+    expect((await t.app.inject(publicUrl)).statusCode).toBe(404);
+
+    await send('PATCH', url('/leveling'), { enabled: true });
+    const response = await t.app.inject(publicUrl);
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ public: true });
   });
 
   it('returns 404 for unknown modules', async () => {

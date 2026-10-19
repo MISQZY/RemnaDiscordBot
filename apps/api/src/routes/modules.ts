@@ -107,6 +107,24 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
       },
     );
 
+    // Публичные роуты модулей: только если модуль включён в гильдии.
+    for (const module of registry.all()) {
+      if (!module.publicApi) continue;
+      const register = module.publicApi;
+      await app.register(
+        async (publicScope) => {
+          publicScope.addHook('preHandler', async (request) => {
+            const { guildId } = request.params as { guildId: string };
+            if (!Snowflake.safeParse(guildId).success || !(await config.isEnabled(guildId, module.id))) {
+              throw ApiError.notFound();
+            }
+          });
+          await register(publicScope, moduleServices(deps, module));
+        },
+        { prefix: `/v1/public/guilds/:guildId/modules/${module.id}` },
+      );
+    }
+
     await app.register(async (guildScope) => {
       guildScope.addHook('preHandler', requireGuildAccess(userGuilds));
       const scope = guildScope.withTypeProvider<ZodTypeProvider>();

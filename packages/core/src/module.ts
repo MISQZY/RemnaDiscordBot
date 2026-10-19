@@ -75,6 +75,11 @@ export interface ModuleDefinition<TSchema extends z.ZodType = z.ZodType> {
    * Доступ к гильдии уже проверен; `request.params.guildId` — ID гильдии.
    */
   api?: (app: FastifyInstance, ctx: ApiModuleContext<z.output<TSchema>>) => Promise<void> | void;
+  /**
+   * Публичные роуты без авторизации: `/v1/public/guilds/:guildId/modules/<id>`.
+   * Отвечают, только если модуль включён в гильдии (проверяет API).
+   */
+  publicApi?: (app: FastifyInstance, ctx: ModuleServices<z.output<TSchema>>) => Promise<void> | void;
   /** Отложенные задачи: тип `<moduleId>:<имя>`, планируются через `ctx.scheduler`, выполняет воркер. */
   jobs?: Record<string, JobHandler<z.output<TSchema>>>;
   /** Периодические задачи воркера (флаш счётчиков, поллинг источников). */
