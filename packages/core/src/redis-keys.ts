@@ -17,6 +17,8 @@ export const RedisKeys = {
   oauthCode: (code: string) => `oauth:code:${code}`,
   /** The user's guilds from Discord — cached for a minute: the endpoint is heavily rate limited. */
   userGuilds: (userId: string) => `user:${userId}:guilds`,
+  /** The last guild list Discord gave, kept longer: served while Discord refuses (rate limit, outage). */
+  userGuildsLast: (userId: string) => `user:${userId}:guilds:last`,
   /** Lock of a worker interval task for one period. */
   intervalLock: (moduleId: string, name: string) => `lock:interval:${moduleId}:${name}`,
 } as const;

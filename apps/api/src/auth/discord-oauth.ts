@@ -98,6 +98,11 @@ export class HttpDiscordOAuth implements DiscordOAuth {
     if (response.status === 401 || response.status === 400) {
       throw ApiError.unauthorized('Discord authorization failed');
     }
+    if (response.status === 429) {
+      // The body gives the wait in seconds; the header is the fallback.
+      const body = (await response.json().catch(() => null)) as { retry_after?: number } | null;
+      throw ApiError.discordRateLimited(body?.retry_after ?? Number(response.headers.get('retry-after') ?? 1));
+    }
     if (!response.ok) throw ApiError.discordUnavailable(`Discord API responded with ${response.status}`);
     return (response.status === 204 ? undefined : await response.json()) as T;
   }

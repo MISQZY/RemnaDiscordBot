@@ -13,6 +13,8 @@ export class FakeDiscordOAuth implements DiscordOAuth {
   guilds: DiscordPartialGuild[] = [];
   user: DiscordUser = TEST_USER;
   guildRequests = 0;
+  /** Discord answers the guild list with 429, as it does to a burst of requests. */
+  guildsRateLimited = false;
   refreshed = 0;
   revoked: string[] = [];
   /** How soon an issued token expires. */
@@ -29,6 +31,7 @@ export class FakeDiscordOAuth implements DiscordOAuth {
 
   async refresh(): Promise<DiscordTokens> {
     this.refreshed++;
+    await new Promise((resolve) => setTimeout(resolve, 5));
     return this.tokens(`access-refreshed-${this.refreshed}`);
   }
 
@@ -42,6 +45,9 @@ export class FakeDiscordOAuth implements DiscordOAuth {
 
   async getGuilds(): Promise<DiscordPartialGuild[]> {
     this.guildRequests++;
+    // A tick of Discord's latency: requests at the same time overlap, as they do for real.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    if (this.guildsRateLimited) throw ApiError.discordRateLimited(1);
     return this.guilds;
   }
 

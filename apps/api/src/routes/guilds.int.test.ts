@@ -50,15 +50,61 @@ describe('guild routes', () => {
     expect(t.oauth.guildRequests - before).toBe(1);
   });
 
+  it('asks Discord once for requests at the same time', async () => {
+    const before = t.oauth.guildRequests;
+    const responses = await Promise.all(
+      ['/v1/me/guilds', `/v1/guilds/${GUILD_ID}`, `/v1/guilds/${GUILD_ID}/channels`, `/v1/guilds/${GUILD_ID}/roles`].map(get),
+    );
+
+    expect(responses.map((r) => r.statusCode)).toEqual([200, 200, 200, 200]);
+    expect(t.oauth.guildRequests - before).toBe(1);
+  });
+
+  it('refreshes an expiring token once for requests at the same time', async () => {
+    t.oauth.tokenLifetimeMs = 0;
+    const expiringCookie = await login(t);
+    t.oauth.tokenLifetimeMs = 60 * 60_000;
+    const before = t.oauth.refreshed;
+
+    const responses = await Promise.all(
+      [`/v1/guilds/${GUILD_ID}`, `/v1/guilds/${GUILD_ID}/channels`].map((url) => t.app.inject({ url, headers: { cookie: expiringCookie } })),
+    );
+
+    expect(responses.map((r) => r.statusCode)).toEqual([200, 200]);
+    expect(t.oauth.refreshed - before).toBe(1);
+  });
+
+  it('serves the last guild list while Discord rate-limits', async () => {
+    await get('/v1/me/guilds');
+    await t.redis.del(`user:${TEST_USER.id}:guilds`);
+    t.oauth.guildsRateLimited = true;
+    try {
+      expect((await get(`/v1/guilds/${GUILD_ID}`)).statusCode).toBe(200);
+    } finally {
+      t.oauth.guildsRateLimited = false;
+    }
+  });
+
+  it('reports a rate limit of Discord without a list to fall back on', async () => {
+    await t.redis.del(`user:${TEST_USER.id}:guilds:last`);
+    t.oauth.guildsRateLimited = true;
+    try {
+      expect((await get('/v1/me/guilds')).json()).toMatchObject({ error: { code: 'RATE_LIMITED' } });
+    } finally {
+      t.oauth.guildsRateLimited = false;
+    }
+  });
+
   it('refreshes an expiring Discord token', async () => {
     t.oauth.tokenLifetimeMs = 0;
     const expiringCookie = await login(t);
     t.oauth.tokenLifetimeMs = 60 * 60_000;
+    const before = t.oauth.refreshed;
 
     const response = await t.app.inject({ url: '/v1/me/guilds', headers: { cookie: expiringCookie } });
 
     expect(response.statusCode).toBe(200);
-    expect(t.oauth.refreshed).toBe(1);
+    expect(t.oauth.refreshed - before).toBe(1);
   });
 
   it('checks guild access', async () => {

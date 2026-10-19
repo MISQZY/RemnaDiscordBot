@@ -29,4 +29,9 @@ export class ApiError extends HttpError {
   static discordUnavailable(message = 'Discord API request failed') {
     return new ApiError(502, 'DISCORD_UNAVAILABLE', message);
   }
+
+  /** Discord answered 429: the user's token has used up its requests for now. */
+  static discordRateLimited(retryAfterSec: number) {
+    return new ApiError(429, 'RATE_LIMITED', `Discord rate limit, retry in ${Math.ceil(retryAfterSec)}s`);
+  }
 }
