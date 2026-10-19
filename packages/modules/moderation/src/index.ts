@@ -14,6 +14,8 @@ export default defineModule({
   configSchema: ModerationConfig,
   defaultConfig: defaultModerationConfig,
   configVersion: 1,
+  // Команды модерации и так ограничены правами Discord — ждать включения в панели не нужно.
+  enabledByDefault: true,
   locales,
   validateConfig: (config, guild) => new EntityChecker(guild).textChannel(config.logChannelId, ['logChannelId']).issues,
   bot: { commands },
