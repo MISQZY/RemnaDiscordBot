@@ -18,6 +18,11 @@
       "development": "./src/vitest.ts",
       "types": "./dist/vitest.d.ts",
       "default": "./dist/vitest.js"
+    },
+    "./redis-server": {
+      "development": "./src/redis-server.ts",
+      "types": "./dist/redis-server.d.ts",
+      "default": "./dist/redis-server.js"
     }
   },
   "scripts": {
