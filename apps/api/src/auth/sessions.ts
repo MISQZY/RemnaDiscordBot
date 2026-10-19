@@ -13,9 +13,13 @@ export interface Session {
   refreshToken: string;
   /** Discord access token expiry, ms. */
   expiresAt: number;
+  /** External client the session was issued to (bearer token); absent — a cookie session of the API's own web. */
+  client?: string;
 }
 
 const SESSION_TTL_SEC = 7 * 24 * 60 * 60;
+/** Client sessions live while they are used: an external site keeps the link for its users. */
+const CLIENT_SESSION_TTL_SEC = 30 * 24 * 60 * 60;
 
 /** Sessions in Redis: the API is stateless and replicas share sessions. Tokens are stored encrypted. */
 export class SessionStore {
@@ -23,6 +27,7 @@ export class SessionStore {
     private readonly redis: Redis,
     private readonly cipher: TokenCipher,
     readonly ttlSec = SESSION_TTL_SEC,
+    readonly clientTtlSec = CLIENT_SESSION_TTL_SEC,
   ) {}
 
   async create(data: Omit<Session, 'id'>): Promise<Session> {
@@ -36,6 +41,7 @@ export class SessionStore {
     if (!raw) return null;
     try {
       const stored = JSON.parse(raw) as Session;
+      if (stored.client) await this.redis.expire(RedisKeys.session(id), this.clientTtlSec);
       return {
         ...stored,
         accessToken: this.cipher.decrypt(stored.accessToken),
@@ -55,7 +61,7 @@ export class SessionStore {
       accessToken: this.cipher.encrypt(session.accessToken),
       refreshToken: this.cipher.encrypt(session.refreshToken),
     };
-    await this.redis.set(RedisKeys.session(session.id), JSON.stringify(stored), 'EX', this.ttlSec);
+    await this.redis.set(RedisKeys.session(session.id), JSON.stringify(stored), 'EX', session.client ? this.clientTtlSec : this.ttlSec);
   }
 
   async destroy(id: string): Promise<void> {

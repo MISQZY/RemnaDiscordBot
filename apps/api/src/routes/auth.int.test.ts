@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TEST_USER } from '../testing/fake-oauth.js';
-import { createTestApp, login, type TestApp } from '../testing/app.js';
+import { TEST_CLIENT, createTestApp, login, type TestApp } from '../testing/app.js';
 
 describe('auth routes', () => {
   let t: TestApp;
@@ -20,7 +20,7 @@ describe('auth routes', () => {
     expect(response.statusCode).toBe(302);
     expect(location.origin).toBe('https://discord.test');
     expect(location.searchParams.get('redirect_uri')).toBe('http://api.test/v1/auth/callback');
-    expect(await t.redis.get(`oauth:state:${location.searchParams.get('state')}`)).toBe('/guilds');
+    expect(JSON.parse((await t.redis.get(`oauth:state:${location.searchParams.get('state')}`))!)).toEqual({ redirect: '/guilds' });
   });
 
   it('signs in, sets a session cookie and redirects to the web', async () => {
@@ -51,7 +51,7 @@ describe('auth routes', () => {
     const start = await t.app.inject('/v1/auth/login?redirect=//evil.example');
     const state = new URL(start.headers.location!).searchParams.get('state');
 
-    expect(await t.redis.get(`oauth:state:${state}`)).toBe('/');
+    expect(JSON.parse((await t.redis.get(`oauth:state:${state}`))!)).toEqual({ redirect: '/' });
   });
 
   it('returns the current user for a valid session', async () => {
@@ -78,6 +78,83 @@ describe('auth routes', () => {
     expect(logout.statusCode).toBe(204);
     expect(t.oauth.revoked).toContain('access-1');
     expect((await t.app.inject({ url: '/v1/me', headers: { cookie } })).statusCode).toBe(401);
+  });
+
+  describe('external client', () => {
+    const basic = (secret = TEST_CLIENT.secret) => `Basic ${Buffer.from(`${TEST_CLIENT.id}:${secret}`).toString('base64')}`;
+
+    /** Runs the login of the test client up to its callback and returns the callback URL. */
+    async function clientLogin(query = 'code=valid-code'): Promise<URL> {
+      const start = await t.app.inject(`/v1/auth/login?client=${TEST_CLIENT.id}&state=client-state`);
+      const state = new URL(start.headers.location!).searchParams.get('state');
+      const callback = await t.app.inject(`/v1/auth/callback?${query}&state=${state}`);
+      expect(callback.statusCode).toBe(302);
+      expect(callback.cookies.find((c) => c.name === 'sid')).toBeUndefined();
+      return new URL(callback.headers.location!);
+    }
+
+    async function exchange(code: string, secret?: string) {
+      return t.app.inject({ method: 'POST', url: '/v1/auth/token', headers: { authorization: basic(secret) }, payload: { code } });
+    }
+
+    it('refuses unknown clients and a missing state', async () => {
+      expect((await t.app.inject('/v1/auth/login?client=unknown&state=x')).statusCode).toBe(400);
+      expect((await t.app.inject(`/v1/auth/login?client=${TEST_CLIENT.id}`)).statusCode).toBe(400);
+    });
+
+    it('ends on the client callback with a code and the client state', async () => {
+      const callback = await clientLogin();
+
+      expect(callback.origin + callback.pathname).toBe(TEST_CLIENT.callbackUrl);
+      expect(callback.searchParams.get('state')).toBe('client-state');
+      expect(callback.searchParams.get('code')).toBeTruthy();
+    });
+
+    it('passes a declined login to the client', async () => {
+      const callback = await clientLogin('error=access_denied');
+
+      expect(callback.searchParams.get('error')).toBe('access_denied');
+      expect(callback.searchParams.get('state')).toBe('client-state');
+    });
+
+    it('exchanges the code once for a bearer token', async () => {
+      const code = (await clientLogin()).searchParams.get('code')!;
+
+      const response = await exchange(code);
+      expect(response.statusCode).toBe(200);
+      const { token, user } = response.json<{ token: string; user: { id: string } }>();
+      expect(user.id).toBe(TEST_USER.id);
+
+      const me = await t.app.inject({ url: '/v1/me', headers: { authorization: `Bearer ${token}` } });
+      expect(me.json()).toMatchObject({ id: TEST_USER.id });
+      expect((await exchange(code)).statusCode).toBe(400);
+    });
+
+    it('refuses a wrong client secret', async () => {
+      const code = (await clientLogin()).searchParams.get('code')!;
+
+      expect((await exchange(code, 'wrong-secret')).statusCode).toBe(401);
+    });
+
+    it('keeps bearer and cookie sessions apart', async () => {
+      const code = (await clientLogin()).searchParams.get('code')!;
+      const { token } = (await exchange(code)).json<{ token: string }>();
+      const cookie = await login(t);
+
+      const asCookie = await t.app.inject({ url: '/v1/me', headers: { cookie: `sid=${t.app.signCookie(token)}` } });
+      expect(asCookie.statusCode).toBe(401);
+      const asBearer = await t.app.inject({ url: '/v1/me', headers: { authorization: `Bearer ${cookie.slice('sid='.length)}` } });
+      expect(asBearer.statusCode).toBe(401);
+    });
+
+    it('logs out a bearer session', async () => {
+      const code = (await clientLogin()).searchParams.get('code')!;
+      const { token } = (await exchange(code)).json<{ token: string }>();
+      const authorization = `Bearer ${token}`;
+
+      expect((await t.app.inject({ method: 'POST', url: '/v1/auth/logout', headers: { authorization } })).statusCode).toBe(204);
+      expect((await t.app.inject({ url: '/v1/me', headers: { authorization } })).statusCode).toBe(401);
+    });
   });
 
   it('builds the bot invite link', async () => {

@@ -37,8 +37,14 @@ export async function buildServer(deps: ApiDeps): Promise<FastifyInstance> {
       openapi: {
         info: { title: 'DiscordBot API', version: '1.0.0' },
         servers: [{ url: deps.options.publicUrl }],
-        components: { securitySchemes: { session: { type: 'apiKey', in: 'cookie', name: 'sid' } } },
-        security: [{ session: [] }],
+        components: {
+          securitySchemes: {
+            session: { type: 'apiKey', in: 'cookie', name: 'sid' },
+            bearer: { type: 'http', scheme: 'bearer', description: 'Session token of an external client (POST /v1/auth/token)' },
+            client: { type: 'http', scheme: 'basic', description: 'External client id and secret (LINK_CLIENTS)' },
+          },
+        },
+        security: [{ session: [] }, { bearer: [] }],
       },
       transform: jsonSchemaTransform,
     });

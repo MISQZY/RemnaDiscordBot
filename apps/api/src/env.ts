@@ -1,5 +1,6 @@
 import { Locale } from '@bot/contracts';
 import { z } from 'zod';
+import { parseLinkClients } from './auth/link-clients.js';
 
 const ApiEnv = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -15,6 +16,18 @@ const ApiEnv = z.object({
   DISCORD_CLIENT_ID: z.string().min(1),
   DISCORD_CLIENT_SECRET: z.string().min(1),
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters'),
+  /** External dashboards signing users in through the API: `id:secret:callbackUrl`, comma-separated. */
+  LINK_CLIENTS: z
+    .string()
+    .optional()
+    .transform((raw, ctx) => {
+      try {
+        return parseLinkClients(raw);
+      } catch (err) {
+        ctx.addIssue({ code: 'custom', message: (err as Error).message });
+        return z.NEVER;
+      }
+    }),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
   DEFAULT_LOCALE: Locale.default('ru'),

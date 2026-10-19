@@ -18,6 +18,7 @@ import { createLogger } from '@bot/logger';
 import { createTestDatabase, createTestRedis, type TestDatabase } from '@bot/testing';
 import type { FastifyInstance } from 'fastify';
 import type { Redis } from 'ioredis';
+import type { LinkClient } from '../auth/link-clients.js';
 import type { ApiDeps } from '../deps.js';
 import { buildServer } from '../server.js';
 import { FakeDiscordOAuth, TEST_USER } from './fake-oauth.js';
@@ -79,6 +80,7 @@ export async function createTestApp({ modules = [], rateLimitPerMinute = 0 }: Te
       clientId: '200000000000000002',
       sessionSecret: 'test-session-secret-at-least-32-characters',
       secureCookies: false,
+      linkClients: [TEST_CLIENT],
       docs: true,
       rateLimitPerMinute,
     },
@@ -100,6 +102,13 @@ export async function createTestApp({ modules = [], rateLimitPerMinute = 0 }: Te
     },
   };
 }
+
+/** External dashboard registered in LINK_CLIENTS. */
+export const TEST_CLIENT: LinkClient = {
+  id: 'dashboard',
+  secret: 'test-client-secret-at-least-32-characters',
+  callbackUrl: 'http://dashboard.test/discord/callback',
+};
 
 export const GUILD_ID = '300000000000000003';
 export const ROLE_ID = '400000000000000004';

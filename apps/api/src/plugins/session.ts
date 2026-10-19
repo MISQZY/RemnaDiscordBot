@@ -18,17 +18,26 @@ export interface SessionPluginOptions {
   secret: string;
 }
 
-/** Loads the session from the signed cookie before route handlers. */
+/** Loads the session from the signed cookie or an external client's bearer token before route handlers. */
 export const sessionPlugin = fp<SessionPluginOptions>(async (app: FastifyInstance, { store, secret }) => {
   await app.register(cookie, { secret });
   app.decorateRequest('session', null);
 
   app.addHook('onRequest', async (request) => {
+    // A client session works only as a bearer token and a cookie session only as a cookie: neither can be replayed as the other.
+    const bearer = /^Bearer\s+(\S+)$/i.exec(request.headers.authorization ?? '')?.[1];
+    if (bearer) {
+      const session = await store.get(bearer);
+      request.session = session?.client ? session : null;
+      return;
+    }
+
     const raw = request.cookies[SESSION_COOKIE];
     if (!raw) return;
     const unsigned = request.unsignCookie(raw);
     if (!unsigned.valid || !unsigned.value) return;
-    request.session = await store.get(unsigned.value);
+    const session = await store.get(unsigned.value);
+    request.session = session && !session.client ? session : null;
   });
 });
 

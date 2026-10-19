@@ -11,8 +11,10 @@ export const RedisKeys = {
   clusterHeartbeatPattern: 'bot:cluster:*',
   /** Web platform session (API). */
   session: (sessionId: string) => `session:${sessionId}`,
-  /** Single-use OAuth2 state → redirect path after login. */
+  /** Single-use OAuth2 state → where to go after login. */
   oauthState: (state: string) => `oauth:state:${state}`,
+  /** Single-use login code of an external client → the session it is exchanged for. */
+  oauthCode: (code: string) => `oauth:code:${code}`,
   /** The user's guilds from Discord — cached for a minute: the endpoint is heavily rate limited. */
   userGuilds: (userId: string) => `user:${userId}:guilds`,
   /** Lock of a worker interval task for one period. */

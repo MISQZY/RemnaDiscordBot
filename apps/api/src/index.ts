@@ -70,6 +70,7 @@ const app = await buildServer({
     clientId: env.DISCORD_CLIENT_ID,
     sessionSecret: env.SESSION_SECRET,
     secureCookies: env.API_PUBLIC_URL.startsWith('https://'),
+    linkClients: env.LINK_CLIENTS,
     docs: true,
     rateLimitPerMinute: 120,
   },

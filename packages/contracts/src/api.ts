@@ -40,6 +40,17 @@ export const CurrentUser = z.object({
 });
 export type CurrentUser = z.infer<typeof CurrentUser>;
 
+/** External client login: the single-use code from the callback, exchanged for a bearer session token. */
+export const SessionTokenRequest = z.object({ code: z.string().min(1).max(200) });
+export type SessionTokenRequest = z.infer<typeof SessionTokenRequest>;
+
+export const SessionToken = z.object({
+  /** Sent as `Authorization: Bearer <token>`; lives 30 days after the last request. */
+  token: z.string(),
+  user: CurrentUser,
+});
+export type SessionToken = z.infer<typeof SessionToken>;
+
 export const UserGuild = z.object({
   id: Snowflake,
   name: z.string(),
