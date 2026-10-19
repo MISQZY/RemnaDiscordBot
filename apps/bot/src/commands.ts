@@ -1,11 +1,16 @@
-import type { ModuleRegistry } from '@bot/core';
+import { localizedCommandPayloads, registerCoreLocales, type ModuleRegistry } from '@bot/core';
+import { I18n } from '@bot/i18n';
 import type { Logger } from '@bot/logger';
 import { Routes, type APIApplicationCommand, type REST, type RESTPostAPIChatInputApplicationCommandsJSONBody } from 'discord.js';
 
 type CommandBody = RESTPostAPIChatInputApplicationCommandsJSONBody;
 
+/** JSON slash-команд всех модулей с переводами из их словарей. */
 export function collectCommandPayloads(registry: ModuleRegistry): CommandBody[] {
-  return registry.allCommands().map(({ item }) => item.data.toJSON());
+  const i18n = new I18n();
+  registerCoreLocales(i18n);
+  registry.registerLocales(i18n);
+  return localizedCommandPayloads(registry, i18n);
 }
 
 /** Поля команды, которые мы задаём; остальное (id, version…) Discord добавляет сам. */
