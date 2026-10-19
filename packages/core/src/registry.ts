@@ -2,7 +2,7 @@ import { ModuleId } from '@bot/contracts';
 import type { I18n } from '@bot/i18n';
 import type { ClientEvents, GatewayIntentBits, Partials } from 'discord.js';
 import { CORE_NAMESPACE } from './locales.js';
-import type { AnyModule, ComponentHandler, EventHandlers, JobHandler, SlashCommand } from './module.js';
+import type { AnyModule, ComponentHandler, EventHandlers, FallbackCommand, JobHandler, SlashCommand } from './module.js';
 
 export interface Registered<T> {
   module: AnyModule;
@@ -16,6 +16,7 @@ export class ModuleRegistry {
   private readonly commands = new Map<string, Registered<SlashCommand>>();
   private readonly components = new Map<string, Registered<ComponentHandler>>();
   private readonly events = new Map<keyof ClientEvents, Registered<AnyEventHandler>[]>();
+  private fallback: Registered<FallbackCommand> | undefined;
 
   constructor(modules: AnyModule[] = []) {
     for (const module of modules) this.register(module);
@@ -41,7 +42,12 @@ export class ModuleRegistry {
       if (owner) throw new Error(`Component prefix "${prefix}" is already registered by "${owner.module.id}"`);
     }
 
+    if (module.bot?.fallbackCommand && this.fallback) {
+      throw new Error(`Fallback command is already registered by "${this.fallback.module.id}"`);
+    }
+
     this.modules.set(module.id, module);
+    if (module.bot?.fallbackCommand) this.fallback = { module, item: module.bot.fallbackCommand };
     for (const command of module.bot?.commands ?? []) {
       this.commands.set(command.data.name, { module, item: command });
     }
@@ -79,6 +85,11 @@ export class ModuleRegistry {
 
   findCommand(name: string): Registered<SlashCommand> | undefined {
     return this.commands.get(name);
+  }
+
+  /** Обработчик команд, которых нет в реестре. */
+  fallbackCommand(): Registered<FallbackCommand> | undefined {
+    return this.fallback;
   }
 
   /** Ищет обработчик по префиксу `customId`: `lvl:page:2` → `lvl`. */

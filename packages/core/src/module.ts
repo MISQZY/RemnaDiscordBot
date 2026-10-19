@@ -30,6 +30,10 @@ export interface SlashCommand<TConfig = unknown> {
   autocomplete?(interaction: AutocompleteInteraction, ctx: InteractionContext<TConfig>): Promise<void>;
 }
 
+export interface FallbackCommand<TConfig = unknown> {
+  execute(interaction: ChatInputCommandInteraction, ctx: InteractionContext<TConfig>): Promise<void>;
+}
+
 export interface ComponentHandler<TConfig = unknown> {
   handle(
     interaction: MessageComponentInteraction | ModalSubmitInteraction,
@@ -50,6 +54,11 @@ export interface BotFacet<TConfig> {
   events?: EventHandlers<TConfig>;
   /** Обработчики компонентов по префиксу `customId` (часть до первого `:`). */
   components?: Record<string, ComponentHandler<TConfig>>;
+  /**
+   * Обработчик slash-команд, которых нет в реестре (динамические guild-команды).
+   * Такой обработчик может быть только у одного модуля.
+   */
+  fallbackCommand?: FallbackCommand<TConfig>;
 }
 
 export interface ModuleDefinition<TSchema extends z.ZodType = z.ZodType> {

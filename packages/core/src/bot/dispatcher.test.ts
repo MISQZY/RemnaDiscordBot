@@ -121,6 +121,27 @@ describe('Dispatcher interactions', () => {
     );
   });
 
+  it('routes unknown commands to the fallback handler of an enabled module', async () => {
+    const fallback = vi.fn(async () => {});
+    const custom = createTestModule('custom');
+    custom.bot!.fallbackCommand = { execute: fallback };
+    const { services } = setup();
+    const dispatcher = new Dispatcher(services, new ModuleRegistry([custom]));
+    const interaction = chatInput('my-dynamic-command');
+
+    await dispatcher.handleInteraction(interaction as never);
+
+    expect(fallback).toHaveBeenCalledWith(interaction, expect.objectContaining({ moduleId: 'custom', locale: 'en' }));
+  });
+
+  it('allows only one fallback handler', () => {
+    const a = createTestModule('a-mod');
+    const b = createTestModule('b-mod');
+    a.bot!.fallbackCommand = { execute: async () => {} };
+    b.bot!.fallbackCommand = { execute: async () => {} };
+    expect(() => new ModuleRegistry([a, b])).toThrow(/Fallback command is already registered/);
+  });
+
   it('reports command errors to the user', async () => {
     const { dispatcher, execute } = setup();
     execute.mockRejectedValueOnce(new Error('boom'));

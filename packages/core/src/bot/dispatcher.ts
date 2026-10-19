@@ -2,6 +2,7 @@ import type { EventEmitter } from 'node:events';
 import {
   Events,
   MessageFlags,
+  type ChatInputCommandInteraction,
   type ClientEvents,
   type Interaction,
   type InteractionReplyOptions,
@@ -72,7 +73,10 @@ export class Dispatcher {
     try {
       if (interaction.isChatInputCommand() || interaction.isAutocomplete()) {
         const entry = this.registry.findCommand(interaction.commandName);
-        if (!entry) return;
+        if (!entry) {
+          if (interaction.isChatInputCommand()) await this.runFallback(interaction);
+          return;
+        }
         const ctx = this.interactionContext(entry.module, interaction.locale);
 
         if (interaction.isAutocomplete()) {
@@ -111,6 +115,13 @@ export class Dispatcher {
       this.services.logger.error({ err, interactionId: interaction.id, guildId: interaction.guildId }, 'Interaction failed');
       await this.replyWithError(interaction);
     }
+  }
+
+  /** Команда не из реестра — отдаём модулю с `fallbackCommand` (если он включён в гильдии). */
+  private async runFallback(interaction: ChatInputCommandInteraction): Promise<void> {
+    const fallback = this.registry.fallbackCommand();
+    if (!fallback || !(await this.isEnabledFor(fallback.module, interaction.guildId))) return;
+    await fallback.item.execute(interaction, this.interactionContext(fallback.module, interaction.locale));
   }
 
   private async isEnabledFor(module: AnyModule, guildId: string | null): Promise<boolean> {
