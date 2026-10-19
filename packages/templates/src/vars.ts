@@ -48,6 +48,22 @@ export function guildVars(guild: GuildLike): TemplateVars {
   };
 }
 
+export interface BotLike {
+  id: string;
+  /** The bot's name on the server: its nickname there, if it has one. */
+  name: string;
+  avatarUrl?: string | null;
+}
+
+export function botVars(bot: BotLike): TemplateVars {
+  return {
+    'bot.mention': `<@${bot.id}>`,
+    'bot.id': bot.id,
+    'bot.name': bot.name,
+    'bot.avatar': bot.avatarUrl ?? undefined,
+  };
+}
+
 export function channelVars(channel: { id: string; name: string }): TemplateVars {
   return { channel: `<#${channel.id}>`, 'channel.name': channel.name };
 }
@@ -67,4 +83,8 @@ export const COMMON_PLACEHOLDERS = [
   'guild.name',
   'guild.memberCount',
   'guild.icon',
+  'bot.mention',
+  'bot.id',
+  'bot.name',
+  'bot.avatar',
 ] as const;

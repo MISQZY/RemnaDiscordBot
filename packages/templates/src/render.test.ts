@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { renderMessage, renderText, toRestMessage } from './render.js';
-import { guildVars, userVars } from './vars.js';
+import { botVars, guildVars, userVars } from './vars.js';
 
 const vars = {
   ...userVars({ id: '1', username: 'neo', globalName: 'Neo' }),
   ...guildVars({ id: '2', name: 'Zion', memberCount: 42 }),
+  ...botVars({ id: '3', name: 'Oracle', avatarUrl: 'https://cdn.test/oracle.png' }),
   level: 5,
 };
 
@@ -13,6 +14,10 @@ describe('renderText', () => {
     expect(renderText('Hi {user.mention} in {guild.name} ({guild.memberCount}), lvl {level} {unknown.key}', vars)).toBe(
       'Hi <@1> in Zion (42), lvl 5 {unknown.key}',
     );
+  });
+
+  it('substitutes the bot placeholders', () => {
+    expect(renderText('{bot.name} {bot.mention} {bot.avatar}', vars)).toBe('Oracle <@3> https://cdn.test/oracle.png');
   });
 
   it('does not evaluate expressions', () => {
