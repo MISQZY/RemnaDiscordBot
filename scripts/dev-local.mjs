@@ -1,5 +1,5 @@
 // Локальный запуск без Postgres, Redis и контейнеров:
-// SQLite-файл в .local/ и общий in-memory Redis-сервер для бота и API.
+// SQLite-файл в .local/ и общий in-memory Redis-сервер для бота, воркера и API.
 // Данные SQLite сохраняются между запусками, данные Redis (сессии, кэш) — нет.
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -37,9 +37,12 @@ const env = {
   SESSION_SECRET: setting('SESSION_SECRET') ?? randomBytes(32).toString('base64url'),
 };
 
-const apps = [{ name: 'bot', dir: 'apps/bot' }];
+const apps = [
+  { name: 'bot', dir: 'apps/bot' },
+  { name: 'worker', dir: 'apps/worker' },
+];
 if (setting('DISCORD_CLIENT_SECRET')) apps.push({ name: 'api', dir: 'apps/api' });
-else process.stdout.write('DISCORD_CLIENT_SECRET is not set in .env — starting the bot only, without the API.\n');
+else process.stdout.write('DISCORD_CLIENT_SECRET is not set in .env — starting without the API.\n');
 
 process.stdout.write(`Local Redis: ${redis.url}\nLocal database: ${dbFile}\nApps: ${apps.map((a) => a.name).join(', ')}\n`);
 

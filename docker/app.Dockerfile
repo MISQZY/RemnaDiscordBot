@@ -1,4 +1,4 @@
-# Образ приложения монорепо: docker build --build-arg APP=bot|api.
+# Образ приложения монорепо: docker build --build-arg APP=bot|api|worker.
 # Оптимизация размера (prune dev-зависимостей, multi-stage) — этап 3.
 FROM node:24-alpine
 
