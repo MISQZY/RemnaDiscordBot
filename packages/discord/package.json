@@ -19,6 +19,7 @@
   "dependencies": {
     "@bot/contracts": "workspace:*",
     "@bot/core": "workspace:*",
+    "@bot/templates": "workspace:*",
     "discord.js": "14.27.0",
     "ioredis": "6.0.0",
     "zod": "4.6.7"
