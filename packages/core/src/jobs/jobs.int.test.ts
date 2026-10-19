@@ -91,6 +91,16 @@ describe('scheduler and job runner', () => {
     expect(await services.scheduler.cancel('unban:5')).toBe(false);
   });
 
+  it('counts jobs overdue past the grace period', async () => {
+    const schedule = (runAt: Date) => services.scheduler.schedule({ guildId: GUILD, moduleId: 'moderation', job: 'unban', payload: {}, runAt });
+    await schedule(new Date(Date.now() - 5 * 60_000));
+    await schedule(past());
+    const done = await schedule(new Date(Date.now() - 10 * 60_000));
+    await services.scheduler.complete(done.id);
+
+    expect(await services.scheduler.countOverdue(60_000, 5)).toBe(1);
+  });
+
   it('does not let two workers claim the same job', async () => {
     await services.scheduler.schedule({ guildId: GUILD, moduleId: 'moderation', job: 'unban', payload: {}, runAt: past() });
     const options = { limit: 10, lockMs: 60_000, maxAttempts: 5 };

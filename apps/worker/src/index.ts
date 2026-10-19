@@ -9,8 +9,10 @@ import {
   PrismaConfigStore,
   RedisConfigCache,
   Scheduler,
+  metricsContentType,
   publishConfigInvalidation,
   registerCoreLocales,
+  renderMetrics,
   subscribeConfigInvalidation,
   type CoreServices,
 } from '@bot/core';
@@ -20,10 +22,16 @@ import { createLogger } from '@bot/logger';
 import { modules } from '@bot/module-list';
 import { REST } from 'discord.js';
 import { Redis } from 'ioredis';
+import { Gauge, collectDefaultMetrics } from 'prom-client';
 import { loadWorkerEnv } from './env.js';
 
 const env = loadWorkerEnv();
 const logger = createLogger({ service: 'worker', level: env.LOG_LEVEL });
+collectDefaultMetrics();
+
+/** A job counts as overdue once it waits this long past its run time. */
+const OVERDUE_GRACE_MS = 60_000;
+const MAX_ATTEMPTS = 5;
 
 const db = await createDatabaseClient(env.DATABASE_URL);
 const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: 3 });
@@ -61,7 +69,15 @@ const services: CoreServices = {
   rest: new REST().setToken(env.DISCORD_TOKEN),
 };
 
-const jobs = new JobRunner(services, registry);
+new Gauge({
+  name: 'jobs_overdue',
+  help: `Jobs waiting more than ${OVERDUE_GRACE_MS / 1000}s past their run time`,
+  async collect() {
+    this.set(await services.scheduler.countOverdue(OVERDUE_GRACE_MS, MAX_ATTEMPTS));
+  },
+});
+
+const jobs = new JobRunner(services, registry, { maxAttempts: MAX_ATTEMPTS });
 const intervals = new IntervalRunner(services, registry);
 jobs.start(env.WORKER_POLL_MS);
 intervals.start();
@@ -69,6 +85,14 @@ intervals.start();
 const health = createServer((req, res) => {
   if (req.method === 'GET' && req.url === '/health') {
     res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ status: 'ok' }));
+  } else if (req.method === 'GET' && req.url === '/metrics') {
+    renderMetrics().then(
+      (body) => res.writeHead(200, { 'content-type': metricsContentType }).end(body),
+      (err: unknown) => {
+        logger.error({ err }, 'Failed to collect metrics');
+        res.writeHead(500).end();
+      },
+    );
   } else {
     res.writeHead(404).end();
   }
