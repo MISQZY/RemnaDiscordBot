@@ -1,0 +1,23 @@
+# Bot on the same server as the monitoring stack: joins its external network, nothing is published.
+# docker compose -f docker-compose.yml -f docker/monitoring/shared-network.yml --profile app up -d
+services:
+  bot:
+    networks:
+      default:
+      monitoring:
+        aliases: [discord-bot]
+  worker:
+    networks:
+      default:
+      monitoring:
+        aliases: [discord-bot-worker]
+  api:
+    networks:
+      default:
+      monitoring:
+        aliases: [discord-bot-api]
+
+networks:
+  monitoring:
+    name: ${MONITORING_NETWORK:-monitoring-network}
+    external: true

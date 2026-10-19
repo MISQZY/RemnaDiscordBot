@@ -1,0 +1,20 @@
+# Bot on another server: metrics ports are published and require METRICS_TOKEN.
+# Docker bypasses UFW for published ports, so the token is the access control; also allow only
+# the monitoring server's IP in the hoster's firewall.
+# docker compose -f docker-compose.yml -f docker/monitoring/published-ports.yml --profile app up -d
+services:
+  bot:
+    environment:
+      METRICS_TOKEN: ${METRICS_TOKEN:?METRICS_TOKEN is required when metrics ports are published}
+    ports:
+      - "${METRICS_BIND:-0.0.0.0}:${BOT_METRICS_PUBLIC_PORT:-9461}:3001"
+  worker:
+    environment:
+      METRICS_TOKEN: ${METRICS_TOKEN:?METRICS_TOKEN is required when metrics ports are published}
+    ports:
+      - "${METRICS_BIND:-0.0.0.0}:${WORKER_METRICS_PUBLIC_PORT:-9462}:3002"
+  api:
+    environment:
+      METRICS_TOKEN: ${METRICS_TOKEN:?METRICS_TOKEN is required when metrics ports are published}
+    ports:
+      - "${METRICS_BIND:-0.0.0.0}:${API_METRICS_PUBLIC_PORT:-9464}:9464"

@@ -1,0 +1,31 @@
+# scrape_configs entries for the external Prometheus (RemnaWeb /opt/monitoring/prometheus/prometheus.yml).
+# The bot manager aggregates the metrics of all its clusters.
+
+# --- Same server: Prometheus is in monitoring-network (docker/monitoring/shared-network.yml) ---
+- job_name: discord-bot
+  static_configs:
+    - targets: ["discord-bot:3001"]
+- job_name: discord-bot-worker
+  static_configs:
+    - targets: ["discord-bot-worker:3002"]
+- job_name: discord-bot-api
+  static_configs:
+    - targets: ["discord-bot-api:9464"]
+
+# --- Another server: published ports (docker/monitoring/published-ports.yml) ---
+# The token file holds METRICS_TOKEN of the bot server.
+# - job_name: discord-bot
+#   authorization:
+#     credentials_file: /etc/prometheus/discord-bot.token
+#   static_configs:
+#     - targets: ["<bot-host>:9461"]
+# - job_name: discord-bot-worker
+#   authorization:
+#     credentials_file: /etc/prometheus/discord-bot.token
+#   static_configs:
+#     - targets: ["<bot-host>:9462"]
+# - job_name: discord-bot-api
+#   authorization:
+#     credentials_file: /etc/prometheus/discord-bot.token
+#   static_configs:
+#     - targets: ["<bot-host>:9464"]
