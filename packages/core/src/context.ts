@@ -7,6 +7,7 @@ import type { Redis } from 'ioredis';
 import type { EventBus } from './bus.js';
 import type { ConfigService } from './config/service.js';
 import type { Scheduler } from './jobs/scheduler.js';
+import type { ModuleRegistry } from './registry.js';
 import type { GuildEntities } from './validation.js';
 
 /** Общие сервисы процесса (бот, API, воркер), доступные модулям. */
@@ -24,6 +25,8 @@ export interface CoreServices {
 
 export interface BotServices extends CoreServices {
   client: Client;
+  /** Все модули бота — для служебных команд вроде `/help` и `/modules`. */
+  registry: ModuleRegistry;
 }
 
 /** Сервисы, привязанные к модулю: логгер с `moduleId` и чтение его конфига. */
@@ -48,4 +51,5 @@ export interface JobContext<TConfig> extends ModuleServices<TConfig> {
 /** Контекст, который получает обработчик модуля в боте. */
 export interface BotModuleContext<TConfig> extends ModuleServices<TConfig> {
   client: Client;
+  registry: ModuleRegistry;
 }

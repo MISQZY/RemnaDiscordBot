@@ -67,7 +67,7 @@ const config = new ConfigService({
 const unsubscribeConfig = await subscribeConfigInvalidation(redis, logger, (message) => config.invalidate(message));
 
 const scheduler = new Scheduler(db);
-new Dispatcher({ client, logger, db, redis, i18n, bus, config, scheduler, rest: client.rest }, registry).attach();
+new Dispatcher({ client, logger, db, redis, i18n, bus, config, scheduler, rest: client.rest, registry }, registry).attach();
 new GuildLifecycle(db, new GuildSnapshotWriter(redis), logger).attach(client);
 const stopHeartbeat = startHeartbeat(client, redis, logger, { clusterId: info.CLUSTER, shards: info.SHARD_LIST });
 
