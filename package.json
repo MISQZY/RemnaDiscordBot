@@ -19,9 +19,11 @@
     "db:deploy": "pnpm --filter @bot/db db:deploy",
     "db:studio": "pnpm --filter @bot/db db:studio",
     "test:integration": "turbo run test:integration",
-    "dev:local": "pnpm --filter @bot/bot dev:local"
+    "dev:local": "tsx --conditions=development scripts/dev-local.mjs"
   },
   "devDependencies": {
+    "@bot/db": "workspace:*",
+    "@bot/testing": "workspace:*",
     "@eslint/js": "10.0.1",
     "@types/node": "24.19.2",
     "eslint": "10.13.0",
