@@ -9,10 +9,9 @@ import {
   PrismaConfigStore,
   RedisConfigCache,
   Scheduler,
-  metricsContentType,
+  handleMetricsRequest,
   publishConfigInvalidation,
   registerCoreLocales,
-  renderMetrics,
   subscribeConfigInvalidation,
   type CoreServices,
 } from '@bot/core';
@@ -85,15 +84,7 @@ intervals.start();
 const health = createServer((req, res) => {
   if (req.method === 'GET' && req.url === '/health') {
     res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ status: 'ok' }));
-  } else if (req.method === 'GET' && req.url === '/metrics') {
-    renderMetrics().then(
-      (body) => res.writeHead(200, { 'content-type': metricsContentType }).end(body),
-      (err: unknown) => {
-        logger.error({ err }, 'Failed to collect metrics');
-        res.writeHead(500).end();
-      },
-    );
-  } else {
+  } else if (!handleMetricsRequest(req, res, { token: env.METRICS_TOKEN, onError: (err) => logger.error({ err }, 'Failed to collect metrics') })) {
     res.writeHead(404).end();
   }
 });

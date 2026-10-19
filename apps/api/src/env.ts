@@ -9,6 +9,8 @@ const ApiEnv = z.object({
   API_PORT: z.coerce.number().int().positive().default(3000),
   /** Internal port for Prometheus `/metrics`; not published outside the Docker network. */
   API_METRICS_PORT: z.coerce.number().int().positive().default(9464),
+  /** Bearer token required by `/metrics`; set it when the metrics port is published outside the Docker network. */
+  METRICS_TOKEN: z.string().min(16).optional(),
   /** Public API URL — the OAuth2 redirect_uri is built from it. */
   API_PUBLIC_URL: z.url().default('http://localhost:3000'),
   /** Web platform URL: CORS and post-login redirect. Until the web app exists — Swagger on the API itself. */

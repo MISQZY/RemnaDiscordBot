@@ -8,9 +8,8 @@ import {
   RedisConfigCache,
   Scheduler,
   publishConfigInvalidation,
-  metricsContentType,
+  handleMetricsRequest,
   registerCoreLocales,
-  renderMetrics,
   subscribeConfigInvalidation,
 } from '@bot/core';
 import { createDatabaseClient } from '@bot/db';
@@ -83,14 +82,8 @@ const app = await buildServer({
 });
 
 const metricsServer = createServer((req, res) => {
-  if (req.method !== 'GET' || req.url !== '/metrics') {
-    res.writeHead(404).end();
-    return;
-  }
-  renderMetrics().then(
-    (body) => res.writeHead(200, { 'content-type': metricsContentType }).end(body),
-    () => res.writeHead(500).end(),
-  );
+  const onError = (err: unknown) => logger.error({ err }, 'Failed to collect metrics');
+  if (!handleMetricsRequest(req, res, { token: env.METRICS_TOKEN, onError })) res.writeHead(404).end();
 });
 
 let shuttingDown = false;

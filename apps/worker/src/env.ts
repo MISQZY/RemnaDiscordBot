@@ -11,6 +11,8 @@ const WorkerEnv = z.object({
   /** How often to check for due scheduled jobs. */
   WORKER_POLL_MS: z.coerce.number().int().positive().default(2_000),
   WORKER_HEALTH_PORT: z.coerce.number().int().positive().default(3002),
+  /** Bearer token required by `/metrics`; set it when the metrics port is published outside the Docker network. */
+  METRICS_TOKEN: z.string().min(16).optional(),
 });
 export type WorkerEnv = z.infer<typeof WorkerEnv>;
 

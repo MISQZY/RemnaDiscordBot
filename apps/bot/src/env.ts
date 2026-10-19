@@ -8,6 +8,8 @@ const ManagerEnv = z.object({
   TOTAL_SHARDS: z.union([z.literal('auto'), z.coerce.number().int().positive()]).default('auto'),
   SHARDS_PER_CLUSTER: z.coerce.number().int().positive().default(4),
   BOT_HEALTH_PORT: z.coerce.number().int().positive().default(3001),
+  /** Bearer token required by `/metrics`; set it when the metrics port is published outside the Docker network. */
+  METRICS_TOKEN: z.string().min(16).optional(),
   DISCORD_DEV_GUILD_ID: z.string().optional(),
   /** Sync slash commands with Discord on startup (only differences are changed). */
   AUTO_DEPLOY_COMMANDS: z.stringbool().default(true),

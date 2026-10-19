@@ -1,6 +1,6 @@
 import { extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ModuleRegistry, metricsContentType } from '@bot/core';
+import { ModuleRegistry } from '@bot/core';
 import { createLogger } from '@bot/logger';
 import { modules } from '@bot/module-list';
 import { ClusterManager } from 'discord-hybrid-sharding';
@@ -38,7 +38,7 @@ const health = startHealthServer(
   {
     getClusters: () => [...manager.clusters.values()].map((c) => ({ id: c.id, ready: c.ready })),
     getMetrics: () => aggregateMetrics(manager, logger),
-    metricsContentType,
+    metricsToken: env.METRICS_TOKEN,
   },
   logger,
 );

@@ -1,4 +1,5 @@
 import { createServer, type Server } from 'node:http';
+import { handleMetricsRequest } from '@bot/core';
 import type { Logger } from '@bot/logger';
 
 export interface ClusterStatus {
@@ -20,21 +21,13 @@ export interface HealthServerOptions {
   getClusters: () => ClusterStatus[];
   /** Prometheus text served at `/metrics`. */
   getMetrics: () => Promise<string>;
-  metricsContentType: string;
+  metricsToken?: string;
 }
 
-export function startHealthServer(port: number, { getClusters, getMetrics, metricsContentType }: HealthServerOptions, logger: Logger): Server {
+export function startHealthServer(port: number, { getClusters, getMetrics, metricsToken }: HealthServerOptions, logger: Logger): Server {
   const server = createServer((req, res) => {
-    if (req.method === 'GET' && req.url === '/metrics') {
-      getMetrics().then(
-        (body) => res.writeHead(200, { 'content-type': metricsContentType }).end(body),
-        (err: unknown) => {
-          logger.error({ err }, 'Failed to collect metrics');
-          res.writeHead(500).end();
-        },
-      );
-      return;
-    }
+    const onError = (err: unknown) => logger.error({ err }, 'Failed to collect metrics');
+    if (handleMetricsRequest(req, res, { token: metricsToken, render: getMetrics, onError })) return;
     if (req.method !== 'GET' || req.url !== '/health') {
       res.writeHead(404).end();
       return;
