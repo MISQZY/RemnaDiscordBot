@@ -157,3 +157,34 @@ model MemberLevel {
   @@id([guildId, userId])
   @@index([guildId, xp])
 }
+
+/// Пользовательская команда гильдии: slash-команда или автоответ на сообщение (модуль custom-commands).
+model CustomCommand {
+  id                String   @id @default(cuid())
+  guildId           String
+  /// Имя slash-команды или название триггера; уникально в гильдии.
+  name              String
+  /// `slash` | `trigger`
+  kind              String
+  description       String?
+  /// Для триггера: `exact` | `startsWith` | `contains` | `regex`
+  matchMode         String?
+  pattern           String?
+  /// MessageTemplate ответа.
+  response          Json
+  ephemeral         Boolean  @default(false)
+  /// { addRoleIds, removeRoleIds, deleteTrigger }
+  actions           Json
+  allowedChannelIds Json
+  allowedRoleIds    Json
+  cooldownSec       Int      @default(0)
+  enabled           Boolean  @default(true)
+  /// ID guild-команды в Discord (для slash).
+  discordCommandId  String?
+  uses              Int      @default(0)
+  createdBy         String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([guildId, name])
+}
