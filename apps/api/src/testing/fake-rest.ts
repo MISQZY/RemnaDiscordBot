@@ -9,7 +9,7 @@ export interface RestCall {
 /** Discord REST без сети: записывает вызовы, отвечает по маршруту. */
 export class FakeRest {
   readonly calls: RestCall[] = [];
-  /** Ответы по точному маршруту; по умолчанию — `{ id: 'created-<n>' }`. */
+  /** Ответы по точному маршруту; по умолчанию — `{ id }` с новым snowflake. */
   readonly responses = new Map<string, unknown>();
   private created = 0;
 
@@ -26,6 +26,6 @@ export class FakeRest {
   private async record(method: RestCall['method'], route: string, body?: unknown): Promise<unknown> {
     this.calls.push({ method, route, ...(body === undefined ? {} : { body }) });
     if (this.responses.has(route)) return this.responses.get(route);
-    return { id: `created-${++this.created}` };
+    return { id: String(900_000_000_000_000_000n + BigInt(++this.created)) };
   }
 }
