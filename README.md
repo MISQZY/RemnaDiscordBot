@@ -45,3 +45,20 @@ pnpm dev                      # бот в watch-режиме
 | `pnpm deploy-commands` | регистрация slash-команд (с `--global` — глобально) |
 
 Состояние кластеров: `GET http://localhost:3001/health`.
+
+## Тесты
+
+Тестам не нужны ни контейнеры, ни Postgres, ни Redis.
+
+| Команда | Что делает |
+|---|---|
+| `pnpm test` | unit-тесты (`*.test.ts`) |
+| `pnpm test:integration` | интеграционные тесты (`*.int.test.ts`) на SQLite и in-memory Redis |
+| `pnpm check` | lint + typecheck + оба вида тестов |
+
+Как это устроено:
+- `packages/db/scripts/sqlite.mjs` строит из `schema.prisma` SQLite-вариант и отдельный Prisma-клиент (`packages/db/generated`, не в git). Схема должна оставаться переносимой: без скалярных списков и `@db.*` — скрипт падает, если они появятся.
+- Global setup один раз создаёт шаблонную базу; `createTestDatabase()` из `@bot/testing` даёт каждому тестовому файлу её копию.
+- `createTestRedis()` — изолированный `ioredis-mock` с поддержкой pub/sub.
+
+Миграции Postgres тестами не проверяются: их применяет `pnpm db:deploy`.
