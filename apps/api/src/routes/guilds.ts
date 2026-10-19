@@ -16,6 +16,7 @@ import type { UserGuildService } from '../auth/user-guilds.js';
 import type { ApiDeps } from '../deps.js';
 import { ApiError } from '../errors.js';
 import { requireGuildAccess } from '../plugins/guild-access.js';
+import { GUILD_WRITE_LIMIT } from '../plugins/rate-limit.js';
 import { requireSession } from '../plugins/session.js';
 
 const GuildParams = z.object({ guildId: Snowflake });
@@ -55,6 +56,7 @@ export function guildRoutes({ db, snapshots }: ApiDeps, userGuilds: UserGuildSer
           body: GuildSettingsPatch,
           response: { 200: GuildSettings },
         },
+        config: { rateLimit: GUILD_WRITE_LIMIT },
       },
       async (request) => {
         const { guildId } = request.params;

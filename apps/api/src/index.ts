@@ -59,6 +59,7 @@ const app = await buildServer({
     sessionSecret: env.SESSION_SECRET,
     secureCookies: env.API_PUBLIC_URL.startsWith('https://'),
     docs: true,
+    rateLimitPerMinute: 120,
   },
 });
 

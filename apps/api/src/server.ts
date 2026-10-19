@@ -9,6 +9,7 @@ import { TokenCipher } from './auth/token-cipher.js';
 import { UserGuildService } from './auth/user-guilds.js';
 import type { ApiDeps } from './deps.js';
 import { registerErrorHandler } from './plugins/error-handler.js';
+import { registerRateLimit } from './plugins/rate-limit.js';
 import { sessionPlugin } from './plugins/session.js';
 import { authRoutes } from './routes/auth.js';
 import { guildRoutes } from './routes/guilds.js';
@@ -49,6 +50,7 @@ export async function buildServer(deps: ApiDeps): Promise<FastifyInstance> {
     store: sessions,
     secret: deps.options.sessionSecret,
   });
+  if (deps.options.rateLimitPerMinute > 0) await registerRateLimit(app, deps.redis, deps.options.rateLimitPerMinute);
 
   await app.register(healthRoutes(deps));
   await app.register(statusRoutes(deps));

@@ -32,4 +32,6 @@ export interface ApiOptions {
   secureCookies: boolean;
   /** Swagger UI на `/docs`. */
   docs: boolean;
+  /** Глобальный лимит запросов в минуту на пользователя/IP; 0 — без лимита. */
+  rateLimitPerMinute: number;
 }

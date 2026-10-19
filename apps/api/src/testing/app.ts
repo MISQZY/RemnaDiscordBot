@@ -31,10 +31,11 @@ export interface TestApp {
 
 export interface TestAppOptions {
   modules?: AnyModule[];
+  rateLimitPerMinute?: number;
 }
 
 /** API поверх SQLite и in-memory Redis; запросы — через `app.inject`. */
-export async function createTestApp({ modules = [] }: TestAppOptions = {}): Promise<TestApp> {
+export async function createTestApp({ modules = [], rateLimitPerMinute = 0 }: TestAppOptions = {}): Promise<TestApp> {
   const database = await createTestDatabase();
   const redis = createTestRedis();
   const logger = createLogger({ service: 'api-test', level: 'silent', pretty: false });
@@ -69,6 +70,7 @@ export async function createTestApp({ modules = [] }: TestAppOptions = {}): Prom
       sessionSecret: 'test-session-secret-at-least-32-characters',
       secureCookies: false,
       docs: true,
+      rateLimitPerMinute,
     },
   };
 
