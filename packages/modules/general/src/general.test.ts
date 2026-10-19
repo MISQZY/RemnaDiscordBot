@@ -1,7 +1,7 @@
 import { ModuleRegistry } from '@bot/core';
 import { I18n } from '@bot/i18n';
 import { describe, expect, it } from 'vitest';
-import { formatCommandList } from './commands/help.js';
+import { helpSections } from './commands/help.js';
 import general from './index.js';
 
 describe('general module', () => {
@@ -21,14 +21,34 @@ describe('general module', () => {
     expect(i18n.has('general.help.title', 'en')).toBe(true);
   });
 
-  it('formats the command list with localized descriptions', () => {
-    const list = formatCommandList(
-      [
-        { id: '2', name: 'ping', description: 'Check bot latency', descriptionLocalizations: { ru: 'Проверить задержку бота' } },
-        { id: '1', name: 'help', description: 'Show available commands', descriptionLocalizations: null },
-      ],
-      'ru',
-    );
-    expect(list).toBe('</help:1> — Show available commands\n</ping:2> — Проверить задержку бота');
+  it('builds help from enabled modules with localized descriptions and mentions', () => {
+    const sections = helpSections({
+      modules: [general],
+      enabled: new Set(['general', 'custom-commands']),
+      commandIds: new Map([['ping', '2']]),
+      extraCommands: [{ name: 'rules', description: 'Server rules' }],
+      locale: 'ru',
+      moduleName: (id) => ({ general: 'Основное', 'custom-commands': 'Свои команды' })[id] ?? id,
+    });
+
+    expect(sections.map((s) => s.title)).toEqual(['Основное', 'Свои команды']);
+    expect(sections[0]!.lines).toEqual([
+      '</ping:2> — Проверить задержку бота',
+      '`/help` — Показать доступные команды',
+      '`/modules` — Включить или выключить модули бота',
+    ]);
+    expect(sections[1]!.lines).toEqual(['`/rules` — Server rules']);
+  });
+
+  it('hides commands of disabled modules', () => {
+    const sections = helpSections({
+      modules: [general],
+      enabled: new Set(),
+      commandIds: new Map(),
+      extraCommands: [],
+      locale: 'en-US',
+      moduleName: (id) => id,
+    });
+    expect(sections).toEqual([]);
   });
 });
