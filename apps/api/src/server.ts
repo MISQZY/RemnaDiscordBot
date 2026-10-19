@@ -6,10 +6,13 @@ import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify';
 import { jsonSchemaTransform, serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 import { SessionStore } from './auth/sessions.js';
 import { TokenCipher } from './auth/token-cipher.js';
+import { UserGuildService } from './auth/user-guilds.js';
 import type { ApiDeps } from './deps.js';
 import { registerErrorHandler } from './plugins/error-handler.js';
 import { sessionPlugin } from './plugins/session.js';
 import { authRoutes } from './routes/auth.js';
+import { guildRoutes } from './routes/guilds.js';
+import { meRoutes } from './routes/me.js';
 import { healthRoutes } from './routes/health.js';
 
 export async function buildServer(deps: ApiDeps): Promise<FastifyInstance> {
@@ -47,6 +50,11 @@ export async function buildServer(deps: ApiDeps): Promise<FastifyInstance> {
 
   await app.register(healthRoutes(deps));
   await app.register(authRoutes({ ...deps, sessions }));
+
+  app.decorateRequest('guild', null);
+  const userGuilds = new UserGuildService(deps.redis, deps.oauth, sessions, deps.snapshots);
+  await app.register(meRoutes(userGuilds));
+  await app.register(guildRoutes(deps, userGuilds));
 
   return app;
 }

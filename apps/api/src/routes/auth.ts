@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { CurrentUser, InviteLink, Snowflake } from '@bot/contracts';
+import { InviteLink, Snowflake } from '@bot/contracts';
 import { RedisKeys } from '@bot/core';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -7,7 +7,7 @@ import type { SessionStore } from '../auth/sessions.js';
 import type { ApiDeps } from '../deps.js';
 import { ApiError } from '../errors.js';
 import { BOT_INVITE_PERMISSIONS } from '../permissions.js';
-import { clearSessionCookie, requireSession, setSessionCookie } from '../plugins/session.js';
+import { clearSessionCookie, setSessionCookie } from '../plugins/session.js';
 
 const STATE_TTL_SEC = 10 * 60;
 
@@ -119,20 +119,6 @@ export function authRoutes({ db, redis, oauth, sessions, options }: AuthRouteDep
           params.set('disable_guild_select', 'true');
         }
         return { url: `https://discord.com/oauth2/authorize?${params}` };
-      },
-    );
-
-    app.get(
-      '/v1/me',
-      { schema: { tags: ['me'], summary: 'Текущий пользователь', response: { 200: CurrentUser } } },
-      async (request) => {
-        const session = requireSession(request);
-        return {
-          id: session.userId,
-          username: session.username,
-          globalName: session.globalName,
-          avatar: session.avatar,
-        };
       },
     );
   };

@@ -1,9 +1,11 @@
+import type { GuildChannel, GuildMeta, GuildRole } from '@bot/contracts';
 import {
   ConfigService,
   EventBus,
   ModuleRegistry,
   PrismaConfigStore,
   RedisConfigCache,
+  RedisKeys,
   publishConfigInvalidation,
   registerCoreLocales,
   type AnyModule,
@@ -16,7 +18,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Redis } from 'ioredis';
 import type { ApiDeps } from '../deps.js';
 import { buildServer } from '../server.js';
-import { FakeDiscordOAuth } from './fake-oauth.js';
+import { FakeDiscordOAuth, TEST_USER } from './fake-oauth.js';
 
 export interface TestApp {
   app: FastifyInstance;
@@ -84,6 +86,27 @@ export async function createTestApp({ modules = [] }: TestAppOptions = {}): Prom
       await database.cleanup();
     },
   };
+}
+
+export const GUILD_ID = '300000000000000003';
+export const ROLE_ID = '400000000000000004';
+export const CHANNEL_ID = '500000000000000005';
+
+/** Снапшот гильдии в Redis — как его пишет бот. */
+export async function seedGuildSnapshot(t: TestApp, guildId = GUILD_ID): Promise<void> {
+  const meta: GuildMeta = { id: guildId, name: 'Test guild', icon: null, ownerId: TEST_USER.id, memberCount: 10, shardId: 0 };
+  const roles: GuildRole[] = [
+    { id: guildId, name: '@everyone', color: 0, position: 0, managed: false, manageable: false },
+    { id: ROLE_ID, name: 'Moderator', color: 0xff0000, position: 1, managed: false, manageable: true },
+  ];
+  const channels: GuildChannel[] = [{ id: CHANNEL_ID, name: 'general', type: 0, parentId: null, position: 0 }];
+  await t.redis
+    .multi()
+    .set(RedisKeys.guildMeta(guildId), JSON.stringify(meta))
+    .set(RedisKeys.guildRoles(guildId), JSON.stringify(roles))
+    .set(RedisKeys.guildChannels(guildId), JSON.stringify(channels))
+    .set(RedisKeys.guildEmojis(guildId), JSON.stringify([]))
+    .exec();
 }
 
 /** Проходит вход через фейковый Discord и возвращает cookie сессии. */
