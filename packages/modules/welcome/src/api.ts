@@ -47,7 +47,7 @@ export function welcomeApi(app: FastifyInstance, ctx: ApiModuleContext<WelcomeCo
     {
       schema: {
         tags: ['welcome'],
-        summary: 'Отправить тестовое приветствие от имени текущего пользователя',
+        summary: 'Send a test welcome as the current user',
         body: TestBody,
         response: { 200: TestResult },
       },

@@ -30,7 +30,7 @@ export function authRoutes({ db, redis, oauth, sessions, options }: AuthRouteDep
       {
         schema: {
           tags: ['auth'],
-          summary: 'Начать вход через Discord',
+          summary: 'Start Discord login',
           querystring: z.object({ redirect: z.string().optional() }),
         },
       },
@@ -47,7 +47,7 @@ export function authRoutes({ db, redis, oauth, sessions, options }: AuthRouteDep
       {
         schema: {
           tags: ['auth'],
-          summary: 'Возврат из Discord OAuth2',
+          summary: 'Discord OAuth2 callback',
           querystring: z.object({ code: z.string().optional(), state: z.string().optional(), error: z.string().optional() }),
         },
       },
@@ -86,7 +86,7 @@ export function authRoutes({ db, redis, oauth, sessions, options }: AuthRouteDep
 
     app.post(
       '/v1/auth/logout',
-      { schema: { tags: ['auth'], summary: 'Выйти', response: { 204: z.null() } } },
+      { schema: { tags: ['auth'], summary: 'Log out', response: { 204: z.null() } } },
       async (request, reply) => {
         const session = request.session;
         if (session) {
@@ -103,7 +103,7 @@ export function authRoutes({ db, redis, oauth, sessions, options }: AuthRouteDep
       {
         schema: {
           tags: ['auth'],
-          summary: 'Ссылка для приглашения бота',
+          summary: 'Bot invite link',
           querystring: z.object({ guildId: Snowflake.optional() }),
           response: { 200: InviteLink },
         },

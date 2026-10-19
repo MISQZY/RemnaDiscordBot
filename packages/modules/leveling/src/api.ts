@@ -16,7 +16,7 @@ const guildId = (request: FastifyRequest) => (request.params as { guildId: strin
 function leaderboardRoute(app: FastifyInstance, service: LevelingService, guard?: (guildId: string) => Promise<void>) {
   app.get(
     '/leaderboard',
-    { schema: { tags: ['leveling'], summary: 'Лидерборд по опыту', querystring: LeaderboardQuery, response: { 200: LeaderboardPage } } },
+    { schema: { tags: ['leveling'], summary: 'XP leaderboard', querystring: LeaderboardQuery, response: { 200: LeaderboardPage } } },
     async (request) => {
       await guard?.(guildId(request));
       const { page, limit } = request.query as z.infer<typeof LeaderboardQuery>;
@@ -38,7 +38,7 @@ export function levelingApi(app: FastifyInstance, ctx: ApiModuleContext<Leveling
 
   app.get(
     '/members/:userId',
-    { schema: { tags: ['leveling'], summary: 'Опыт и место участника', params: MemberParams, response: { 200: LeaderboardEntry } } },
+    { schema: { tags: ['leveling'], summary: "Member's XP and rank", params: MemberParams, response: { 200: LeaderboardEntry } } },
     memberEntry,
   );
 
@@ -47,8 +47,8 @@ export function levelingApi(app: FastifyInstance, ctx: ApiModuleContext<Leveling
     {
       schema: {
         tags: ['leveling'],
-        summary: 'Установить опыт участника',
-        description: 'Уровень пересчитывается; роли-награды выдаются при следующем сообщении участника.',
+        summary: "Set a member's XP",
+        description: "The level is recalculated; reward roles are granted on the member's next message.",
         params: MemberParams,
         body: z.object({ xp: z.number().int().min(0).max(10_000_000) }),
         response: { 200: LeaderboardEntry },
@@ -66,7 +66,7 @@ export function levelingApi(app: FastifyInstance, ctx: ApiModuleContext<Leveling
     {
       schema: {
         tags: ['leveling'],
-        summary: 'Сбросить опыт всех участников',
+        summary: "Reset all members' XP",
         body: z.object({ confirm: z.literal(true) }),
         response: { 200: z.object({ deleted: z.number().int() }) },
       },

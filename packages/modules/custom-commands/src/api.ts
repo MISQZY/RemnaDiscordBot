@@ -70,13 +70,13 @@ export function customCommandsApi(app: FastifyInstance, ctx: ApiModuleContext<Cu
 
   app.get(
     '/commands',
-    { schema: { tags: ['custom-commands'], summary: 'Пользовательские команды', response: { 200: z.array(CommandDto) } } },
+    { schema: { tags: ['custom-commands'], summary: 'Custom commands', response: { 200: z.array(CommandDto) } } },
     async (request) => (await ctx.db.customCommand.findMany({ where: { guildId: params(request).guildId }, orderBy: { name: 'asc' } })).map(toDto),
   );
 
   app.post(
     '/commands',
-    { schema: { tags: ['custom-commands'], summary: 'Создать команду', body: CommandInput, response: { 201: CommandDto } } },
+    { schema: { tags: ['custom-commands'], summary: 'Create a command', body: CommandInput, response: { 201: CommandDto } } },
     async (request, reply) => {
       const { guildId } = params(request);
       const input = request.body as CommandInput;
@@ -91,7 +91,7 @@ export function customCommandsApi(app: FastifyInstance, ctx: ApiModuleContext<Cu
 
   app.put(
     '/commands/:commandId',
-    { schema: { tags: ['custom-commands'], summary: 'Изменить команду', params: CommandParams, body: CommandInput, response: { 200: CommandDto } } },
+    { schema: { tags: ['custom-commands'], summary: 'Update a command', params: CommandParams, body: CommandInput, response: { 200: CommandDto } } },
     async (request) => {
       const { guildId, commandId } = params(request);
       const existing = await findCommand(guildId, commandId!);
@@ -109,7 +109,7 @@ export function customCommandsApi(app: FastifyInstance, ctx: ApiModuleContext<Cu
 
   app.delete(
     '/commands/:commandId',
-    { schema: { tags: ['custom-commands'], summary: 'Удалить команду', params: CommandParams, response: { 204: z.null() } } },
+    { schema: { tags: ['custom-commands'], summary: 'Delete a command', params: CommandParams, response: { 204: z.null() } } },
     async (request, reply) => {
       const { guildId, commandId } = params(request);
       const row = await findCommand(guildId, commandId!);

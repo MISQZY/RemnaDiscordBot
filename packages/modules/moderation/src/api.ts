@@ -27,7 +27,7 @@ export function moderationApi(app: FastifyInstance, ctx: ApiModuleContext<Modera
 
   app.get(
     '/cases',
-    { schema: { tags: ['moderation'], summary: 'Кейсы модерации, от новых к старым', querystring: CasesQuery, response: { 200: CasesPage } } },
+    { schema: { tags: ['moderation'], summary: 'Moderation cases, newest first', querystring: CasesQuery, response: { 200: CasesPage } } },
     async (request) => {
       const { targetId, type, limit, before } = request.query as z.infer<typeof CasesQuery>;
       const rows = await ctx.db.modCase.findMany({
@@ -42,7 +42,7 @@ export function moderationApi(app: FastifyInstance, ctx: ApiModuleContext<Modera
 
   app.get(
     '/cases/:number',
-    { schema: { tags: ['moderation'], summary: 'Кейс по номеру', params: CaseParams, response: { 200: ModCaseDto } } },
+    { schema: { tags: ['moderation'], summary: 'Case by number', params: CaseParams, response: { 200: ModCaseDto } } },
     async (request) => toCaseDto(await findCase(request)),
   );
 
@@ -51,7 +51,7 @@ export function moderationApi(app: FastifyInstance, ctx: ApiModuleContext<Modera
     {
       schema: {
         tags: ['moderation'],
-        summary: 'Изменить причину кейса',
+        summary: 'Update the case reason',
         params: CaseParams,
         body: z.object({ reason: z.string().max(500).nullable() }),
         response: { 200: ModCaseDto },
@@ -69,7 +69,7 @@ export function moderationApi(app: FastifyInstance, ctx: ApiModuleContext<Modera
     {
       schema: {
         tags: ['moderation'],
-        summary: 'Досрочно снять наказание (разбан, снятие мута или предупреждения)',
+        summary: 'Revoke a punishment early (unban, unmute or warning removal)',
         params: CaseParams,
         body: z.object({ reason: z.string().max(500).nullable().default(null) }),
         response: { 200: ModCaseDto },
@@ -88,7 +88,7 @@ export function moderationApi(app: FastifyInstance, ctx: ApiModuleContext<Modera
     {
       schema: {
         tags: ['moderation'],
-        summary: 'Активные предупреждения участника',
+        summary: "Member's active warnings",
         params: z.object({ guildId: z.string(), userId: z.string() }),
         response: { 200: z.array(ModCaseDto) },
       },

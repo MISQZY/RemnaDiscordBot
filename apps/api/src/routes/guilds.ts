@@ -38,7 +38,7 @@ export function guildRoutes({ db, redis, snapshots, guildLocales }: ApiDeps, use
 
     app.get(
       '/v1/guilds/:guildId',
-      { schema: { tags: ['guilds'], summary: 'Гильдия и её общие настройки', params: GuildParams, response: { 200: GuildOverview } } },
+      { schema: { tags: ['guilds'], summary: 'Guild and its general settings', params: GuildParams, response: { 200: GuildOverview } } },
       async (request) => {
         const { guildId } = request.params;
         const meta = await snapshots.getMeta(guildId);
@@ -52,7 +52,7 @@ export function guildRoutes({ db, redis, snapshots, guildLocales }: ApiDeps, use
       {
         schema: {
           tags: ['guilds'],
-          summary: 'Изменить общие настройки гильдии',
+          summary: 'Update general guild settings',
           params: GuildParams,
           body: GuildSettingsPatch,
           response: { 200: GuildSettings },
@@ -96,7 +96,7 @@ export function guildRoutes({ db, redis, snapshots, guildLocales }: ApiDeps, use
 
     app.get(
       '/v1/guilds/:guildId/channels',
-      { schema: { tags: ['guilds'], summary: 'Каналы гильдии', params: GuildParams, response: { 200: z.array(GuildChannel) } } },
+      { schema: { tags: ['guilds'], summary: 'Guild channels', params: GuildParams, response: { 200: z.array(GuildChannel) } } },
       async (request) => (await snapshots.getChannels(request.params.guildId)) ?? [],
     );
 
@@ -105,8 +105,8 @@ export function guildRoutes({ db, redis, snapshots, guildLocales }: ApiDeps, use
       {
         schema: {
           tags: ['guilds'],
-          summary: 'Роли гильдии',
-          description: '`manageable` — роль ниже роли бота, бот может её выдавать.',
+          summary: 'Guild roles',
+          description: "`manageable` — the role is below the bot's role, so the bot can assign it.",
           params: GuildParams,
           response: { 200: z.array(GuildRole) },
         },
@@ -116,7 +116,7 @@ export function guildRoutes({ db, redis, snapshots, guildLocales }: ApiDeps, use
 
     app.get(
       '/v1/guilds/:guildId/emojis',
-      { schema: { tags: ['guilds'], summary: 'Эмодзи гильдии', params: GuildParams, response: { 200: z.array(GuildEmoji) } } },
+      { schema: { tags: ['guilds'], summary: 'Guild emojis', params: GuildParams, response: { 200: z.array(GuildEmoji) } } },
       async (request) => (await snapshots.getEmojis(request.params.guildId)) ?? [],
     );
 
@@ -125,7 +125,7 @@ export function guildRoutes({ db, redis, snapshots, guildLocales }: ApiDeps, use
       {
         schema: {
           tags: ['guilds'],
-          summary: 'История изменений из панели',
+          summary: 'Dashboard change history',
           params: GuildParams,
           querystring: z.object({
             limit: z.coerce.number().int().min(1).max(100).default(50),

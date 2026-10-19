@@ -20,7 +20,7 @@ export function statusRoutes({ redis }: ApiDeps): FastifyPluginAsyncZod {
   return async (app) => {
     app.get(
       '/v1/status',
-      { schema: { tags: ['status'], summary: 'Состояние кластеров бота', security: [], response: { 200: BotStatus } } },
+      { schema: { tags: ['status'], summary: 'Bot cluster status', security: [], response: { 200: BotStatus } } },
       async () => {
         const keys = await scanKeys(redis, RedisKeys.clusterHeartbeatPattern);
         const values = keys.length > 0 ? await redis.mget(...keys) : [];

@@ -17,13 +17,13 @@ export function autorolesApi(app: FastifyInstance, ctx: ApiModuleContext<Autorol
     if (checker.issues.length > 0) throw HttpError.badRequest('Panel references unknown or unusable channels or roles', checker.issues);
   }
 
-  app.get('/panels', { schema: { tags: ['autoroles'], summary: 'Панели ролей', response: { 200: z.array(Panel) } } }, async (request) =>
+  app.get('/panels', { schema: { tags: ['autoroles'], summary: 'Role panels', response: { 200: z.array(Panel) } } }, async (request) =>
     panels.list(params(request).guildId),
   );
 
   app.post(
     '/panels',
-    { schema: { tags: ['autoroles'], summary: 'Создать панель ролей', body: PanelInput, response: { 201: Panel } } },
+    { schema: { tags: ['autoroles'], summary: 'Create a role panel', body: PanelInput, response: { 201: Panel } } },
     async (request, reply) => {
       const { guildId } = params(request);
       const input = request.body as PanelInput;
@@ -34,7 +34,7 @@ export function autorolesApi(app: FastifyInstance, ctx: ApiModuleContext<Autorol
 
   app.get(
     '/panels/:panelId',
-    { schema: { tags: ['autoroles'], summary: 'Панель ролей', params: PanelParams, response: { 200: Panel } } },
+    { schema: { tags: ['autoroles'], summary: 'Role panel', params: PanelParams, response: { 200: Panel } } },
     async (request) => toPanel(await panels.find(params(request).guildId, params(request).panelId)),
   );
 
@@ -43,8 +43,8 @@ export function autorolesApi(app: FastifyInstance, ctx: ApiModuleContext<Autorol
     {
       schema: {
         tags: ['autoroles'],
-        summary: 'Изменить панель ролей',
-        description: 'Сообщение в Discord обновляется отдельным вызовом publish; при смене канала старое удаляется.',
+        summary: 'Update a role panel',
+        description: 'The Discord message is updated by a separate publish call; changing the channel deletes the old one.',
         params: PanelParams,
         body: PanelInput,
         response: { 200: Panel },
@@ -61,7 +61,7 @@ export function autorolesApi(app: FastifyInstance, ctx: ApiModuleContext<Autorol
 
   app.delete(
     '/panels/:panelId',
-    { schema: { tags: ['autoroles'], summary: 'Удалить панель и её сообщение', params: PanelParams, response: { 204: z.null() } } },
+    { schema: { tags: ['autoroles'], summary: 'Delete a panel and its message', params: PanelParams, response: { 204: z.null() } } },
     async (request, reply) => {
       await panels.delete(params(request).guildId, params(request).panelId);
       return reply.status(204).send(null);
@@ -70,7 +70,7 @@ export function autorolesApi(app: FastifyInstance, ctx: ApiModuleContext<Autorol
 
   app.post(
     '/panels/:panelId/publish',
-    { schema: { tags: ['autoroles'], summary: 'Опубликовать или обновить сообщение панели в Discord', params: PanelParams, response: { 200: Panel } } },
+    { schema: { tags: ['autoroles'], summary: 'Post or update the panel message in Discord', params: PanelParams, response: { 200: Panel } } },
     async (request) => panels.publish(params(request).guildId, params(request).panelId),
   );
 }

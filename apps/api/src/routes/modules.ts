@@ -89,8 +89,8 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
       {
         schema: {
           tags: ['modules'],
-          summary: 'Каталог модулей',
-          description: 'Имена — на языке из `Accept-Language`; `configSchema` — JSON Schema для форм.',
+          summary: 'Module catalog',
+          description: 'Names follow `Accept-Language`; `configSchema` is a JSON Schema for forms.',
           security: [],
           response: { 200: z.array(ModuleInfo) },
         },
@@ -131,7 +131,7 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
 
       scope.get(
         '/v1/guilds/:guildId/modules',
-        { schema: { tags: ['modules'], summary: 'Состояние всех модулей гильдии', params: GuildParams, response: { 200: z.array(ModuleState) } } },
+        { schema: { tags: ['modules'], summary: 'State of all guild modules', params: GuildParams, response: { 200: z.array(ModuleState) } } },
         async (request) =>
           Promise.all(registry.all().map(async (m) => toState(m.id, await config.get(request.params.guildId, m.id)))),
       );
@@ -141,8 +141,8 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
         {
           schema: {
             tags: ['modules'],
-            summary: 'Состояние и конфиг модуля',
-            description: 'Возвращает `ETag`; передайте его в `If-Match` при записи, чтобы не затереть чужие изменения.',
+            summary: 'Module state and config',
+            description: "Returns an `ETag`; pass it in `If-Match` when writing so you don't overwrite someone else's changes.",
             params: ModuleParams,
             response: { 200: ModuleState },
           },
@@ -161,7 +161,7 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
         {
           schema: {
             tags: ['modules'],
-            summary: 'Заменить конфиг модуля',
+            summary: 'Replace module config',
             params: ModuleParams,
             body: ModuleConfigReplace,
             response: { 200: ModuleState },
@@ -177,7 +177,7 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
         {
           schema: {
             tags: ['modules'],
-            summary: 'Частично изменить конфиг или включить/выключить модуль',
+            summary: 'Partially update the config or enable/disable the module',
             params: ModuleParams,
             body: ModuleConfigPatch,
             response: { 200: ModuleState },
@@ -200,7 +200,7 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
       scope.post(
         '/v1/guilds/:guildId/modules/:moduleId/reset',
         {
-          schema: { tags: ['modules'], summary: 'Сбросить конфиг к значениям по умолчанию', params: ModuleParams, response: { 200: ModuleState } },
+          schema: { tags: ['modules'], summary: 'Reset config to defaults', params: ModuleParams, response: { 200: ModuleState } },
           config: { rateLimit: GUILD_WRITE_LIMIT },
         },
         async (request, reply) => {

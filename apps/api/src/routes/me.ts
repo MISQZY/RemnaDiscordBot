@@ -8,7 +8,7 @@ export function meRoutes(userGuilds: UserGuildService): FastifyPluginAsyncZod {
   return async (app) => {
     app.get(
       '/v1/me',
-      { schema: { tags: ['me'], summary: 'Текущий пользователь', response: { 200: CurrentUser } } },
+      { schema: { tags: ['me'], summary: 'Current user', response: { 200: CurrentUser } } },
       async (request) => {
         const session = requireSession(request);
         return {
@@ -25,8 +25,8 @@ export function meRoutes(userGuilds: UserGuildService): FastifyPluginAsyncZod {
       {
         schema: {
           tags: ['me'],
-          summary: 'Гильдии пользователя',
-          description: 'Сначала те, которыми пользователь может управлять. Кэшируется на минуту.',
+          summary: "User's guilds",
+          description: 'Guilds the user can manage come first. Cached for a minute.',
           response: { 200: z.array(UserGuild) },
         },
       },

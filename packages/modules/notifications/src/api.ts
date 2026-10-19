@@ -40,7 +40,7 @@ export function notificationsApi(providers: () => Map<ProviderId, FeedProvider>)
 
     app.get(
       '/lookup',
-      { schema: { tags: ['notifications'], summary: 'Найти канал YouTube или стримера Twitch', querystring: LookupQuery, response: { 200: SourceInfo } } },
+      { schema: { tags: ['notifications'], summary: 'Find a YouTube channel or Twitch streamer', querystring: LookupQuery, response: { 200: SourceInfo } } },
       async (request) => {
         const { provider: id, query } = request.query as z.infer<typeof LookupQuery>;
         return provider(id).lookup(query);
@@ -49,7 +49,7 @@ export function notificationsApi(providers: () => Map<ProviderId, FeedProvider>)
 
     app.get(
       '/subscriptions',
-      { schema: { tags: ['notifications'], summary: 'Подписки гильдии', response: { 200: z.array(SubscriptionDto) } } },
+      { schema: { tags: ['notifications'], summary: 'Guild subscriptions', response: { 200: z.array(SubscriptionDto) } } },
       async (request) =>
         (
           await ctx.db.notificationSubscription.findMany({
@@ -62,7 +62,7 @@ export function notificationsApi(providers: () => Map<ProviderId, FeedProvider>)
 
     app.post(
       '/subscriptions',
-      { schema: { tags: ['notifications'], summary: 'Подписаться на канал или стримера', body: SubscriptionCreate, response: { 201: SubscriptionDto } } },
+      { schema: { tags: ['notifications'], summary: 'Subscribe to a channel or streamer', body: SubscriptionCreate, response: { 201: SubscriptionDto } } },
       async (request, reply) => {
         const { guildId } = params(request);
         const input = request.body as SubscriptionCreate;
@@ -104,7 +104,7 @@ export function notificationsApi(providers: () => Map<ProviderId, FeedProvider>)
       {
         schema: {
           tags: ['notifications'],
-          summary: 'Изменить подписку',
+          summary: 'Update a subscription',
           params: SubscriptionParams,
           body: SubscriptionUpdate,
           response: { 200: SubscriptionDto },
@@ -126,7 +126,7 @@ export function notificationsApi(providers: () => Map<ProviderId, FeedProvider>)
 
     app.delete(
       '/subscriptions/:subscriptionId',
-      { schema: { tags: ['notifications'], summary: 'Отписаться', params: SubscriptionParams, response: { 204: z.null() } } },
+      { schema: { tags: ['notifications'], summary: 'Unsubscribe', params: SubscriptionParams, response: { 204: z.null() } } },
       async (request, reply) => {
         const { guildId, subscriptionId } = params(request);
         const row = await findSubscription(guildId, subscriptionId!);
