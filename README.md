@@ -11,16 +11,40 @@ TypeScript, Node.js 24, pnpm + Turborepo, discord.js 14 + discord-hybrid-shardin
 ```
 apps/bot              менеджер кластеров и процесс кластера
 apps/api              REST API /v1 для веб-платформы (Fastify, OpenAPI на /docs)
+apps/worker           отложенные задачи и периодические опросы модулей
 packages/core         контракт модуля, реестр, ConfigService, диспетчер событий
 packages/contracts    общие zod-схемы и DTO API
 packages/db           Prisma-схема, клиент, SQLite-вариант для локального режима
-packages/discord      снапшоты гильдий в Redis
+packages/discord      снапшоты гильдий в Redis, переменные шаблонов из discord.js
+packages/templates    шаблоны сообщений с плейсхолдерами
 packages/i18n         переводы ru/en
 packages/logger       pino
 packages/module-list  список модулей, общий для бота и API
 packages/modules/*    модули бота
 packages/testing      SQLite и in-memory Redis для тестов и локального запуска
 ```
+
+## Модули
+
+| Модуль | Что делает |
+|---|---|
+| `general` | `/ping`, `/help` — всегда включён |
+| `welcome` | приветствия и прощания в канал и ЛС, `/welcome test` |
+| `autoroles` | роли при входе (с задержкой), восстановление ролей при возвращении, панели ролей с кнопками и списком |
+| `moderation` | `/ban /unban /kick /mute /unmute /warn /warns /unwarn /case /clear`, кейсы, автоэскалация предупреждений, временные баны |
+| `audit-log` | журнал сообщений, участников, голоса, сервера и банов в выбранные каналы |
+| `leveling` | опыт за сообщения, уровни, роли-награды, `/rank`, `/leaderboard`, `/xp`, публичный лидерборд |
+| `custom-commands` | свои slash-команды и автоответы по триггерам |
+| `notifications` | оповещения о новых видео YouTube и стримах Twitch |
+
+Модули включаются и настраиваются через API (`/v1/guilds/:id/modules/:module`).
+
+> [!IMPORTANT]
+> Модули используют привилегированные intents. Включите их в Developer Portal → Bot → Privileged Gateway Intents:
+> **Server Members** (welcome, autoroles, audit-log) и **Message Content** (audit-log, custom-commands).
+> Иначе бот не подключится к Discord (ошибка «Used disallowed intents»).
+
+Для оповещений о стримах нужны `TWITCH_CLIENT_ID` и `TWITCH_CLIENT_SECRET` (приложение на dev.twitch.tv); YouTube работает без ключей.
 
 ## Быстрый старт без контейнеров
 
@@ -32,14 +56,14 @@ pnpm deploy-commands          # зарегистрировать slash-кома�
 pnpm dev:local                # бот + API на SQLite и in-memory Redis
 ```
 
-`dev:local` хранит базу в `.local/dev.db` (сохраняется между запусками) и поднимает Redis-совместимый сервер в памяти на `127.0.0.1:6390`. Работает один кластер. Без `DISCORD_CLIENT_SECRET` запускается только бот.
+`dev:local` хранит базу в `.local/dev.db` (сохраняется между запусками) и поднимает Redis-совместимый сервер в памяти на `127.0.0.1:6390`; запускаются бот (один кластер), воркер и API. Без `DISCORD_CLIENT_SECRET` API не запускается.
 
 ## Запуск с Postgres и Redis
 
 ```sh
 docker compose up -d postgres redis
 pnpm db:deploy                # применить миграции
-pnpm dev                      # бот и API в watch-режиме
+pnpm dev                      # бот, воркер и API в watch-режиме
 ```
 
 Полностью в Docker: `docker compose --profile app up -d --build`.
