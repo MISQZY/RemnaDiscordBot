@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@bot/core": "workspace:*",
+    "@bot/module-autoroles": "workspace:*",
     "@bot/module-general": "workspace:*",
     "@bot/module-welcome": "workspace:*"
   },

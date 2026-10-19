@@ -1,0 +1,109 @@
+import { defineComponent, type BotModuleContext } from '@bot/core';
+import { MessageFlags, roleMention, type GuildMember, type PartialGuildMember } from 'discord.js';
+import type { AutorolesConfig } from './config.js';
+import { computeRoleChanges, toPanel } from './panel.js';
+import { persistedRoles } from './persistence.js';
+
+const REASON = 'Autoroles';
+
+/** Только роли, которые бот может выдать (ниже его роли и не управляемые интеграцией). */
+function assignable(member: GuildMember, roleIds: readonly string[]): string[] {
+  return roleIds.filter((id) => {
+    const role = member.guild.roles.cache.get(id);
+    return role !== undefined && role.editable && !role.managed && role.id !== member.guild.id;
+  });
+}
+
+export const joinRolesKey = (guildId: string, userId: string) => `autoroles:join:${guildId}:${userId}`;
+
+export async function onMemberJoin(ctx: BotModuleContext<AutorolesConfig>, member: GuildMember): Promise<void> {
+  const config = await ctx.getConfig(member.guild.id);
+
+  if (config.persistence.enabled) {
+    const backup = await ctx.db.memberRoleBackup.findUnique({
+      where: { guildId_userId: { guildId: member.guild.id, userId: member.id } },
+    });
+    if (backup) {
+      const roles = assignable(member, persistedRoles(backup.roleIds as string[], config.persistence));
+      if (roles.length > 0) await member.roles.add(roles, `${REASON}: restore roles`);
+      await ctx.db.memberRoleBackup.delete({ where: { guildId_userId: { guildId: member.guild.id, userId: member.id } } });
+    }
+  }
+
+  const joinRoles = assignable(member, member.user.bot ? config.joinRoles.bots : config.joinRoles.humans);
+  if (joinRoles.length === 0) return;
+
+  if (config.joinRoles.delaySec === 0) {
+    await member.roles.add(joinRoles, `${REASON}: join roles`);
+    return;
+  }
+  await ctx.scheduler.schedule({
+    guildId: member.guild.id,
+    moduleId: 'autoroles',
+    job: 'assignJoinRoles',
+    payload: { userId: member.id, roleIds: joinRoles },
+    runAt: new Date(Date.now() + config.joinRoles.delaySec * 1000),
+    key: joinRolesKey(member.guild.id, member.id),
+  });
+}
+
+export async function onMemberLeave(ctx: BotModuleContext<AutorolesConfig>, member: GuildMember | PartialGuildMember): Promise<void> {
+  // Вышел до отложенной выдачи — задача больше не нужна.
+  await ctx.scheduler.cancel(joinRolesKey(member.guild.id, member.id));
+
+  const config = await ctx.getConfig(member.guild.id);
+  if (!config.persistence.enabled || member.partial) return;
+
+  const roleIds = persistedRoles(
+    member.roles.cache.filter((role) => role.id !== member.guild.id && !role.managed).map((role) => role.id),
+    config.persistence,
+  );
+  if (roleIds.length === 0) return;
+  await ctx.db.memberRoleBackup.upsert({
+    where: { guildId_userId: { guildId: member.guild.id, userId: member.id } },
+    create: { guildId: member.guild.id, userId: member.id, roleIds },
+    update: { roleIds },
+  });
+}
+
+/** Нажатие кнопки или выбор в списке панели ролей. */
+export const panelComponent = defineComponent<AutorolesConfig>({
+  async handle(interaction, ctx) {
+    if (!interaction.inCachedGuild() || interaction.isModalSubmit()) return;
+    const [, panelId, roleId] = interaction.customId.split(':');
+
+    const row = panelId ? await ctx.db.rolePanel.findUnique({ where: { id: panelId } }) : null;
+    if (!row || row.guildId !== interaction.guildId) {
+      await interaction.reply({ content: ctx.t('autoroles.panelMissing'), flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    const panel = toPanel(row);
+    const member = interaction.member;
+    const isSelect = interaction.isStringSelectMenu();
+    const picked = isSelect ? interaction.values : roleId ? [roleId] : [];
+    const changes = computeRoleChanges(panel, new Set(member.roles.cache.keys()), picked, isSelect ? 'select' : 'button');
+
+    if (changes.limited) {
+      await interaction.reply({ content: ctx.t('autoroles.limit', { max: panel.maxRoles ?? 0 }), flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    const add = assignable(member, changes.add);
+    const remove = assignable(member, changes.remove);
+    const skipped = changes.add.length + changes.remove.length - add.length - remove.length;
+    if (add.length > 0) await member.roles.add(add, `${REASON}: role panel`);
+    if (remove.length > 0) await member.roles.remove(remove, `${REASON}: role panel`);
+
+    const lines = [
+      add.length > 0 ? ctx.t('autoroles.added', { roles: add.map(roleMention).join(', ') }) : null,
+      remove.length > 0 ? ctx.t('autoroles.removed', { roles: remove.map(roleMention).join(', ') }) : null,
+      skipped > 0 ? ctx.t('autoroles.cannotManage') : null,
+    ].filter(Boolean);
+    await interaction.reply({
+      content: lines.length > 0 ? lines.join('\n') : ctx.t('autoroles.unchanged'),
+      flags: MessageFlags.Ephemeral,
+      allowedMentions: { parse: [] },
+    });
+  },
+});
