@@ -1,7 +1,11 @@
 import { extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ModuleRegistry } from '@bot/core';
 import { createLogger } from '@bot/logger';
+import { modules } from '@bot/module-list';
 import { ClusterManager } from 'discord-hybrid-sharding';
+import { REST } from 'discord.js';
+import { collectCommandPayloads, syncCommands } from './commands.js';
 import { loadManagerEnv } from './env.js';
 import { startHealthServer } from './health.js';
 
@@ -44,6 +48,19 @@ function shutdown(signal: string): void {
 }
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+if (env.AUTO_DEPLOY_COMMANDS) {
+  // Один раз в менеджере, а не в каждом кластере. Ошибка синхронизации не мешает запуску.
+  try {
+    const result = await syncCommands(new REST().setToken(env.DISCORD_TOKEN), collectCommandPayloads(new ModuleRegistry(modules)), {
+      guildId: env.DISCORD_DEV_GUILD_ID,
+      logger,
+    });
+    logger.info(result, 'Slash commands synced');
+  } catch (err) {
+    logger.error({ err }, 'Slash command sync failed');
+  }
+}
 
 await manager.spawn({ timeout: -1 });
 logger.info({ clusters: manager.clusters.size, shards: manager.totalShards }, 'All clusters spawned');

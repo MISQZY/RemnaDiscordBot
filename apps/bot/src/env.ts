@@ -8,6 +8,9 @@ const ManagerEnv = z.object({
   TOTAL_SHARDS: z.union([z.literal('auto'), z.coerce.number().int().positive()]).default('auto'),
   SHARDS_PER_CLUSTER: z.coerce.number().int().positive().default(4),
   BOT_HEALTH_PORT: z.coerce.number().int().positive().default(3001),
+  DISCORD_DEV_GUILD_ID: z.string().optional(),
+  /** Синхронизировать slash-команды с Discord при старте (меняются только отличия). */
+  AUTO_DEPLOY_COMMANDS: z.stringbool().default(true),
 });
 
 const ClusterEnv = z.object({
@@ -22,7 +25,7 @@ const ClusterEnv = z.object({
 const DeployEnv = z.object({
   LOG_LEVEL: z.string().default('info'),
   DISCORD_TOKEN: z.string().min(1),
-  DISCORD_CLIENT_ID: z.string().min(1),
+  DISCORD_CLIENT_ID: z.string().optional(),
   DISCORD_DEV_GUILD_ID: z.string().optional(),
 });
 
