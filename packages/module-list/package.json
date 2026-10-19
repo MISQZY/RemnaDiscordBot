@@ -19,6 +19,7 @@
     "@bot/core": "workspace:*",
     "@bot/module-audit-log": "workspace:*",
     "@bot/module-autoroles": "workspace:*",
+    "@bot/module-custom-commands": "workspace:*",
     "@bot/module-general": "workspace:*",
     "@bot/module-leveling": "workspace:*",
     "@bot/module-moderation": "workspace:*",

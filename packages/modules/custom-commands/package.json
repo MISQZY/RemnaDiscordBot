@@ -1,0 +1,37 @@
+{
+  "name": "@bot/module-custom-commands",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests"
+  },
+  "dependencies": {
+    "@bot/contracts": "workspace:*",
+    "@bot/core": "workspace:*",
+    "@bot/db": "workspace:*",
+    "@bot/discord": "workspace:*",
+    "@bot/i18n": "workspace:*",
+    "@bot/templates": "workspace:*",
+    "discord.js": "14.27.0",
+    "lru-cache": "11.5.3",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@bot/config": "workspace:*",
+    "@bot/logger": "workspace:*",
+    "@bot/testing": "workspace:*",
+    "fastify": "5.12.7"
+  }
+}
