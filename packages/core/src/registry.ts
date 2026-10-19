@@ -1,0 +1,93 @@
+import { ModuleId } from '@bot/contracts';
+import type { I18n } from '@bot/i18n';
+import type { ClientEvents } from 'discord.js';
+import type { AnyModule, ComponentHandler, EventHandlers, SlashCommand } from './module.js';
+
+export interface Registered<T> {
+  module: AnyModule;
+  item: T;
+}
+
+type AnyEventHandler = NonNullable<EventHandlers<unknown>[keyof ClientEvents]>;
+
+export class ModuleRegistry {
+  private readonly modules = new Map<string, AnyModule>();
+  private readonly commands = new Map<string, Registered<SlashCommand>>();
+  private readonly components = new Map<string, Registered<ComponentHandler>>();
+  private readonly events = new Map<keyof ClientEvents, Registered<AnyEventHandler>[]>();
+
+  constructor(modules: AnyModule[] = []) {
+    for (const module of modules) this.register(module);
+  }
+
+  register(module: AnyModule): this {
+    const id = ModuleId.safeParse(module.id);
+    if (!id.success) throw new Error(`Invalid module id "${module.id}"`);
+    if (this.modules.has(module.id)) throw new Error(`Module "${module.id}" is already registered`);
+
+    const defaults = module.configSchema.safeParse(module.defaultConfig);
+    if (!defaults.success) {
+      throw new Error(`Module "${module.id}" has invalid defaultConfig: ${defaults.error.message}`);
+    }
+
+    for (const command of module.bot?.commands ?? []) {
+      const owner = this.commands.get(command.data.name);
+      if (owner) throw new Error(`Command "/${command.data.name}" is already registered by "${owner.module.id}"`);
+    }
+    for (const prefix of Object.keys(module.bot?.components ?? {})) {
+      const owner = this.components.get(prefix);
+      if (owner) throw new Error(`Component prefix "${prefix}" is already registered by "${owner.module.id}"`);
+    }
+
+    this.modules.set(module.id, module);
+    for (const command of module.bot?.commands ?? []) {
+      this.commands.set(command.data.name, { module, item: command });
+    }
+    for (const [prefix, handler] of Object.entries(module.bot?.components ?? {})) {
+      this.components.set(prefix, { module, item: handler });
+    }
+    for (const [event, handler] of Object.entries(module.bot?.events ?? {})) {
+      const name = event as keyof ClientEvents;
+      const list = this.events.get(name) ?? [];
+      list.push({ module, item: handler as AnyEventHandler });
+      this.events.set(name, list);
+    }
+    return this;
+  }
+
+  get(id: string): AnyModule | undefined {
+    return this.modules.get(id);
+  }
+
+  all(): AnyModule[] {
+    return [...this.modules.values()];
+  }
+
+  allCommands(): Registered<SlashCommand>[] {
+    return [...this.commands.values()];
+  }
+
+  findCommand(name: string): Registered<SlashCommand> | undefined {
+    return this.commands.get(name);
+  }
+
+  /** Ищет обработчик по префиксу `customId`: `lvl:page:2` → `lvl`. */
+  findComponent(customId: string): Registered<ComponentHandler> | undefined {
+    return this.components.get(customId.split(':', 1)[0]!);
+  }
+
+  subscribedEvents(): (keyof ClientEvents)[] {
+    return [...this.events.keys()];
+  }
+
+  subscribers(event: keyof ClientEvents): Registered<AnyEventHandler>[] {
+    return this.events.get(event) ?? [];
+  }
+
+  /** Регистрирует словари модулей в i18n под неймспейсом `<moduleId>`. */
+  registerLocales(i18n: I18n): void {
+    for (const module of this.modules.values()) {
+      if (module.locales) i18n.register(module.id, module.locales);
+    }
+  }
+}
