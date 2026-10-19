@@ -1,0 +1,24 @@
+# Keeps the pinned package versions, base images and action SHAs up to date.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+      prisma:
+        patterns: ["prisma", "@prisma/*"]
+  - package-ecosystem: docker
+    directory: /docker
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
