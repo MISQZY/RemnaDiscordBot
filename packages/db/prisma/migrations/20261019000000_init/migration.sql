@@ -6,7 +6,7 @@ CREATE TABLE "Guild" (
     "id" TEXT NOT NULL,
     "locale" TEXT NOT NULL DEFAULT 'ru',
     "timezone" TEXT NOT NULL DEFAULT 'Europe/Moscow',
-    "modRoleIds" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "modRoleIds" JSONB NOT NULL DEFAULT '[]',
     "premiumTier" INTEGER NOT NULL DEFAULT 0,
     "joinedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "leftAt" TIMESTAMP(3),
@@ -41,7 +41,7 @@ CREATE TABLE "DashboardUser" (
 
 -- CreateTable
 CREATE TABLE "DashboardAuditLog" (
-    "id" BIGSERIAL NOT NULL,
+    "id" TEXT NOT NULL,
     "guildId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "moduleId" TEXT,

@@ -12,7 +12,8 @@ model Guild {
   id          String    @id
   locale      String    @default("ru")
   timezone    String    @default("Europe/Moscow")
-  modRoleIds  String[]  @default([])
+  /// ID ролей модераторов (JSON-массив: схема переносима на SQLite для тестов).
+  modRoleIds  Json      @default("[]")
   premiumTier Int       @default(0)
   joinedAt    DateTime  @default(now())
   /// Бот удалён с сервера; данные чистятся позже задачей обслуживания.
@@ -48,7 +49,7 @@ model DashboardUser {
 
 /// История изменений настроек через API.
 model DashboardAuditLog {
-  id        BigInt   @id @default(autoincrement())
+  id        String   @id @default(cuid())
   guildId   String
   userId    String
   moduleId  String?
