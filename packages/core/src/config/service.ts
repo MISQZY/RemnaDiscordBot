@@ -9,6 +9,8 @@ import type { ConfigStore, StoredConfig } from './store.js';
 export interface ResolvedConfig<T = unknown> {
   enabled: boolean;
   config: T;
+  /** `null` — конфиг не сохранялся, действуют значения по умолчанию. */
+  updatedAt: string | null;
 }
 
 export interface ConfigPatch {
@@ -77,12 +79,17 @@ export class ConfigService {
     const config = module.configSchema.parse(patch.config ?? current.config);
     const enabled = module.alwaysEnabled ? true : (patch.enabled ?? current.enabled);
 
-    await this.options.store.save(guildId, moduleId, { enabled, config, version: module.configVersion }, updatedBy);
+    const saved = await this.options.store.save(
+      guildId,
+      moduleId,
+      { enabled, config, version: module.configVersion },
+      updatedBy,
+    );
     await this.options.sharedCache?.delete(guildId, moduleId);
     this.invalidate({ guildId, moduleId });
     await this.options.publish?.({ guildId, moduleId });
 
-    return { enabled, config: config as T };
+    return { enabled, config: config as T, updatedAt: saved.updatedAt };
   }
 
   /** Сбрасывает локальный кэш — вызывается по сообщению из pub/sub. */
@@ -114,7 +121,7 @@ export class ConfigService {
 
   private resolve(module: AnyModule, guildId: string, stored: StoredConfig | null): ResolvedConfig {
     const enabled = module.alwaysEnabled || (stored?.enabled ?? module.enabledByDefault ?? false);
-    if (!stored) return { enabled, config: module.defaultConfig };
+    if (!stored) return { enabled, config: module.defaultConfig, updatedAt: null };
 
     const raw =
       stored.version < module.configVersion && module.migrateConfig
@@ -122,12 +129,12 @@ export class ConfigService {
         : stored.config;
 
     const parsed = module.configSchema.safeParse(raw);
-    if (parsed.success) return { enabled, config: parsed.data };
+    if (parsed.success) return { enabled, config: parsed.data, updatedAt: stored.updatedAt };
 
     this.options.logger.warn(
       { guildId, moduleId: module.id, issues: parsed.error.issues },
       'Stored module config is invalid, falling back to defaults',
     );
-    return { enabled, config: module.defaultConfig };
+    return { enabled, config: module.defaultConfig, updatedAt: stored.updatedAt };
   }
 }

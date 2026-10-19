@@ -1,5 +1,5 @@
 import type { SharedConfigCache } from '../config/shared-cache.js';
-import type { ConfigStore, StoredConfig } from '../config/store.js';
+import type { ConfigStore, ConfigWrite, StoredConfig } from '../config/store.js';
 
 export class MemoryConfigStore implements ConfigStore {
   readonly rows = new Map<string, StoredConfig>();
@@ -10,8 +10,10 @@ export class MemoryConfigStore implements ConfigStore {
     return this.rows.get(`${guildId}:${moduleId}`) ?? null;
   }
 
-  async save(guildId: string, moduleId: string, value: StoredConfig): Promise<void> {
-    this.rows.set(`${guildId}:${moduleId}`, value);
+  async save(guildId: string, moduleId: string, value: ConfigWrite): Promise<StoredConfig> {
+    const stored = { ...value, updatedAt: new Date().toISOString() };
+    this.rows.set(`${guildId}:${moduleId}`, stored);
+    return stored;
   }
 }
 

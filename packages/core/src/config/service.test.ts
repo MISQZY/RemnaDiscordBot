@@ -5,6 +5,7 @@ import { MemoryConfigStore, MemorySharedCache } from '../testing/memory-config.j
 import { ConfigService, UnknownModuleError } from './service.js';
 
 const GUILD = '111111111111111111';
+const STORED_AT = '2026-10-01T00:00:00.000Z';
 
 function setup(modules = [createTestModule('leveling')]) {
   const store = new MemoryConfigStore();
@@ -26,6 +27,7 @@ describe('ConfigService', () => {
     expect(await service.get(GUILD, 'leveling')).toEqual({
       enabled: false,
       config: { xpPerMessage: 10, announce: true },
+      updatedAt: null,
     });
   });
 
@@ -54,11 +56,12 @@ describe('ConfigService', () => {
 
     const updated = await service.update(GUILD, 'leveling', { enabled: true, config: { xpPerMessage: 20, announce: false } }, 'user');
 
-    expect(updated).toEqual({ enabled: true, config: { xpPerMessage: 20, announce: false } });
+    expect(updated).toEqual({ enabled: true, config: { xpPerMessage: 20, announce: false }, updatedAt: expect.any(String) });
     expect(store.rows.get(`${GUILD}:leveling`)).toEqual({
       enabled: true,
       config: { xpPerMessage: 20, announce: false },
       version: 1,
+      updatedAt: updated.updatedAt,
     });
     expect(publish).toHaveBeenCalledWith({ guildId: GUILD, moduleId: 'leveling' });
     expect(await service.get(GUILD, 'leveling')).toEqual(updated);
@@ -72,11 +75,12 @@ describe('ConfigService', () => {
 
   it('falls back to defaults when stored config is invalid', async () => {
     const { service, store } = setup();
-    store.rows.set(`${GUILD}:leveling`, { enabled: true, config: { broken: true }, version: 1 });
+    store.rows.set(`${GUILD}:leveling`, { enabled: true, config: { broken: true }, version: 1, updatedAt: STORED_AT });
 
     expect(await service.get(GUILD, 'leveling')).toEqual({
       enabled: true,
       config: { xpPerMessage: 10, announce: true },
+      updatedAt: STORED_AT,
     });
   });
 
@@ -86,7 +90,7 @@ describe('ConfigService', () => {
       migrateConfig: (raw) => ({ ...(raw as object), announce: false }),
     });
     const { service, store } = setup([module]);
-    store.rows.set(`${GUILD}:leveling`, { enabled: true, config: { xpPerMessage: 5 }, version: 1 });
+    store.rows.set(`${GUILD}:leveling`, { enabled: true, config: { xpPerMessage: 5 }, version: 1, updatedAt: STORED_AT });
 
     expect((await service.get(GUILD, 'leveling')).config).toEqual({ xpPerMessage: 5, announce: false });
   });
@@ -94,7 +98,7 @@ describe('ConfigService', () => {
   it('drops local cache on invalidation', async () => {
     const { service, store, sharedCache } = setup();
     await service.get(GUILD, 'leveling');
-    store.rows.set(`${GUILD}:leveling`, { enabled: true, config: { xpPerMessage: 15, announce: true }, version: 1 });
+    store.rows.set(`${GUILD}:leveling`, { enabled: true, config: { xpPerMessage: 15, announce: true }, version: 1, updatedAt: STORED_AT });
     sharedCache.entries.clear();
 
     service.invalidate({ guildId: GUILD });
@@ -102,6 +106,7 @@ describe('ConfigService', () => {
     expect(await service.get(GUILD, 'leveling')).toEqual({
       enabled: true,
       config: { xpPerMessage: 15, announce: true },
+      updatedAt: STORED_AT,
     });
   });
 

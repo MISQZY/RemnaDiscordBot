@@ -5,11 +5,21 @@ export interface StoredConfig {
   enabled: boolean;
   config: unknown;
   version: number;
+  /** ISO-время последнего изменения — основа ETag в API. */
+  updatedAt: string;
 }
+
+export type ConfigWrite = Omit<StoredConfig, 'updatedAt'>;
 
 export interface ConfigStore {
   find(guildId: string, moduleId: string): Promise<StoredConfig | null>;
-  save(guildId: string, moduleId: string, value: StoredConfig, updatedBy?: string): Promise<void>;
+  save(guildId: string, moduleId: string, value: ConfigWrite, updatedBy?: string): Promise<StoredConfig>;
+}
+
+const SELECT = { enabled: true, config: true, version: true, updatedAt: true } as const;
+
+function toStored(row: { enabled: boolean; config: unknown; version: number; updatedAt: Date }): StoredConfig {
+  return { ...row, updatedAt: row.updatedAt.toISOString() };
 }
 
 export class PrismaConfigStore implements ConfigStore {
@@ -18,19 +28,19 @@ export class PrismaConfigStore implements ConfigStore {
   async find(guildId: string, moduleId: string): Promise<StoredConfig | null> {
     const row = await this.db.guildModuleConfig.findUnique({
       where: { guildId_moduleId: { guildId, moduleId } },
-      select: { enabled: true, config: true, version: true },
+      select: SELECT,
     });
-    return row;
+    return row && toStored(row);
   }
 
-  async save(guildId: string, moduleId: string, value: StoredConfig, updatedBy?: string): Promise<void> {
+  async save(guildId: string, moduleId: string, value: ConfigWrite, updatedBy?: string): Promise<StoredConfig> {
     const data = {
       enabled: value.enabled,
       config: value.config as Prisma.InputJsonValue,
       version: value.version,
       updatedBy: updatedBy ?? null,
     };
-    await this.db.guildModuleConfig.upsert({
+    const row = await this.db.guildModuleConfig.upsert({
       where: { guildId_moduleId: { guildId, moduleId } },
       update: data,
       create: {
@@ -38,6 +48,8 @@ export class PrismaConfigStore implements ConfigStore {
         moduleId,
         guild: { connectOrCreate: { where: { id: guildId }, create: { id: guildId } } },
       },
+      select: SELECT,
     });
+    return toStored(row);
   }
 }

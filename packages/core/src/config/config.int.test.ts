@@ -61,7 +61,7 @@ describe('ConfigService with database and Redis', () => {
     await api.update(GUILD, 'leveling', { config: { xpPerMessage: 40, announce: true } });
     await vi.waitFor(() => expect(invalidated).toHaveBeenCalledWith({ guildId: GUILD, moduleId: 'leveling' }));
 
-    expect(await bot.get(GUILD, 'leveling')).toEqual({ enabled: before.enabled, config: { xpPerMessage: 40, announce: true } });
+    expect(await bot.get(GUILD, 'leveling')).toMatchObject({ enabled: before.enabled, config: { xpPerMessage: 40, announce: true } });
     await unsubscribe();
   });
 
