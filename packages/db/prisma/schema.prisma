@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Discord-сервер и его общие настройки.
+model Guild {
+  id          String    @id
+  locale      String    @default("ru")
+  timezone    String    @default("Europe/Moscow")
+  modRoleIds  String[]  @default([])
+  premiumTier Int       @default(0)
+  joinedAt    DateTime  @default(now())
+  /// Бот удалён с сервера; данные чистятся позже задачей обслуживания.
+  leftAt      DateTime?
+
+  modules GuildModuleConfig[]
+}
+
+/// Конфиг модуля для гильдии. `config` валидируется zod-схемой модуля.
+model GuildModuleConfig {
+  guildId   String
+  moduleId  String
+  enabled   Boolean  @default(false)
+  config    Json
+  version   Int
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@id([guildId, moduleId])
+}
+
+/// Пользователь веб-платформы (Discord user).
+model DashboardUser {
+  id         String   @id
+  username   String
+  avatar     String?
+  locale     String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+}
+
+/// История изменений настроек через API.
+model DashboardAuditLog {
+  id        BigInt   @id @default(autoincrement())
+  guildId   String
+  userId    String
+  moduleId  String?
+  action    String
+  diff      Json?
+  createdAt DateTime @default(now())
+
+  @@index([guildId, createdAt])
+}
+
+/// Отложенные действия — источник правды для задач в очередях.
+model ScheduledAction {
+  id        String    @id @default(cuid())
+  guildId   String
+  type      String
+  payload   Json
+  runAt     DateTime
+  doneAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([runAt, doneAt])
+  @@index([guildId])
+}
