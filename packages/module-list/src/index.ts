@@ -5,10 +5,20 @@ import customCommands from '@bot/module-custom-commands';
 import general from '@bot/module-general';
 import leveling from '@bot/module-leveling';
 import moderation from '@bot/module-moderation';
+import notifications from '@bot/module-notifications';
 import welcome from '@bot/module-welcome';
 
 /**
  * Модули платформы — единый список для бота, API и воркера.
  * Порядок задаёт порядок вызова обработчиков событий.
  */
-export const modules: AnyModule[] = [general, welcome, autoroles, moderation, auditLog, leveling, customCommands];
+export const modules: AnyModule[] = [
+  general,
+  welcome,
+  autoroles,
+  moderation,
+  auditLog,
+  leveling,
+  customCommands,
+  notifications,
+];

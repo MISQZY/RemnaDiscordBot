@@ -331,6 +331,9 @@ importers:
       '@bot/module-moderation':
         specifier: workspace:*
         version: link:../modules/moderation
+      '@bot/module-notifications':
+        specifier: workspace:*
+        version: link:../modules/notifications
       '@bot/module-welcome':
         specifier: workspace:*
         version: link:../modules/welcome
@@ -548,6 +551,46 @@ importers:
       '@bot/logger':
         specifier: workspace:*
         version: link:../../logger
+      fastify:
+        specifier: 5.12.7
+        version: 5.12.7
+
+  packages/modules/notifications:
+    dependencies:
+      '@bot/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@bot/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@bot/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@bot/discord':
+        specifier: workspace:*
+        version: link:../../discord
+      '@bot/i18n':
+        specifier: workspace:*
+        version: link:../../i18n
+      '@bot/templates':
+        specifier: workspace:*
+        version: link:../../templates
+      discord.js:
+        specifier: 14.27.0
+        version: 14.27.0
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@bot/config':
+        specifier: workspace:*
+        version: link:../../config
+      '@bot/logger':
+        specifier: workspace:*
+        version: link:../../logger
+      '@bot/testing':
+        specifier: workspace:*
+        version: link:../../testing
       fastify:
         specifier: 5.12.7
         version: 5.12.7
