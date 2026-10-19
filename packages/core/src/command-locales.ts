@@ -17,15 +17,15 @@ interface Node {
 const SUBCOMMAND = 1;
 const SUBCOMMAND_GROUP = 2;
 
-/** Язык описаний «по умолчанию» в Discord — английский; остальные идут в `*_localizations`. */
+/** The "default" description language in Discord is English; the others go to `*_localizations`. */
 const BASE_LOCALE = 'en';
 
 /**
- * Тексты slash-команд из словарей модуля. Ключи:
+ * Slash command texts from the module's dictionaries. Keys:
  *   `<module>.commands.<cmd>.description`
  *   `<module>.commands.<cmd>.options.<opt>.name | .description | .choices.<value>`
- *   `<module>.commands.<cmd>.<sub>.description` (подкоманды и группы — вложенно)
- * Текст из билдера остаётся запасным, если ключа нет.
+ *   `<module>.commands.<cmd>.<sub>.description` (subcommands and groups — nested)
+ * The builder text stays as a fallback when a key is missing.
  */
 export function localizeCommand(json: CommandJson, i18n: I18n, moduleId: string): CommandJson {
   const localized = structuredClone(json) as unknown as Node;
@@ -45,7 +45,7 @@ function localizeNode(node: Node, key: string, i18n: I18n, isOption: boolean): v
   node.description = description.base;
   if (description.localizations) node.description_localizations = description.localizations;
 
-  // Имя команды верхнего уровня не переводим: по нему её ищет диспетчер и пользователи в разных языках.
+  // Top-level command names are not translated: the dispatcher and users of every language find commands by them.
   if (isOption) {
     const names = i18n.localizations(`${key}.name`);
     delete names['en-US'];
@@ -66,7 +66,7 @@ function localizeNode(node: Node, key: string, i18n: I18n, isOption: boolean): v
   }
 }
 
-/** JSON всех slash-команд модулей с переводами из словарей. */
+/** JSON of all modules' slash commands with translations from the dictionaries. */
 export function localizedCommandPayloads(registry: ModuleRegistry, i18n: I18n): CommandJson[] {
   return registry.allCommands().map(({ module, item }) => localizeCommand(item.data.toJSON(), i18n, module.id));
 }

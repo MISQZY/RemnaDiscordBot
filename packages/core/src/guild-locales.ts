@@ -4,9 +4,9 @@ import type { I18n } from '@bot/i18n';
 import { LRUCache } from 'lru-cache';
 
 /**
- * Язык гильдии (`Guild.locale`) — для публичных сообщений бота: журналов, анонсов,
- * итогов модерации. Личные ответы идут на языке пользователя.
- * Кэш сбрасывается инвалидацией гильдии (`config:invalidate` без `moduleId`).
+ * Guild language (`Guild.locale`) — for the bot's public messages: logs, announcements,
+ * moderation results. Private replies use the user's language.
+ * The cache is dropped by guild invalidation (`config:invalidate` without `moduleId`).
  */
 export class GuildLocales {
   private readonly cache = new LRUCache<string, Locale>({ max: 50_000, ttl: 10 * 60_000 });
