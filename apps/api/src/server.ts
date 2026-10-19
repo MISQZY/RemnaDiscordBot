@@ -13,6 +13,7 @@ import { sessionPlugin } from './plugins/session.js';
 import { authRoutes } from './routes/auth.js';
 import { guildRoutes } from './routes/guilds.js';
 import { meRoutes } from './routes/me.js';
+import { moduleRoutes } from './routes/modules.js';
 import { healthRoutes } from './routes/health.js';
 
 export async function buildServer(deps: ApiDeps): Promise<FastifyInstance> {
@@ -55,6 +56,7 @@ export async function buildServer(deps: ApiDeps): Promise<FastifyInstance> {
   const userGuilds = new UserGuildService(deps.redis, deps.oauth, sessions, deps.snapshots);
   await app.register(meRoutes(userGuilds));
   await app.register(guildRoutes(deps, userGuilds));
+  await app.register(moduleRoutes(deps, userGuilds));
 
   return app;
 }
