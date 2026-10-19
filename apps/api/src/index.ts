@@ -14,6 +14,7 @@ import { I18n } from '@bot/i18n';
 import { createLogger } from '@bot/logger';
 import { modules } from '@bot/module-list';
 import { Redis } from 'ioredis';
+import { HttpDiscordOAuth } from './auth/discord-oauth.js';
 import { loadApiEnv } from './env.js';
 import { buildServer } from './server.js';
 
@@ -48,9 +49,15 @@ const app = await buildServer({
   registry,
   config,
   snapshots: new GuildSnapshotReader(redis),
+  oauth: new HttpDiscordOAuth(env.DISCORD_CLIENT_ID, env.DISCORD_CLIENT_SECRET),
   options: {
     publicUrl: env.API_PUBLIC_URL,
     webOrigin: env.WEB_ORIGIN ?? env.API_PUBLIC_URL,
+    // Пока веба нет, после входа попадаем в Swagger UI самого API.
+    defaultRedirect: env.WEB_ORIGIN ? '/' : '/docs',
+    clientId: env.DISCORD_CLIENT_ID,
+    sessionSecret: env.SESSION_SECRET,
+    secureCookies: env.API_PUBLIC_URL.startsWith('https://'),
     docs: true,
   },
 });

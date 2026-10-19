@@ -9,6 +9,12 @@ export const RedisKeys = {
   guildEmojis: (guildId: string) => `guild:${guildId}:emojis`,
   clusterHeartbeat: (clusterId: number) => `bot:cluster:${clusterId}`,
   clusterHeartbeatPattern: 'bot:cluster:*',
+  /** Сессия веб-платформы (API). */
+  session: (sessionId: string) => `session:${sessionId}`,
+  /** Одноразовый state OAuth2 → путь редиректа после входа. */
+  oauthState: (state: string) => `oauth:state:${state}`,
+  /** Гильдии пользователя из Discord — кэш на минуту: эндпоинт жёстко лимитирован. */
+  userGuilds: (userId: string) => `user:${userId}:guilds`,
 } as const;
 
 export const RedisChannels = {
