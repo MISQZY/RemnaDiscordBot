@@ -4,6 +4,7 @@ import type { Logger } from '@bot/logger';
 import type { Client } from 'discord.js';
 import type { Redis } from 'ioredis';
 import type { EventBus } from './bus.js';
+import type { ConfigService } from './config/service.js';
 
 /** Общие сервисы процесса, доступные модулям. */
 export interface CoreServices {
@@ -12,6 +13,7 @@ export interface CoreServices {
   redis: Redis;
   i18n: I18n;
   bus: EventBus;
+  config: ConfigService;
 }
 
 export interface BotServices extends CoreServices {
