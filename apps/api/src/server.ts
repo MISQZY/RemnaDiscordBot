@@ -9,6 +9,7 @@ import { TokenCipher } from './auth/token-cipher.js';
 import { UserGuildService } from './auth/user-guilds.js';
 import type { ApiDeps } from './deps.js';
 import { registerErrorHandler } from './plugins/error-handler.js';
+import { registerHttpMetrics } from './plugins/metrics.js';
 import { registerRateLimit } from './plugins/rate-limit.js';
 import { sessionPlugin } from './plugins/session.js';
 import { authRoutes } from './routes/auth.js';
@@ -29,6 +30,7 @@ export async function buildServer(deps: ApiDeps): Promise<FastifyInstance> {
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   registerErrorHandler(app);
+  registerHttpMetrics(app);
 
   await app.register(cors, { origin: deps.options.webOrigin, credentials: true });
 

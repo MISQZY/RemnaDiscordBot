@@ -1,3 +1,4 @@
+import { createServer } from 'node:http';
 import {
   ConfigService,
   EventBus,
@@ -7,7 +8,9 @@ import {
   RedisConfigCache,
   Scheduler,
   publishConfigInvalidation,
+  metricsContentType,
   registerCoreLocales,
+  renderMetrics,
   subscribeConfigInvalidation,
 } from '@bot/core';
 import { createDatabaseClient } from '@bot/db';
@@ -17,12 +20,15 @@ import { createLogger } from '@bot/logger';
 import { modules } from '@bot/module-list';
 import { REST } from 'discord.js';
 import { Redis } from 'ioredis';
+import { collectDefaultMetrics } from 'prom-client';
 import { HttpDiscordOAuth } from './auth/discord-oauth.js';
 import { loadApiEnv } from './env.js';
 import { buildServer } from './server.js';
 
 const env = loadApiEnv();
 const logger = createLogger({ service: 'api', level: env.LOG_LEVEL });
+
+collectDefaultMetrics();
 
 const db = await createDatabaseClient(env.DATABASE_URL);
 const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: 3 });
@@ -76,6 +82,17 @@ const app = await buildServer({
   },
 });
 
+const metricsServer = createServer((req, res) => {
+  if (req.method !== 'GET' || req.url !== '/metrics') {
+    res.writeHead(404).end();
+    return;
+  }
+  renderMetrics().then(
+    (body) => res.writeHead(200, { 'content-type': metricsContentType }).end(body),
+    () => res.writeHead(500).end(),
+  );
+});
+
 let shuttingDown = false;
 async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) return;
@@ -83,6 +100,7 @@ async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, 'API shutting down');
   try {
     await app.close();
+    metricsServer.close();
     await unsubscribeConfig();
     await redis.quit();
     await db.$disconnect();
@@ -96,3 +114,4 @@ process.on('SIGINT', () => void shutdown('SIGINT'));
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
 
 await app.listen({ host: env.API_HOST, port: env.API_PORT });
+metricsServer.listen(env.API_METRICS_PORT, env.API_HOST, () => logger.info({ port: env.API_METRICS_PORT }, 'Metrics server listening'));
