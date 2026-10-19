@@ -78,6 +78,9 @@ importers:
       '@bot/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@bot/testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
 
   packages/config: {}
 
@@ -121,6 +124,9 @@ importers:
       '@bot/config':
         specifier: workspace:*
         version: link:../config
+      '@bot/testing':
+        specifier: workspace:*
+        version: link:../testing
 
   packages/db:
     dependencies:

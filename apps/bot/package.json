@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint src",
     "test": "vitest run --passWithNoTests",
-    "deploy-commands": "tsx --conditions=development --env-file-if-exists=../../.env src/deploy-commands.ts"
+    "deploy-commands": "tsx --conditions=development --env-file-if-exists=../../.env src/deploy-commands.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests"
   },
   "dependencies": {
     "@bot/contracts": "workspace:*",
@@ -26,6 +27,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@bot/config": "workspace:*"
+    "@bot/config": "workspace:*",
+    "@bot/testing": "workspace:*"
   }
 }

@@ -14,7 +14,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint src",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests"
   },
   "dependencies": {
     "@bot/contracts": "workspace:*",
@@ -27,6 +28,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@bot/config": "workspace:*"
+    "@bot/config": "workspace:*",
+    "@bot/testing": "workspace:*"
   }
 }

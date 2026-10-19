@@ -13,6 +13,12 @@
     "test": {
       "dependsOn": ["^build"]
     },
+    "db:sqlite": {
+      "cache": false
+    },
+    "test:integration": {
+      "dependsOn": ["^build", "@bot/db#db:sqlite"]
+    },
     "dev": {
       "cache": false,
       "persistent": true
