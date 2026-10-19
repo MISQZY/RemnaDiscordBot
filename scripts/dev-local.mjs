@@ -24,7 +24,12 @@ mkdirSync(dirname(dbFile), { recursive: true });
 generate();
 push(dbFile);
 
-const redis = await startMemoryRedisServer({ port: redisPort });
+const redis = await startMemoryRedisServer({ port: redisPort }).catch((err) => {
+  if (err.code !== 'EADDRINUSE') throw err;
+  // The usual cause is another dev:local instance that is still running.
+  process.stderr.write(`Port ${redisPort} is busy: dev:local seems to be running already. Stop it first or set LOCAL_REDIS_PORT.\n`);
+  process.exit(1);
+});
 
 // Environment variables take precedence over .env (--env-file does not override them).
 const env = {
