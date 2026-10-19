@@ -143,6 +143,28 @@ importers:
         specifier: workspace:*
         version: link:../config
 
+  packages/modules/general:
+    dependencies:
+      '@bot/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@bot/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@bot/i18n':
+        specifier: workspace:*
+        version: link:../../i18n
+      discord.js:
+        specifier: 14.27.0
+        version: 14.27.0
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@bot/config':
+        specifier: workspace:*
+        version: link:../../config
+
 packages:
 
   '@cacheable/memory@2.2.0':
