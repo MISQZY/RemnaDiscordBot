@@ -63,4 +63,16 @@ describe('renderMessage', () => {
     const body = toRestMessage(renderMessage({ content: 'hi', allowedMentions: { users: true, roles: true, everyone: false } }, vars));
     expect(body.allowed_mentions).toEqual({ parse: ['users', 'roles'] });
   });
+
+  it('allows @everyone and @here apart, defusing the one not allowed', () => {
+    const ZWSP = String.fromCodePoint(0x200b);
+    const render = (everyone: boolean, here?: boolean) =>
+      renderMessage({ content: '@everyone @here @heresy', allowedMentions: { users: true, roles: false, everyone, here } }, vars);
+
+    expect(render(false, true)).toMatchObject({ content: `@${ZWSP}everyone @here @heresy`, allowedMentions: { parse: ['users', 'everyone'] } });
+    expect(render(true, false)).toMatchObject({ content: `@everyone @${ZWSP}here @heresy`, allowedMentions: { parse: ['users', 'everyone'] } });
+    expect(render(false, false)).toMatchObject({ content: '@everyone @here @heresy', allowedMentions: { parse: ['users'] } });
+    // Saved before the split: one switch for both.
+    expect(render(true)).toMatchObject({ content: '@everyone @here @heresy', allowedMentions: { parse: ['users', 'everyone'] } });
+  });
 });

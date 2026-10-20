@@ -79,7 +79,12 @@ function embedLength(embed: APIEmbed): number {
  * embeds beyond the 6000 character total are dropped. `@everyone` and roles only when explicit.
  */
 export function renderMessage(template: MessageTemplate, vars: TemplateVars): RenderedMessage {
-  const content = template.content ? truncate(renderText(template.content, vars), LIMITS.content) : undefined;
+  const mentions = template.allowedMentions ?? { users: true, roles: false, everyone: false };
+  const everyone = mentions.everyone;
+  const here = mentions.here ?? mentions.everyone;
+  const content = template.content
+    ? truncate(defuseMentions(renderText(template.content, vars), { everyone, here }), LIMITS.content)
+    : undefined;
 
   const embeds: APIEmbed[] = [];
   let total = 0;
@@ -90,11 +95,11 @@ export function renderMessage(template: MessageTemplate, vars: TemplateVars): Re
     embeds.push(rendered);
   }
 
-  const mentions = template.allowedMentions ?? { users: true, roles: false, everyone: false };
   const parse: RenderedMessage['allowedMentions']['parse'] = [];
   if (mentions.users) parse.push('users');
   if (mentions.roles) parse.push('roles');
-  if (mentions.everyone) parse.push('everyone');
+  // Discord allows @everyone and @here only together; the one not allowed is defused in the text above.
+  if (everyone || here) parse.push('everyone');
 
   return {
     ...(content?.trim() ? { content } : {}),
@@ -102,6 +107,20 @@ export function renderMessage(template: MessageTemplate, vars: TemplateVars): Re
     allowedMentions: { parse },
   };
 }
+
+/**
+ * `@everyone` / `@here` that may not ping, with a zero-width space after the @: shown the same, pings nobody.
+ * Only the text pings — embeds never do.
+ */
+export function defuseMentions(text: string, allowed: { everyone: boolean; here: boolean }): string {
+  // Both or neither: allowed_mentions alone decides.
+  if (allowed.everyone === allowed.here) return text;
+  const blocked = allowed.everyone ? 'here' : 'everyone';
+  return text.replace(new RegExp(`@${blocked}(?![a-z0-9_])`, 'g'), `@${ZERO_WIDTH_SPACE}${blocked}`);
+}
+
+/** Shown as nothing; after an @ it keeps the mention from pinging. */
+const ZERO_WIDTH_SPACE = String.fromCodePoint(0x200b);
 
 /** Body for Discord REST (`POST /channels/:id/messages`). */
 export function toRestMessage(message: RenderedMessage) {

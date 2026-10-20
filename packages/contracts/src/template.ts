@@ -40,6 +40,8 @@ export const AllowedMentions = z.object({
   users: z.boolean().default(true),
   roles: z.boolean().default(false),
   everyone: z.boolean().default(false),
+  /** `@here`; absent — as `everyone` (templates saved when one switch covered both). */
+  here: z.boolean().optional(),
 });
 export type AllowedMentions = z.infer<typeof AllowedMentions>;
 
