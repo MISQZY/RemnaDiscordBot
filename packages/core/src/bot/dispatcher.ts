@@ -53,6 +53,24 @@ export class Dispatcher {
     this.services.client.on(Events.InteractionCreate, (interaction) => void this.handleInteraction(interaction));
   }
 
+  /** Runs modules' `bot.setup`; the returned function tears them down in reverse order. */
+  async setupModules(): Promise<() => Promise<void>> {
+    const teardowns: (() => unknown)[] = [];
+    for (const module of this.registry.all()) {
+      const teardown = await module.bot?.setup?.(this.moduleContext(module));
+      if (typeof teardown === 'function') teardowns.push(teardown);
+    }
+    return async () => {
+      for (const teardown of teardowns.reverse()) {
+        try {
+          await teardown();
+        } catch (err) {
+          this.services.logger.error({ err }, 'Module teardown failed');
+        }
+      }
+    };
+  }
+
   async dispatchEvent(event: keyof ClientEvents, args: readonly unknown[]): Promise<void> {
     const guildId = extractGuildId(args);
     const timeoutMs = this.options.handlerTimeoutMs ?? 10_000;

@@ -102,6 +102,32 @@ describe('Dispatcher events', () => {
   });
 });
 
+describe('Dispatcher module setup', () => {
+  it('runs setup with the module context and tears down in reverse order', async () => {
+    const calls: string[] = [];
+    const first = createTestModule('first');
+    const second = createTestModule('second');
+    const plain = createTestModule('plain');
+    first.bot!.setup = (ctx) => {
+      calls.push(`setup:${ctx.moduleId}`);
+      return () => void calls.push('teardown:first');
+    };
+    second.bot!.setup = async () => {
+      calls.push('setup:second');
+      return async () => {
+        calls.push('teardown:second');
+        throw new Error('boom');
+      };
+    };
+    const dispatcher = new Dispatcher({ logger: testLogger } as unknown as BotServices, new ModuleRegistry([first, second, plain]));
+
+    const teardown = await dispatcher.setupModules();
+    await teardown();
+
+    expect(calls).toEqual(['setup:first', 'setup:second', 'teardown:second', 'teardown:first']);
+  });
+});
+
 describe('Dispatcher interactions', () => {
   it('executes commands with a localized context', async () => {
     const { dispatcher, execute } = setup();

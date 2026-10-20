@@ -76,7 +76,9 @@ const unsubscribeConfig = await subscribeConfigInvalidation(redis, logger, (mess
 });
 
 const scheduler = new Scheduler(db);
-new Dispatcher({ client, logger, db, redis, i18n, bus, config, scheduler, guildLocales, rest: client.rest, registry }, registry).attach();
+const dispatcher = new Dispatcher({ client, logger, db, redis, i18n, bus, config, scheduler, guildLocales, rest: client.rest, registry }, registry);
+dispatcher.attach();
+const teardownModules = await dispatcher.setupModules();
 new GuildLifecycle(db, new GuildSnapshotWriter(redis), logger).attach(client);
 const stopHeartbeat = startHeartbeat(client, redis, logger, { clusterId: info.CLUSTER, shards: info.SHARD_LIST });
 
@@ -94,6 +96,7 @@ async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, 'Cluster shutting down');
   try {
     await stopHeartbeat();
+    await teardownModules();
     await client.destroy();
     await unsubscribeConfig();
     await redis.quit();

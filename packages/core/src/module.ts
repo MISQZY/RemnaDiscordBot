@@ -63,6 +63,11 @@ export interface BotFacet<TConfig> {
    * Only one module may have such a handler.
    */
   fallbackCommand?: FallbackCommand<TConfig>;
+  /**
+   * Runs once per cluster before login — for long-lived clients bound to the gateway
+   * (e.g. an audio node listening to raw voice packets). Returns an optional teardown for shutdown.
+   */
+  setup?: (ctx: BotModuleContext<TConfig>) => Awaitable<void | (() => Awaitable<void>)>;
 }
 
 export interface ModuleDefinition<TSchema extends z.ZodType = z.ZodType> {
