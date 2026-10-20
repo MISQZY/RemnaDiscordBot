@@ -8,7 +8,7 @@ import { memberUpdated, messageDeleted, voiceChanged } from './embeds.js';
 import auditLog from './index.js';
 
 const i18n = new I18n('ru');
-i18n.register('auditLog', auditLog.locales!);
+i18n.register(auditLog.id, auditLog.locales!);
 const t = (key: string, vars?: Record<string, string | number>) => i18n.t('ru', key, vars);
 
 const GUILD = '100000000000000001';

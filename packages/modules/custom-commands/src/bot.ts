@@ -63,18 +63,18 @@ export const customSlashCommand: FallbackCommand<CustomCommandsConfig> = {
       where: { guildId_name: { guildId: interaction.guildId, name: interaction.commandName } },
     });
     if (!row || row.kind !== 'slash' || !row.enabled) {
-      await interaction.reply({ content: ctx.t('customCommands.unavailable'), flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: ctx.t('custom-commands.unavailable'), flags: MessageFlags.Ephemeral });
       return;
     }
 
     const command = toDto(row);
     const member = interaction.member;
     if (!isAllowed(command, interaction.channelId, [...member.roles.cache.keys()])) {
-      await interaction.reply({ content: ctx.t('customCommands.notAllowed'), flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: ctx.t('custom-commands.notAllowed'), flags: MessageFlags.Ephemeral });
       return;
     }
     if (!(await takeCooldown(ctx, command, interaction.user.id))) {
-      await interaction.reply({ content: ctx.t('customCommands.cooldown'), flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: ctx.t('custom-commands.cooldown'), flags: MessageFlags.Ephemeral });
       return;
     }
 
