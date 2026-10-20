@@ -19,6 +19,8 @@ export const RedisKeys = {
   userGuilds: (userId: string) => `user:${userId}:guilds`,
   /** The last guild list Discord gave, kept longer: served while Discord refuses (rate limit, outage). */
   userGuildsLast: (userId: string) => `user:${userId}:guilds:last`,
+  /** A Discord user's name and avatar — for the dashboard, which knows users only by ID. */
+  user: (userId: string) => `user:${userId}:profile`,
   /** Lock of a worker interval task for one period. */
   intervalLock: (moduleId: string, name: string) => `lock:interval:${moduleId}:${name}`,
 } as const;

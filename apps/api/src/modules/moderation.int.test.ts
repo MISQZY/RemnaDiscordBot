@@ -86,6 +86,26 @@ describe('moderation', () => {
     expect((await send('GET', '/cases/99')).statusCode).toBe(404);
   });
 
+  it('names the members and moderators of a page of cases, asking Discord once', async () => {
+    await t.deps.redis.del(`user:${TARGET}:profile`, `user:${MOD}:profile`);
+    t.rest.responses.set(`/users/${TARGET}`, { id: TARGET, username: 'spammer', global_name: 'Spammer', avatar: null });
+    t.rest.responses.set(`/users/${MOD}`, { id: MOD, username: 'mod', global_name: null, avatar: 'abc' });
+    await service.kick(input(), config);
+    await service.kick(input(), config);
+    t.rest.calls.length = 0;
+
+    const page = (await send('GET', '/cases')).json();
+    expect(page.users).toEqual({
+      [TARGET]: { username: 'spammer', globalName: 'Spammer', avatar: null },
+      [MOD]: { username: 'mod', globalName: null, avatar: 'abc' },
+    });
+    expect(t.rest.calls.map((c) => c.route).sort()).toEqual([`/users/${MOD}`, `/users/${TARGET}`]);
+
+    t.rest.calls.length = 0;
+    expect((await send('GET', '/cases')).json().users).toEqual(page.users);
+    expect(t.rest.calls).toHaveLength(0);
+  });
+
   it('revokes a ban: unbans, cancels the scheduled unban and records a case', async () => {
     await service.ban(input({ durationSec: 3600 }), config);
     t.rest.calls.length = 0;

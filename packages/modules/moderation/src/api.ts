@@ -1,4 +1,5 @@
 import { HttpError, type ApiModuleContext } from '@bot/core';
+import { UserDirectory, UserInfo } from '@bot/discord';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { CaseType, ModCaseDto, toCaseDto, type ModerationConfig } from './config.js';
@@ -12,10 +13,16 @@ const CasesQuery = z.object({
   /** Case number to continue from (exclusive) — cases go from newest to oldest. */
   before: z.coerce.number().int().optional(),
 });
-const CasesPage = z.object({ items: z.array(ModCaseDto), nextBefore: z.number().int().nullable() });
+const CasesPage = z.object({
+  items: z.array(ModCaseDto),
+  nextBefore: z.number().int().nullable(),
+  /** Names of the members, moderators and revokers of the page by ID — those Discord gave. */
+  users: z.record(z.string(), UserInfo),
+});
 
 export function moderationApi(app: FastifyInstance, ctx: ApiModuleContext<ModerationConfig>): void {
   const service = new ModerationService(ctx);
+  const users = new UserDirectory(ctx.redis, ctx.rest);
   const guildId = (request: FastifyRequest) => (request.params as { guildId: string }).guildId;
 
   async function findCase(request: FastifyRequest) {
@@ -36,7 +43,11 @@ export function moderationApi(app: FastifyInstance, ctx: ApiModuleContext<Modera
         take: limit + 1,
       });
       const items = rows.slice(0, limit);
-      return { items: items.map(toCaseDto), nextBefore: rows.length > limit ? items.at(-1)!.number : null };
+      return {
+        items: items.map(toCaseDto),
+        nextBefore: rows.length > limit ? items.at(-1)!.number : null,
+        users: await users.resolve(items.flatMap((c) => [c.targetId, c.moderatorId, c.revokedBy])),
+      };
     },
   );
 
