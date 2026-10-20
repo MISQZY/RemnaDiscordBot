@@ -57,6 +57,14 @@ const preview = (text: string | undefined, max = 300) => {
   return line.length > max ? `${line.slice(0, max)}…` : line;
 };
 
+function optionsText(config: WelcomeConfig, ctx: Ctx): string {
+  const onOff = (value: boolean) => ctx.t(value ? 'welcome.show.on' : 'welcome.show.off');
+  return [
+    ctx.t('welcome.show.ignoreBots', { state: onOff(config.ignoreBots) }),
+    ctx.t('welcome.show.waitForScreening', { state: onOff(config.waitForScreening) }),
+  ].join('\n');
+}
+
 function showSettings(config: WelcomeConfig, ctx: Ctx): EmbedBuilder {
   const field = (kind: WelcomeKind) => {
     const settings = config[settingsKey(kind)];
@@ -75,6 +83,7 @@ function showSettings(config: WelcomeConfig, ctx: Ctx): EmbedBuilder {
   return new EmbedBuilder()
     .setTitle(ctx.t('welcome.show.title'))
     .addFields(KINDS.map(field))
+    .addFields({ name: ctx.t('welcome.show.options'), value: optionsText(config, ctx) })
     .setFooter({ text: ctx.t('welcome.show.footer', { placeholders: PLACEHOLDER_HINT }) });
 }
 
@@ -139,7 +148,14 @@ export const welcomeCommand = defineCommand<WelcomeConfig>({
     .addSubcommand((sub) => sub.setName('enable').setDescription('Turn a message on').addStringOption(kindOption(KINDS)))
     .addSubcommand((sub) => sub.setName('disable').setDescription('Turn a message off').addStringOption(kindOption(KINDS)))
     .addSubcommand((sub) => sub.setName('reset').setDescription('Restore the default text').addStringOption(kindOption(KINDS)))
-    .addSubcommand((sub) => sub.setName('test').setDescription('Send a test message as if you just joined or left').addStringOption(kindOption(KINDS))),
+    .addSubcommand((sub) => sub.setName('test').setDescription('Send a test message as if you just joined or left').addStringOption(kindOption(KINDS)))
+    .addSubcommand((sub) =>
+      sub
+        .setName('options')
+        .setDescription('Bots and Membership Screening')
+        .addBooleanOption((o) => o.setName('ignore-bots').setDescription('Do not greet bots'))
+        .addBooleanOption((o) => o.setName('wait-for-screening').setDescription('Greet after the server rules are accepted')),
+    ),
   cooldownMs: 3_000,
   async execute(interaction, ctx) {
     const guildId = interaction.guildId!;
@@ -147,6 +163,18 @@ export const welcomeCommand = defineCommand<WelcomeConfig>({
 
     if (sub === 'show') {
       await interaction.reply({ embeds: [showSettings(await ctx.getConfig(guildId), ctx)], flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    if (sub === 'options') {
+      const ignoreBots = interaction.options.getBoolean('ignore-bots');
+      const waitForScreening = interaction.options.getBoolean('wait-for-screening');
+      await updateConfig(ctx, guildId, interaction.user.id, (c) => {
+        if (ignoreBots !== null) c.ignoreBots = ignoreBots;
+        if (waitForScreening !== null) c.waitForScreening = waitForScreening;
+      });
+      const config = await ctx.getConfig(guildId);
+      await reply(interaction, optionsText(config, ctx));
       return;
     }
 

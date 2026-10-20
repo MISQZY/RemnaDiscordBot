@@ -12,6 +12,8 @@ export const WelcomeConfig = z.object({
   joinDm: z.object({ enabled: z.boolean(), message: MessageTemplate }),
   leave: ChannelMessage,
   ignoreBots: z.boolean(),
+  /** With Membership Screening, greet members once they accept the rules rather than on join. */
+  waitForScreening: z.boolean().default(false),
 });
 export type WelcomeConfig = z.infer<typeof WelcomeConfig>;
 
@@ -31,6 +33,7 @@ export const defaultWelcomeConfig: WelcomeConfig = {
     message: { content: '**{user.name}** покинул сервер.' },
   },
   ignoreBots: true,
+  waitForScreening: false,
 };
 
 export const WelcomeKind = z.enum(['join', 'leave', 'dm']);

@@ -8,6 +8,10 @@ import { locales } from './locales.js';
 
 export { WelcomeConfig } from './config.js';
 
+/** A member who joined before passing Membership Screening; the screening may take a while. */
+const pendingKey = (guildId: string, userId: string) => `welcome:pending:${guildId}:${userId}`;
+const PENDING_TTL_SEC = 7 * 86_400;
+
 /** Welcome messages on join (to a channel and via DM) and farewells on leave. */
 export default defineModule({
   id: 'welcome',
@@ -33,6 +37,19 @@ export default defineModule({
       guildMemberAdd: async (ctx, member) => {
         const config = await ctx.getConfig(member.guild.id);
         if (config.ignoreBots && member.user.bot) return;
+        if (config.waitForScreening && member.pending) {
+          // Greeted from guildMemberUpdate once the rules are accepted.
+          await ctx.redis.set(pendingKey(member.guild.id, member.id), '1', 'EX', PENDING_TTL_SEC);
+          return;
+        }
+        await greet('join', member, config, ctx.logger);
+        await greet('dm', member, config, ctx.logger);
+      },
+      guildMemberUpdate: async (ctx, _oldMember, member) => {
+        if (member.pending) return;
+        // The marker is set only for members who joined pending — exactly one greeting per join.
+        if (!(await ctx.redis.getdel(pendingKey(member.guild.id, member.id)))) return;
+        const config = await ctx.getConfig(member.guild.id);
         await greet('join', member, config, ctx.logger);
         await greet('dm', member, config, ctx.logger);
       },

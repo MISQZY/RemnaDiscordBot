@@ -71,6 +71,14 @@ export const locales: Record<Locale, Dictionary> = {
             },
           },
         },
+        options: {
+          name: 'options',
+          description: 'Боты и проверка правил сервера',
+          options: {
+            'ignore-bots': { name: 'без-ботов', description: 'Не приветствовать ботов' },
+            'wait-for-screening': { name: 'после-правил', description: 'Приветствовать после принятия правил сервера' },
+          },
+        },
       },
     },
     name: 'Приветствия',
@@ -91,6 +99,11 @@ export const locales: Record<Locale, Dictionary> = {
       dmTarget: 'В личные сообщения новому участнику',
       embedOnly: '*(только эмбед)*',
       footer: 'Текст: /welcome message · Проверка: /welcome test · Плейсхолдеры: {placeholders}',
+      options: 'Параметры',
+      on: 'да',
+      off: 'нет',
+      ignoreBots: 'Не приветствовать ботов: {state}',
+      waitForScreening: 'Ждать принятия правил: {state}',
     },
     modal: {
       title: 'Текст: {kind}',
@@ -182,6 +195,14 @@ export const locales: Record<Locale, Dictionary> = {
             },
           },
         },
+        options: {
+          name: 'options',
+          description: 'Bots and Membership Screening',
+          options: {
+            'ignore-bots': { name: 'ignore-bots', description: 'Do not greet bots' },
+            'wait-for-screening': { name: 'wait-for-screening', description: 'Greet after the server rules are accepted' },
+          },
+        },
       },
     },
     name: 'Welcome',
@@ -202,6 +223,11 @@ export const locales: Record<Locale, Dictionary> = {
       dmTarget: 'Sent to the new member via DM',
       embedOnly: '*(embed only)*',
       footer: 'Text: /welcome message · Test: /welcome test · Placeholders: {placeholders}',
+      options: 'Options',
+      on: 'yes',
+      off: 'no',
+      ignoreBots: 'Skip bots: {state}',
+      waitForScreening: 'Wait for the rules: {state}',
     },
     modal: {
       title: 'Text: {kind}',

@@ -65,7 +65,7 @@ function modalSubmit(content: string, { kind = 'join', manageGuild = true } = {}
 
 describe('/welcome', () => {
   it('builds a valid Discord command', () => {
-    expect(welcomeCommand.data.toJSON().options?.map((o) => o.name)).toEqual(['show', 'channel', 'message', 'enable', 'disable', 'reset', 'test']);
+    expect(welcomeCommand.data.toJSON().options?.map((o) => o.name)).toEqual(['show', 'channel', 'message', 'enable', 'disable', 'reset', 'test', 'options']);
   });
 
   it('shows settings and warns about a missing channel', async () => {

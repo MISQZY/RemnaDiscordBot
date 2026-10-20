@@ -1,5 +1,6 @@
 import type { BotModuleContext } from '@bot/core';
 import { createLogger } from '@bot/logger';
+import { createTestRedis } from '@bot/testing';
 import type { GuildMember, REST } from 'discord.js';
 import { describe, expect, it, vi } from 'vitest';
 import { sendTestMessage } from './api.js';
@@ -86,6 +87,26 @@ describe('welcome module', () => {
 
     expect(human.channel.send).toHaveBeenCalledOnce();
     expect(bot.channel.send).not.toHaveBeenCalled();
+  });
+
+  it('greets screened members once they accept the rules', async () => {
+    const redis = createTestRedis();
+    const withRedis = (cfg: WelcomeConfig) => ({ logger, redis, getConfig: async () => cfg }) as unknown as BotModuleContext<WelcomeConfig>;
+    const cfg = config({ waitForScreening: true });
+    const pending = fakeMember();
+    Object.assign(pending.member, { pending: true });
+
+    await welcome.bot!.events!.guildMemberAdd!(withRedis(cfg), pending.member);
+    expect(pending.channel.send).not.toHaveBeenCalled();
+
+    // Still pending — e.g. a nickname change before the rules are accepted.
+    await welcome.bot!.events!.guildMemberUpdate!(withRedis(cfg), pending.member, pending.member);
+    expect(pending.channel.send).not.toHaveBeenCalled();
+
+    Object.assign(pending.member, { pending: false });
+    await welcome.bot!.events!.guildMemberUpdate!(withRedis(cfg), pending.member, pending.member);
+    await welcome.bot!.events!.guildMemberUpdate!(withRedis(cfg), pending.member, pending.member);
+    expect(pending.channel.send).toHaveBeenCalledOnce();
   });
 
   it('validates configured channels', () => {
