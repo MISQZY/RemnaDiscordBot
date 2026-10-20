@@ -1,5 +1,6 @@
 import { defineModule } from '@bot/core';
 import { notificationsApi } from './api.js';
+import { notifyCommand } from './commands.js';
 import { NotificationsConfig } from './config.js';
 import { locales } from './locales.js';
 import { pollProvider } from './poll.js';
@@ -24,6 +25,7 @@ export default defineModule({
   defaultConfig: {},
   configVersion: 1,
   locales,
+  bot: { commands: [notifyCommand(getProviders)] },
   intervals: {
     youtube: { everyMs: 5 * 60_000, run: poll('youtube') },
     twitch: { everyMs: 2 * 60_000, run: poll('twitch') },
