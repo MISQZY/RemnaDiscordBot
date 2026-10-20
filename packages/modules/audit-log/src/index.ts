@@ -1,5 +1,6 @@
 import { defineModule, EntityChecker } from '@bot/core';
 import { GatewayIntentBits, Partials } from 'discord.js';
+import { commands } from './commands.js';
 import { AuditLogConfig, defaultAuditLogConfig, LogCategory } from './config.js';
 import { createHandlers } from './handlers.js';
 import { locales } from './locales.js';
@@ -29,6 +30,7 @@ export default defineModule({
     ],
     // The bot caches neither messages nor all members — their events arrive as partials.
     partials: [Partials.Message, Partials.GuildMember, Partials.User],
+    commands,
     events: createHandlers(),
   },
 });

@@ -3,6 +3,61 @@ import type { Dictionary } from '@bot/i18n';
 
 export const locales: Record<Locale, Dictionary> = {
   ru: {
+    commands: {
+      logs: {
+        description: 'Настроить журнал событий',
+        show: { name: 'show', description: 'Показать каналы журнала и исключения' },
+        set: {
+          name: 'set',
+          description: 'Писать категорию в канал',
+          options: {
+            category: { name: 'категория', description: 'Категория событий', choices: { messages: 'Сообщения', members: 'Участники', voice: 'Голос', server: 'Сервер', moderation: 'Модерация' } },
+            channel: { name: 'канал', description: 'Канал журнала' },
+          },
+        },
+        disable: {
+          name: 'disable',
+          description: 'Перестать писать категорию',
+          options: { category: { name: 'категория', description: 'Категория событий', choices: { messages: 'Сообщения', members: 'Участники', voice: 'Голос', server: 'Сервер', moderation: 'Модерация', all: 'Все' } } },
+        },
+        ignore: {
+          name: 'ignore',
+          description: 'Каналы и роли, которые журнал пропускает',
+          add: {
+            name: 'add',
+            description: 'Не писать о канале или роли',
+            options: { channel: { name: 'канал', description: 'Канал' }, role: { name: 'роль', description: 'Роль' } },
+          },
+          remove: {
+            name: 'remove',
+            description: 'Снова писать о канале или роли',
+            options: { channel: { name: 'канал', description: 'Канал' }, role: { name: 'роль', description: 'Роль' } },
+          },
+        },
+        bots: {
+          name: 'bots',
+          description: 'Писать или пропускать действия ботов',
+          options: { ignore: { name: 'пропускать', description: 'Пропускать ботов' } },
+        },
+      },
+    },
+    categories: { messages: 'Сообщения', members: 'Участники', voice: 'Голос', server: 'Сервер', moderation: 'Модерация' },
+    settings: {
+      none: '—',
+      off: 'выключено',
+      ignoredChannels: 'Пропускаемые каналы',
+      ignoredRoles: 'Пропускаемые роли',
+      bots: 'Боты',
+      botsIgnored: 'Действия ботов не записываются.',
+      botsLogged: 'Действия ботов записываются.',
+      noAccess: 'Бот не может писать в {channel}: нужны права «Просмотр канала», «Отправка сообщений» и «Встраивать ссылки».',
+      channelSet: 'Категория **{category}** пишется в {channel}.',
+      disabled: 'Категория **{category}** больше не записывается.',
+      allDisabled: 'Журнал выключен для всех категорий.',
+      pickTarget: 'Укажите канал или роль.',
+      ignored: 'Журнал пропускает: {targets}.',
+      unignored: 'Журнал снова пишет о: {targets}.',
+    },
     name: 'Журнал событий',
     unknown: 'неизвестно',
     empty: 'пусто',
@@ -41,6 +96,61 @@ export const locales: Record<Locale, Dictionary> = {
     moderation: { banned: 'Пользователь забанен', unbanned: 'Пользователь разбанен' },
   },
   en: {
+    commands: {
+      logs: {
+        description: 'Configure the audit log',
+        show: { name: 'show', description: 'Show log channels and exclusions' },
+        set: {
+          name: 'set',
+          description: 'Log a category to a channel',
+          options: {
+            category: { name: 'category', description: 'Event category', choices: { messages: 'Messages', members: 'Members', voice: 'Voice', server: 'Server', moderation: 'Moderation' } },
+            channel: { name: 'channel', description: 'Log channel' },
+          },
+        },
+        disable: {
+          name: 'disable',
+          description: 'Stop logging a category',
+          options: { category: { name: 'category', description: 'Event category', choices: { messages: 'Messages', members: 'Members', voice: 'Voice', server: 'Server', moderation: 'Moderation', all: 'All' } } },
+        },
+        ignore: {
+          name: 'ignore',
+          description: 'Channels and roles the log skips',
+          add: {
+            name: 'add',
+            description: 'Skip a channel or a role',
+            options: { channel: { name: 'channel', description: 'Channel' }, role: { name: 'role', description: 'Role' } },
+          },
+          remove: {
+            name: 'remove',
+            description: 'Log a channel or a role again',
+            options: { channel: { name: 'channel', description: 'Channel' }, role: { name: 'role', description: 'Role' } },
+          },
+        },
+        bots: {
+          name: 'bots',
+          description: 'Log or skip bot actions',
+          options: { ignore: { name: 'ignore', description: 'Skip bots' } },
+        },
+      },
+    },
+    categories: { messages: 'Messages', members: 'Members', voice: 'Voice', server: 'Server', moderation: 'Moderation' },
+    settings: {
+      none: '—',
+      off: 'off',
+      ignoredChannels: 'Skipped channels',
+      ignoredRoles: 'Skipped roles',
+      bots: 'Bots',
+      botsIgnored: 'Bot actions are not logged.',
+      botsLogged: 'Bot actions are logged.',
+      noAccess: 'The bot cannot post in {channel}: it needs View Channel, Send Messages and Embed Links.',
+      channelSet: '**{category}** is logged to {channel}.',
+      disabled: '**{category}** is no longer logged.',
+      allDisabled: 'The log is off for every category.',
+      pickTarget: 'Pick a channel or a role.',
+      ignored: 'The log skips: {targets}.',
+      unignored: 'The log covers again: {targets}.',
+    },
     name: 'Audit log',
     unknown: 'unknown',
     empty: 'empty',
