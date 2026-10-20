@@ -55,7 +55,11 @@ describe('leveling with a database', () => {
       nickname: null,
       joinedAt: null,
       user: { id: '2', username: 'trinity', globalName: null, createdAt: new Date(), displayAvatarURL: () => '' },
-      guild: { id: GUILD, name: 'Zion', memberCount: 3, iconURL: () => null, roles: { cache: new Map() } },
+      guild: { id: GUILD, name: 'Zion', memberCount: 3, iconURL: () => null,
+        roles: { cache: new Map() },
+        members: { me: null },
+        client: { user: { id: '3', displayName: 'Bot', displayAvatarURL: () => '' } },
+      },
       roles: { cache: new Map() },
     };
     const message = {

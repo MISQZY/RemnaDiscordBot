@@ -41,7 +41,11 @@ describe('trigger replies', () => {
       nickname: null,
       joinedAt: null,
       user: { id: '2', username: 'neo', globalName: null, createdAt: new Date(), displayAvatarURL: () => '' },
-      guild: { id: GUILD, name: 'Zion', memberCount: 1, iconURL: () => null, roles: { cache: new Map() } },
+      guild: { id: GUILD, name: 'Zion', memberCount: 1, iconURL: () => null,
+        roles: { cache: new Map() },
+        members: { me: null },
+        client: { user: { id: '3', displayName: 'Bot', displayAvatarURL: () => '' } },
+      },
       roles: { cache: new Map() },
     };
     const message = {
