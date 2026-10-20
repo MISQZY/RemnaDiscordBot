@@ -20,6 +20,30 @@ describe('collectCommandPayloads', () => {
       description_localizations: { ru: 'Проверить задержку бота' },
     });
   });
+
+  it('keeps every command within Discord size limits in each language', () => {
+    interface Node {
+      name: string;
+      description?: string;
+      name_localizations?: Record<string, string> | null;
+      description_localizations?: Record<string, string> | null;
+      options?: Node[];
+      choices?: { name: string; value: string | number; name_localizations?: Record<string, string> | null }[];
+    }
+    // Discord caps the name, description and choice texts of a command with its options at 4000 characters.
+    const size = (node: Node, locale: string): number =>
+      (node.name_localizations?.[locale] ?? node.name).length +
+      (node.description_localizations?.[locale] ?? node.description ?? '').length +
+      (node.choices ?? []).reduce((sum, c) => sum + (c.name_localizations?.[locale] ?? c.name).length + String(c.value).length, 0) +
+      (node.options ?? []).reduce((sum, o) => sum + size(o, locale), 0);
+    const texts = (node: Node): string[] => [node.description ?? '', ...Object.values(node.description_localizations ?? {}), ...(node.options ?? []).flatMap(texts)];
+
+    for (const payload of collectCommandPayloads(new ModuleRegistry(modules)) as unknown as Node[]) {
+      for (const locale of ['en-US', 'ru']) expect(size(payload, locale), `/${payload.name} (${locale})`).toBeLessThanOrEqual(4000);
+      for (const text of texts(payload)) expect(text.length, `/${payload.name}: ${text}`).toBeLessThanOrEqual(100);
+      expect(payload.options?.length ?? 0, `/${payload.name}`).toBeLessThanOrEqual(25);
+    }
+  });
 });
 
 describe('sameCommand', () => {
