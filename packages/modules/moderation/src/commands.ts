@@ -13,6 +13,7 @@ import { hierarchyError, type PunishAction } from './checks.js';
 import { type ModerationConfig } from './config.js';
 import { parseDuration } from './duration.js';
 import { ModerationService } from './service.js';
+import { modsettings, slowmode } from './settings.js';
 
 type Ctx = InteractionContext<ModerationConfig>;
 
@@ -277,4 +278,4 @@ export const clear = defineCommand<ModerationConfig>({
   },
 });
 
-export const commands = [ban, unban, kick, mute, unmute, warn, warns, unwarn, caseCommand, clear];
+export const commands = [ban, unban, kick, mute, unmute, warn, warns, unwarn, caseCommand, clear, modsettings, slowmode];
