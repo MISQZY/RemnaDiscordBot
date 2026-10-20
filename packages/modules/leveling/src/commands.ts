@@ -16,6 +16,7 @@ import { syncRewards } from './bot.js';
 import { levelProgress, progressBar } from './formula.js';
 import { rankCardRendererFromEnv } from './rank-card.js';
 import { LevelingService } from './service.js';
+import { levels } from './settings.js';
 
 const PAGE_SIZE = 10;
 export const COMPONENT_PREFIX = 'lvl';
@@ -159,4 +160,4 @@ export const xp = defineCommand<LevelingConfig>({
   },
 });
 
-export const commands = [rank, leaderboard, xp];
+export const commands = [rank, leaderboard, xp, levels];
