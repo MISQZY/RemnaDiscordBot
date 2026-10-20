@@ -29,13 +29,13 @@ packages/testing      SQLite и in-memory Redis для тестов и лока�
 | Модуль | Что делает |
 |---|---|
 | `general` | `/ping`, `/help` — всегда включён |
-| `welcome` | приветствия и прощания в канал и ЛС, `/welcome test` |
+| `welcome` | приветствия и прощания в канал и ЛС, в том числе после принятия правил сервера; `/welcome` |
 | `autoroles` | `/autoroles`: роли при входе (с задержкой), восстановление ролей при возвращении, панели ролей с кнопками и списком |
-| `moderation` | `/ban /unban /kick /mute /unmute /warn /warns /unwarn /case /clear`, кейсы, автоэскалация предупреждений, временные баны |
-| `audit-log` | журнал сообщений, участников, голоса, сервера и банов в выбранные каналы |
-| `leveling` | опыт за сообщения, уровни, роли-награды, `/rank`, `/leaderboard`, `/xp`, публичный лидерборд |
-| `custom-commands` | свои slash-команды и автоответы по триггерам |
-| `notifications` | оповещения о новых видео YouTube и стримах Twitch |
+| `moderation` | `/ban /unban /kick /mute /unmute /warn /warns /unwarn /case /clear /slowmode`, кейсы, автоэскалация предупреждений, временные баны; настройка — `/modsettings` |
+| `audit-log` | журнал сообщений, участников, голоса, сервера (каналы, роли, приглашения), банов и кейсов модерации; настройка — `/logs` |
+| `leveling` | опыт за сообщения, уровни, роли-награды, `/rank`, `/leaderboard`, `/xp`, публичный лидерборд; настройка — `/levels` |
+| `custom-commands` | свои slash-команды и автоответы по триггерам; `/cc` |
+| `notifications` | оповещения о новых видео YouTube и стримах Twitch; `/notify` |
 | `music` | музыка через Lavalink: `/play /skip /stop /pause /queue /nowplaying /volume /loop /shuffle /remove /seek`, кнопки плеера, DJ-роли, управление из веба |
 
 Модули включаются командой `/modules enable <модуль>` в Discord или через API (`/v1/guilds/:id/modules/:module`). Модерация включена по умолчанию.
