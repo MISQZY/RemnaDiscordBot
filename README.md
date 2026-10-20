@@ -36,6 +36,7 @@ packages/testing      SQLite и in-memory Redis для тестов и лока�
 | `leveling` | опыт за сообщения, уровни, роли-награды, `/rank`, `/leaderboard`, `/xp`, публичный лидерборд |
 | `custom-commands` | свои slash-команды и автоответы по триггерам |
 | `notifications` | оповещения о новых видео YouTube и стримах Twitch |
+| `music` | музыка через Lavalink: `/play /skip /stop /pause /queue /nowplaying /volume /loop /shuffle /remove /seek`, кнопки плеера, DJ-роли, управление из веба |
 
 Модули включаются командой `/modules enable <модуль>` в Discord или через API (`/v1/guilds/:id/modules/:module`). Модерация включена по умолчанию.
 
@@ -45,6 +46,8 @@ Slash-команды бот синхронизирует с Discord сам пр�
 > Модули используют привилегированные intents. Включите их в Developer Portal → Bot → Privileged Gateway Intents:
 > **Server Members** (welcome, autoroles, audit-log) и **Message Content** (audit-log, custom-commands).
 > Иначе бот не подключится к Discord (ошибка «Used disallowed intents»).
+
+Для музыки нужен узел [Lavalink](https://lavalink.dev) 4.2+: `docker compose --profile music up -d lavalink` и `LAVALINK_NODES=lavalink://<LAVALINK_PASSWORD>@localhost:2333` в `.env` (в Docker — `@lavalink:2333`, `COMPOSE_PROFILES=app,music`). Поиск по умолчанию — SoundCloud; YouTube выключен (плагин в `docker/lavalink/application.yml`).
 
 Для оповещений о стримах нужны `TWITCH_CLIENT_ID` и `TWITCH_CLIENT_SECRET` (приложение на dev.twitch.tv); YouTube работает без ключей.
 

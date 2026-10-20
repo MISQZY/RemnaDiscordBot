@@ -109,6 +109,27 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  # Audio node of the music module: COMPOSE_PROFILES=app,music and LAVALINK_NODES in .env.
+  lavalink:
+    image: ghcr.io/lavalink-devs/lavalink:4.2.2-alpine
+    profiles: [music]
+    restart: unless-stopped
+    environment:
+      LAVALINK_SERVER_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
+      _JAVA_OPTIONS: -Xmx${LAVALINK_MEMORY:-512M}
+    volumes:
+      - ./docker/lavalink/application.yml:/opt/Lavalink/application.yml:ro
+      - lavalink-plugins:/opt/Lavalink/plugins
+    ports:
+      - "127.0.0.1:2333:2333"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- --header=\"Authorization: $${LAVALINK_SERVER_PASSWORD}\" http://127.0.0.1:2333/version || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 40s
+      retries: 5
+
 volumes:
   postgres-data:
   redis-data:
+  lavalink-plugins:

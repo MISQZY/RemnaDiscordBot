@@ -1,0 +1,68 @@
+# Lavalink audio node for the music module (docker compose --profile music).
+# The password comes from LAVALINK_SERVER_PASSWORD (see docker-compose.yml); the bot connects with LAVALINK_NODES.
+server:
+  port: 2333
+  address: 0.0.0.0
+
+lavalink:
+  # Plugins are downloaded on startup into /opt/Lavalink/plugins.
+  # YouTube is off by default: it often blocks servers and its terms forbid such playback.
+  # To enable it at your own risk, uncomment the plugin and set plugins.youtube.enabled to true.
+  # plugins:
+  #   - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.2"
+  #     snapshot: false
+  server:
+    sources:
+      # The built-in YouTube source is deprecated in favour of the plugin above.
+      youtube: false
+      bandcamp: true
+      soundcloud: true
+      twitch: true
+      vimeo: true
+      nico: false
+      http: true
+      local: false
+    filters:
+      volume: true
+      equalizer: true
+      karaoke: false
+      timescale: true
+      tremolo: false
+      vibrato: false
+      distortion: false
+      rotation: false
+      channelMix: false
+      lowPass: false
+    bufferDurationMs: 400
+    frameBufferDurationMs: 5000
+    opusEncodingQuality: 10
+    resamplingQuality: LOW
+    trackStuckThresholdMs: 10000
+    useSeekGhosting: true
+    youtubePlaylistLoadLimit: 6
+    playerUpdateInterval: 5
+    youtubeSearchEnabled: false
+    soundcloudSearchEnabled: true
+    gc-warnings: true
+
+plugins:
+  youtube:
+    enabled: false
+    allowSearch: true
+    clients: ["MUSIC", "ANDROID_VR", "WEB", "WEBEMBEDDED"]
+
+metrics:
+  prometheus:
+    enabled: false
+    endpoint: /metrics
+
+logging:
+  file:
+    path: null
+  level:
+    root: INFO
+    lavalink: INFO
+  logback:
+    rollingpolicy:
+      max-file-size: 1GB
+      max-history: 30
