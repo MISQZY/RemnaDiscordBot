@@ -13,6 +13,11 @@ type Ctx = BotModuleContext<CustomCommandsConfig>;
 /** A guild's triggers are needed for every message. API changes become visible within ≤ 30 s. */
 const triggerCache = new LRUCache<string, CommandDto[]>({ max: 10_000, ttl: 30_000 });
 
+/** Drops the cached triggers after a change from Discord (other clusters catch up within 30 s). */
+export function forgetTriggers(guildId: string): void {
+  triggerCache.delete(guildId);
+}
+
 async function guildTriggers(ctx: Ctx, guildId: string): Promise<CommandDto[]> {
   let triggers = triggerCache.get(guildId);
   if (!triggers) {

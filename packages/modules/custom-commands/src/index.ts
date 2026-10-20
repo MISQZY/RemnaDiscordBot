@@ -4,6 +4,7 @@ import { customCommandsApi } from './api.js';
 import { customSlashCommand, onMessage } from './bot.js';
 import { CustomCommandsConfig, defaultCustomCommandsConfig } from './config.js';
 import { locales } from './locales.js';
+import { cc, COMPONENT_PREFIX, responseModalHandler } from './manage.js';
 
 export { CommandDto, CommandInput, CustomCommandsConfig } from './config.js';
 
@@ -17,6 +18,8 @@ export default defineModule({
   bot: {
     // Triggers read message text — the privileged Message Content intent.
     intents: [GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+    commands: [cc],
+    components: { [COMPONENT_PREFIX]: responseModalHandler },
     events: { messageCreate: onMessage },
     fallbackCommand: customSlashCommand,
   },
