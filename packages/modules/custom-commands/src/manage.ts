@@ -1,5 +1,5 @@
-import { defineCommand, defineComponent, type GuildEntities, type InteractionContext } from '@bot/core';
-import { toGuildChannel, toGuildRole } from '@bot/discord';
+import { defineCommand, defineComponent, type InteractionContext } from '@bot/core';
+import { toGuildEntities as entities } from '@bot/discord';
 import {
   EmbedBuilder,
   InteractionContextType,
@@ -10,7 +10,6 @@ import {
   SlashCommandBuilder,
   TextInputBuilder,
   TextInputStyle,
-  type Guild,
   type SlashCommandStringOption,
 } from 'discord.js';
 import { z } from 'zod';
@@ -46,12 +45,6 @@ const Pending = z.object({
 
 const reply = (interaction: Repliable, content: string) =>
   interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
-
-/** Channels and roles of the guild from the gateway cache — what the API reads from the snapshot. */
-const entities = (guild: Guild): GuildEntities => ({
-  channels: [...guild.channels.cache.values()].map(toGuildChannel),
-  roles: [...guild.roles.cache.values()].map(toGuildRole),
-});
 
 const commandOption = (o: SlashCommandStringOption) =>
   o.setName('command').setDescription('Custom command').setRequired(true).setAutocomplete(true);

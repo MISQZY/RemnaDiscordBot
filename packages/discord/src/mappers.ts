@@ -1,4 +1,5 @@
 import type { GuildChannel, GuildEmoji, GuildMeta, GuildRole } from '@bot/contracts';
+import type { GuildEntities } from '@bot/core';
 import type { Guild, GuildBasedChannel, GuildEmoji as DiscordEmoji, Role } from 'discord.js';
 
 export function toGuildMeta(guild: Guild): GuildMeta {
@@ -30,6 +31,14 @@ export function toGuildRole(role: Role): GuildRole {
     position: role.position,
     managed: role.managed,
     manageable: role.editable && !role.managed && role.id !== role.guild.id,
+  };
+}
+
+/** Channels and roles from the gateway cache — what the API reads from the snapshot, for the same checks in the bot. */
+export function toGuildEntities(guild: Guild): GuildEntities {
+  return {
+    channels: [...guild.channels.cache.values()].map(toGuildChannel),
+    roles: [...guild.roles.cache.values()].map(toGuildRole),
   };
 }
 
