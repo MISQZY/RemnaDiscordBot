@@ -25,6 +25,7 @@
     "@bot/module-general": "workspace:*",
     "@bot/module-leveling": "workspace:*",
     "@bot/module-moderation": "workspace:*",
+    "@bot/module-music": "workspace:*",
     "@bot/module-notifications": "workspace:*",
     "@bot/module-welcome": "workspace:*"
   },

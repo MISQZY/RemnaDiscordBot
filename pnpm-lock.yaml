@@ -346,6 +346,9 @@ importers:
       '@bot/module-moderation':
         specifier: workspace:*
         version: link:../modules/moderation
+      '@bot/module-music':
+        specifier: workspace:*
+        version: link:../modules/music
       '@bot/module-notifications':
         specifier: workspace:*
         version: link:../modules/notifications
@@ -566,6 +569,43 @@ importers:
       '@bot/logger':
         specifier: workspace:*
         version: link:../../logger
+      fastify:
+        specifier: 5.12.7
+        version: 5.12.7
+
+  packages/modules/music:
+    dependencies:
+      '@bot/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@bot/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@bot/i18n':
+        specifier: workspace:*
+        version: link:../../i18n
+      discord.js:
+        specifier: 14.27.0
+        version: 14.27.0
+      ioredis:
+        specifier: 6.0.0
+        version: 6.0.0
+      lavalink-client:
+        specifier: 2.11.0
+        version: 2.11.0
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@bot/config':
+        specifier: workspace:*
+        version: link:../../config
+      '@bot/logger':
+        specifier: workspace:*
+        version: link:../../logger
+      '@bot/testing':
+        specifier: workspace:*
+        version: link:../../testing
       fastify:
         specifier: 5.12.7
         version: 5.12.7
@@ -1732,6 +1772,10 @@ packages:
 
   keyv@5.6.0:
     resolution: {integrity: sha512-CYDD3SOtsHtyXeEORYRx2qBtpDJFjRTGXUtmNEMGyzYOKj1TE3tycdlho7kA1Ufx9OYWZzg52QFBGALTirzDSw==}
+
+  lavalink-client@2.11.0:
+    resolution: {integrity: sha512-x4mobBpwSjJ+jC2XDevcMc8Mj454Bx3cTfmWgtLHisY+U/HlK7ubWkdHawZrEwBW5E6zIDjoiBvVBR8FDIUdkw==}
+    engines: {bun: '>=1.1.27', node: '>=18.0.0'}
 
   levn@0.4.1:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
@@ -3315,6 +3359,14 @@ snapshots:
   keyv@5.6.0:
     dependencies:
       '@keyv/serialize': 1.1.1
+
+  lavalink-client@2.11.0:
+    dependencies:
+      tslib: 2.8.1
+      ws: 8.22.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   levn@0.4.1:
     dependencies:
