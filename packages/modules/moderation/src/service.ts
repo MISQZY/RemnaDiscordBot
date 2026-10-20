@@ -144,6 +144,13 @@ export class ModerationService {
     }
   }
 
+  /** Rewrites the reason of a case, e.g. one created without it. */
+  async updateReason(guildId: string, number: number, reason: string): Promise<ModCase> {
+    const modCase = await this.services.db.modCase.findUnique({ where: { guildId_number: { guildId, number } } });
+    if (!modCase) throw HttpError.notFound('Case not found');
+    return this.services.db.modCase.update({ where: { id: modCase.id }, data: { reason } });
+  }
+
   activeWarnings(guildId: string, targetId: string): Promise<ModCase[]> {
     return this.services.db.modCase.findMany({
       where: { guildId, targetId, type: 'warn', revokedAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },

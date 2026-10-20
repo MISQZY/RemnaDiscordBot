@@ -117,12 +117,12 @@ export const locales: Record<Locale, Dictionary> = {
         },
       },
       case: {
-        description: 'Показать кейс модерации',
-        options: {
-          number: {
-            name: 'номер',
-            description: 'Номер кейса',
-          },
+        description: 'Кейсы модерации',
+        show: { name: 'show', description: 'Показать кейс модерации', options: { number: { name: 'номер', description: 'Номер кейса' } } },
+        reason: {
+          name: 'reason',
+          description: 'Изменить причину кейса',
+          options: { number: { name: 'номер', description: 'Номер кейса' }, reason: { name: 'причина', description: 'Новая причина' } },
         },
       },
       clear: {
@@ -160,6 +160,7 @@ export const locales: Record<Locale, Dictionary> = {
       escalated: 'Достигнут порог предупреждений — автоматически: {action} · кейс #{number}',
       unwarn: 'Предупреждение #{number} снято.',
       clear: 'Удалено сообщений: {count}.',
+      reason: 'Причина кейса #{number} обновлена.',
     },
     dm: {
       ban: 'Вы забанены на сервере **{guild}**.',
@@ -183,6 +184,7 @@ export const locales: Record<Locale, Dictionary> = {
       notMember: 'Этого пользователя нет на сервере.',
       notWarning: 'Кейс с таким номером не является предупреждением.',
       caseNotFound: 'Кейс не найден.',
+      notYourCase: 'Причину может изменить автор кейса или управляющий сервером.',
     },
   },
   en: {
@@ -300,12 +302,12 @@ export const locales: Record<Locale, Dictionary> = {
         },
       },
       case: {
-        description: 'Show a moderation case',
-        options: {
-          number: {
-            name: 'number',
-            description: 'Case number',
-          },
+        description: 'Moderation cases',
+        show: { name: 'show', description: 'Show a moderation case', options: { number: { name: 'number', description: 'Case number' } } },
+        reason: {
+          name: 'reason',
+          description: 'Change the reason of a case',
+          options: { number: { name: 'number', description: 'Case number' }, reason: { name: 'reason', description: 'New reason' } },
         },
       },
       clear: {
@@ -343,6 +345,7 @@ export const locales: Record<Locale, Dictionary> = {
       escalated: 'Warning threshold reached — automatic {action} · case #{number}',
       unwarn: 'Warning #{number} removed.',
       clear: 'Deleted {count} messages.',
+      reason: 'Reason of case #{number} updated.',
     },
     dm: {
       ban: 'You were banned from **{guild}**.',
@@ -366,6 +369,7 @@ export const locales: Record<Locale, Dictionary> = {
       notMember: 'This user is not on the server.',
       notWarning: 'This case is not a warning.',
       caseNotFound: 'Case not found.',
+      notYourCase: 'Only the case author or a server manager can change the reason.',
     },
   },
 };

@@ -218,17 +218,40 @@ export const unwarn = defineCommand<ModerationConfig>({
 });
 
 export const caseCommand = defineCommand<ModerationConfig>({
-  data: base('case', 'Show a moderation case', PermissionFlagsBits.ModerateMembers).addIntegerOption((o) =>
-    o.setName('number').setDescription('Case number').setRequired(true).setMinValue(1),
-  ),
+  data: base('case', 'Moderation cases', PermissionFlagsBits.ModerateMembers)
+    .addSubcommand((s) =>
+      s
+        .setName('show')
+        .setDescription('Show a moderation case')
+        .addIntegerOption((o) => o.setName('number').setDescription('Case number').setRequired(true).setMinValue(1)),
+    )
+    .addSubcommand((s) =>
+      s
+        .setName('reason')
+        .setDescription('Change the reason of a case')
+        .addIntegerOption((o) => o.setName('number').setDescription('Case number').setRequired(true).setMinValue(1))
+        .addStringOption((o) => o.setName('reason').setDescription('New reason').setRequired(true).setMaxLength(500)),
+    ),
   async execute(interaction, ctx) {
+    const guildId = interaction.guildId!;
     const number = interaction.options.getInteger('number', true);
-    const modCase = await ctx.db.modCase.findUnique({ where: { guildId_number: { guildId: interaction.guildId!, number } } });
+    const service = new ModerationService(ctx);
+    const modCase = await ctx.db.modCase.findUnique({ where: { guildId_number: { guildId, number } } });
     if (!modCase) {
       await interaction.reply(ephemeral(ctx.t('moderation.errors.caseNotFound')));
       return;
     }
-    await interaction.reply({ embeds: [await new ModerationService(ctx).caseEmbed(modCase)], flags: MessageFlags.Ephemeral });
+    if (interaction.options.getSubcommand() === 'reason') {
+      // Only the case author or a server manager rewrites someone's reason.
+      if (modCase.moderatorId !== interaction.user.id && !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+        await interaction.reply(ephemeral(ctx.t('moderation.errors.notYourCase')));
+        return;
+      }
+      const updated = await service.updateReason(guildId, number, interaction.options.getString('reason', true));
+      await interaction.reply({ content: ctx.t('moderation.done.reason', { number }), embeds: [await service.caseEmbed(updated)], flags: MessageFlags.Ephemeral });
+      return;
+    }
+    await interaction.reply({ embeds: [await service.caseEmbed(modCase)], flags: MessageFlags.Ephemeral });
   },
 });
 
