@@ -13,6 +13,10 @@ const WorkerEnv = z.object({
   WORKER_HEALTH_PORT: z.coerce.number().int().positive().default(3002),
   /** Bearer token required by `/metrics`; set it when the metrics port is published outside the Docker network. */
   METRICS_TOKEN: z.string().min(16).optional(),
+  /** Data of a guild the bot left is deleted after this many days. */
+  GUILD_DATA_RETENTION_DAYS: z.coerce.number().int().min(0).default(30),
+  /** Finished scheduled jobs are kept this many days. */
+  JOB_HISTORY_DAYS: z.coerce.number().int().min(0).default(7),
 });
 export type WorkerEnv = z.infer<typeof WorkerEnv>;
 

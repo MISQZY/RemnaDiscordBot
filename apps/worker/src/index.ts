@@ -23,6 +23,7 @@ import { REST } from 'discord.js';
 import { Redis } from 'ioredis';
 import { Gauge, collectDefaultMetrics } from 'prom-client';
 import { loadWorkerEnv } from './env.js';
+import { startMaintenance } from './maintenance.js';
 
 const env = loadWorkerEnv();
 const logger = createLogger({ service: 'worker', level: env.LOG_LEVEL });
@@ -80,6 +81,7 @@ const jobs = new JobRunner(services, registry, { maxAttempts: MAX_ATTEMPTS });
 const intervals = new IntervalRunner(services, registry);
 jobs.start(env.WORKER_POLL_MS);
 intervals.start();
+const stopMaintenance = startMaintenance(services, { retentionDays: env.GUILD_DATA_RETENTION_DAYS, jobHistoryDays: env.JOB_HISTORY_DAYS });
 
 const health = createServer((req, res) => {
   if (req.method === 'GET' && req.url === '/health') {
@@ -105,6 +107,7 @@ async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, 'Worker shutting down');
   try {
     intervals.stop();
+    stopMaintenance();
     await jobs.stop();
     health.close();
     await unsubscribeConfig();
