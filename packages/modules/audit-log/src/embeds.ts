@@ -134,6 +134,59 @@ export function serverChanged(t: Translate, data: { kind: 'channelCreated' | 'ch
   };
 }
 
+/** A before → after line per changed property; `null` when nothing visible changed. */
+export function entityUpdated(
+  t: Translate,
+  data: { kind: 'channel' | 'role'; id: string; name: string; changes: { field: string; before: string; after: string }[] },
+): APIEmbed | null {
+  if (data.changes.length === 0) return null;
+  const mention = data.kind === 'channel' ? channel(data.id) : `<@&${data.id}>`;
+  return {
+    title: t(data.kind === 'channel' ? 'audit-log.server.channelUpdated' : 'audit-log.server.roleUpdated'),
+    color: COLOR.update,
+    description: `${mention} · **${data.name}**`,
+    fields: data.changes.map((c) => ({ name: t(`audit-log.changes.${c.field}`), value: `${c.before || '—'} → ${c.after || '—'}`.slice(0, 1024) })),
+    timestamp: new Date().toISOString(),
+  };
+}
+
+export function inviteCreated(
+  t: Translate,
+  data: { code: string; channelId: string | null; inviterId: string | null; maxUses: number | null; expiresAt: number | null },
+): APIEmbed {
+  return {
+    title: t('audit-log.server.inviteCreated'),
+    color: COLOR.create,
+    description: `discord.gg/${data.code}`,
+    fields: [
+      { name: t('audit-log.fields.author'), value: data.inviterId ? user(data.inviterId) : t('audit-log.unknown'), inline: true },
+      ...(data.channelId ? [{ name: t('audit-log.fields.channel'), value: channel(data.channelId), inline: true }] : []),
+      { name: t('audit-log.fields.maxUses'), value: data.maxUses ? String(data.maxUses) : '∞', inline: true },
+      { name: t('audit-log.fields.expires'), value: data.expiresAt ? time(data.expiresAt) : t('audit-log.never'), inline: true },
+    ],
+    timestamp: new Date().toISOString(),
+  };
+}
+
+/** A case of the bot's moderation commands (`moderation.caseCreated`). */
+export function caseCreated(
+  t: Translate,
+  data: { number: number; type: string; targetId: string; moderatorId: string; reason: string | null; expiresAt: string | null },
+): APIEmbed {
+  const moderator = /^\d+$/.test(data.moderatorId) ? user(data.moderatorId) : t('audit-log.moderation.system');
+  return {
+    title: t('audit-log.moderation.case', { number: data.number, action: t(`audit-log.moderation.actions.${data.type}`) }),
+    color: ['unban', 'unmute'].includes(data.type) ? COLOR.create : COLOR.delete,
+    fields: [
+      { name: t('audit-log.fields.member'), value: user(data.targetId), inline: true },
+      { name: t('audit-log.fields.moderator'), value: moderator, inline: true },
+      ...(data.expiresAt ? [{ name: t('audit-log.fields.until'), value: time(Date.parse(data.expiresAt), 'f'), inline: true }] : []),
+      { name: t('audit-log.fields.reason'), value: data.reason?.slice(0, 1024) || t('audit-log.moderation.noReason') },
+    ],
+    timestamp: new Date().toISOString(),
+  };
+}
+
 export function banChanged(t: Translate, data: { userId: string; username: string; banned: boolean; reason: string | null }): APIEmbed {
   return {
     title: t(data.banned ? 'audit-log.moderation.banned' : 'audit-log.moderation.unbanned'),

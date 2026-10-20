@@ -4,7 +4,8 @@ import { createLogger } from '@bot/logger';
 import { createTestRedis } from '@bot/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { defaultAuditLogConfig, type AuditLogConfig } from './config.js';
-import { memberUpdated, messageDeleted, voiceChanged } from './embeds.js';
+import { caseCreated, entityUpdated, memberUpdated, messageDeleted, voiceChanged } from './embeds.js';
+import { onCaseCreated } from './handlers.js';
 import auditLog from './index.js';
 
 const i18n = new I18n('ru');
@@ -28,6 +29,22 @@ describe('embeds', () => {
   it('skips member updates without visible changes', () => {
     expect(memberUpdated(t, { userId: '1', rolesAdded: [], rolesRemoved: [] })).toBeNull();
     expect(memberUpdated(t, { userId: '1', rolesAdded: ['5'], rolesRemoved: [] })?.fields).toEqual([{ name: 'Выданы роли', value: '<@&5>' }]);
+  });
+
+  it('lists changed channel and role properties', () => {
+    expect(entityUpdated(t, { kind: 'role', id: '5', name: 'Mods', changes: [] })).toBeNull();
+    const embed = entityUpdated(t, { kind: 'channel', id: '2', name: 'general', changes: [{ field: 'name', before: 'chat', after: 'general' }] });
+    expect(embed?.title).toBe('Канал изменён');
+    expect(embed?.fields).toEqual([{ name: 'Название', value: 'chat → general' }]);
+  });
+
+  it('describes moderation cases with their moderator', () => {
+    const embed = caseCreated(t, { number: 7, type: 'warn', targetId: '1', moderatorId: '2', reason: null, expiresAt: null });
+    expect(embed.title).toBe('Кейс #7 · Предупреждение');
+    expect(embed.fields?.map((f) => f.value)).toEqual(['<@1> (`1`)', '<@2> (`2`)', 'не указана']);
+    expect(caseCreated(t, { number: 8, type: 'mute', targetId: '1', moderatorId: 'system', reason: 'x', expiresAt: null }).fields?.[1]?.value).toBe(
+      'Автоматически',
+    );
   });
 
   it('describes voice joins, leaves and moves', () => {
@@ -95,5 +112,37 @@ describe('message logging', () => {
     await auditLog.bot!.events!.messageCreate!(ctx, message({ id: '900000000000000010', channelId: '1', author: { id: '1', bot: true } }));
 
     expect(await ctx.redis.keys('audit:msg:*')).toEqual([]);
+  });
+});
+
+describe('moderation cases', () => {
+  function setup(enabled = true) {
+    const logChannel = { isSendable: () => true, send: vi.fn(async () => {}) };
+    const guild = { id: GUILD, channels: { cache: new Map([[LOG_CHANNEL, logChannel]]), fetch: vi.fn() } };
+    const config = { ...defaultAuditLogConfig, channels: { ...defaultAuditLogConfig.channels, moderation: LOG_CHANNEL } };
+    const ctx = {
+      moduleId: 'audit-log',
+      i18n,
+      guildLocales: { get: async () => 'ru' },
+      getConfig: async () => config,
+      config: { isEnabled: async () => enabled },
+      client: { guilds: { cache: new Map([[GUILD, guild]]) } },
+    } as unknown as BotModuleContext<AuditLogConfig>;
+    return { ctx, logChannel };
+  }
+  const modCase = (type: string) =>
+    ({ number: 1, type, targetId: '1', moderatorId: '2', reason: null, durationSec: null, expiresAt: null, active: true }) as never;
+
+  it('logs cases of the bot commands but leaves bans to guildBanAdd', async () => {
+    const { ctx, logChannel } = setup();
+    await onCaseCreated(ctx, { guildId: GUILD, case: modCase('kick') });
+    await onCaseCreated(ctx, { guildId: GUILD, case: modCase('ban') });
+    expect(logChannel.send).toHaveBeenCalledOnce();
+  });
+
+  it('stays quiet when the module is disabled', async () => {
+    const { ctx, logChannel } = setup(false);
+    await onCaseCreated(ctx, { guildId: GUILD, case: modCase('warn') });
+    expect(logChannel.send).not.toHaveBeenCalled();
   });
 });

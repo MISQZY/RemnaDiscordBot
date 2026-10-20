@@ -1,4 +1,5 @@
 import type { BotModuleContext, EventHandlers } from '@bot/core';
+import type { ModCaseDto } from '@bot/module-moderation';
 import type { APIEmbed, Guild, GuildMember, PartialGuildMember } from 'discord.js';
 import type { AuditLogConfig, LogCategory } from './config.js';
 import * as embeds from './embeds.js';
@@ -34,6 +35,26 @@ async function prepare(ctx: Ctx, guild: Guild, category: LogCategory) {
     await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
   };
   return { config, t, send };
+}
+
+/** Properties whose text differs between two snapshots. */
+function diff<T extends Record<string, string>>(before: T, after: T): { field: string; before: string; after: string }[] {
+  return Object.keys(after)
+    .filter((field) => before[field] !== after[field])
+    .map((field) => ({ field, before: before[field]!, after: after[field]! }));
+}
+
+/**
+ * Cases of the bot's own moderation commands. Bans are already logged from `guildBanAdd`;
+ * kicks, mutes and warnings have no event of their own in this category.
+ */
+export async function onCaseCreated(ctx: Ctx, { guildId, case: modCase }: { guildId: string; case: ModCaseDto }): Promise<void> {
+  if (modCase.type === 'ban' || modCase.type === 'unban') return;
+  if (!(await ctx.config.isEnabled(guildId, ctx.moduleId))) return;
+  const guild = ctx.client.guilds.cache.get(guildId);
+  if (!guild) return;
+  const log = await prepare(ctx, guild, 'moderation');
+  await log?.send(embeds.caseCreated(log.t, modCase));
 }
 
 export function createHandlers(): EventHandlers<AuditLogConfig> {
@@ -154,6 +175,21 @@ export function createHandlers(): EventHandlers<AuditLogConfig> {
       await log?.send(embeds.serverChanged(log.t, { kind: 'channelDeleted', name: channel.name, id: channel.id }));
     },
 
+    channelUpdate: async (ctx, oldChannel, newChannel) => {
+      if (oldChannel.isDMBased() || newChannel.isDMBased()) return;
+      const log = await prepare(ctx, newChannel.guild, 'server');
+      if (!log || isIgnored(log.config, { channelId: newChannel.id })) return;
+      const yesNo = (value: boolean) => log.t(value ? 'audit-log.yes' : 'audit-log.no');
+      const read = (channel: typeof newChannel) => ({
+        name: channel.name,
+        topic: 'topic' in channel ? (channel.topic ?? '') : '',
+        nsfw: 'nsfw' in channel ? yesNo(channel.nsfw) : '',
+        slowmode: 'rateLimitPerUser' in channel ? `${channel.rateLimitPerUser ?? 0} s` : '',
+        parent: channel.parentId ? `<#${channel.parentId}>` : '',
+      });
+      await log.send(embeds.entityUpdated(log.t, { kind: 'channel', id: newChannel.id, name: newChannel.name, changes: diff(read(oldChannel), read(newChannel)) }));
+    },
+
     roleCreate: async (ctx, role) => {
       const log = await prepare(ctx, role.guild, 'server');
       await log?.send(embeds.serverChanged(log.t, { kind: 'roleCreated', name: role.name, id: role.id }));
@@ -162,6 +198,38 @@ export function createHandlers(): EventHandlers<AuditLogConfig> {
     roleDelete: async (ctx, role) => {
       const log = await prepare(ctx, role.guild, 'server');
       await log?.send(embeds.serverChanged(log.t, { kind: 'roleDeleted', name: role.name, id: role.id }));
+    },
+
+    roleUpdate: async (ctx, oldRole, newRole) => {
+      const log = await prepare(ctx, newRole.guild, 'server');
+      if (!log) return;
+      const yesNo = (value: boolean) => log.t(value ? 'audit-log.yes' : 'audit-log.no');
+      const hex = (color: number) => (color ? `#${color.toString(16).padStart(6, '0')}` : '');
+      const read = (role: typeof newRole) => ({ name: role.name, color: hex(role.color), hoist: yesNo(role.hoist), mentionable: yesNo(role.mentionable) });
+      const changes = diff(read(oldRole), read(newRole));
+      const before = new Set(oldRole.permissions.toArray());
+      const after = new Set(newRole.permissions.toArray());
+      const added = [...after].filter((p) => !before.has(p));
+      const removed = [...before].filter((p) => !after.has(p));
+      if (added.length > 0) changes.push({ field: 'permissionsAdded', before: '', after: added.join(', ') });
+      if (removed.length > 0) changes.push({ field: 'permissionsRemoved', before: removed.join(', '), after: '' });
+      await log.send(embeds.entityUpdated(log.t, { kind: 'role', id: newRole.id, name: newRole.name, changes }));
+    },
+
+    inviteCreate: async (ctx, invite) => {
+      const guild = invite.guild && 'channels' in invite.guild ? invite.guild : null;
+      if (!guild) return;
+      const log = await prepare(ctx, guild, 'server');
+      if (!log || isIgnored(log.config, { channelId: invite.channelId, bot: invite.inviter?.bot })) return;
+      await log.send(
+        embeds.inviteCreated(log.t, {
+          code: invite.code,
+          channelId: invite.channelId,
+          inviterId: invite.inviterId,
+          maxUses: invite.maxUses || null,
+          expiresAt: invite.expiresTimestamp,
+        }),
+      );
     },
 
     guildBanAdd: async (ctx, ban) => {

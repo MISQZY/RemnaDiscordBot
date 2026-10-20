@@ -2,7 +2,7 @@ import { defineModule, EntityChecker } from '@bot/core';
 import { GatewayIntentBits, Partials } from 'discord.js';
 import { commands } from './commands.js';
 import { AuditLogConfig, defaultAuditLogConfig, LogCategory } from './config.js';
-import { createHandlers } from './handlers.js';
+import { createHandlers, onCaseCreated } from './handlers.js';
 import { locales } from './locales.js';
 
 export { AuditLogConfig } from './config.js';
@@ -27,10 +27,13 @@ export default defineModule({
       GatewayIntentBits.GuildMembers,
       GatewayIntentBits.GuildVoiceStates,
       GatewayIntentBits.GuildModeration,
+      GatewayIntentBits.GuildInvites,
     ],
     // The bot caches neither messages nor all members — their events arrive as partials.
     partials: [Partials.Message, Partials.GuildMember, Partials.User],
     commands,
     events: createHandlers(),
+    // Cases of the moderation commands arrive over the in-process bus, not from the gateway.
+    setup: (ctx) => ctx.bus.on('moderation.caseCreated', (payload) => onCaseCreated(ctx, payload)),
   },
 });

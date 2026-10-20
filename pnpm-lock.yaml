@@ -374,6 +374,9 @@ importers:
       '@bot/i18n':
         specifier: workspace:*
         version: link:../../i18n
+      '@bot/module-moderation':
+        specifier: workspace:*
+        version: link:../moderation
       discord.js:
         specifier: 14.27.0
         version: 14.27.0
