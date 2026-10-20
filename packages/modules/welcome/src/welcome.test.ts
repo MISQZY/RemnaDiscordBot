@@ -30,6 +30,8 @@ function fakeMember({ bot = false, dmFails = false } = {}) {
       memberCount: 42,
       iconURL: () => null,
       channels: { cache: new Map([[CHANNEL, channel]]), fetch: vi.fn(async () => null) },
+      members: { me: null },
+      client: { user: { id: '3', displayName: 'Bot', displayAvatarURL: () => 'https://cdn.test/bot.png' } },
     },
     send: vi.fn(async () => {
       if (dmFails) throw new Error('Cannot send messages to this user');
