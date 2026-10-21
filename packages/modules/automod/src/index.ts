@@ -23,7 +23,8 @@ export default defineModule({
       .roles(config.exemptRoleIds, ['exemptRoleIds'])
       .channels(config.exemptChannelIds, ['exemptChannelIds'])
       .textChannel(config.raid.alertChannelId, ['raid', 'alertChannelId'])
-      .role(config.raid.alertRoleId, ['raid', 'alertRoleId']);
+      .role(config.raid.alertRoleId, ['raid', 'alertRoleId'])
+      .textChannel(config.honeypot.channelId, ['honeypot', 'channelId']);
     for (const name of FILTERS) {
       checker.roles(config.filters[name].exemptRoleIds, ['filters', name, 'exemptRoleIds']).channels(config.filters[name].exemptChannelIds, ['filters', name, 'exemptChannelIds']);
     }

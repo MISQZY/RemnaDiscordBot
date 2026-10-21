@@ -164,14 +164,6 @@ export const locales: Record<Locale, Dictionary> = {
           description: 'Записывать кейсы за баны, кики и тайм-ауты из самого Discord',
           options: { enabled: { name: 'включено', description: 'Записывать' } },
         },
-        honeypot: {
-          name: 'honeypot',
-          description: 'Канал-ловушка: кто в нём пишет, считается спам-ботом; пусто — выключить',
-          options: {
-            channel: { name: 'канал', description: 'Канал' },
-            action: { name: 'действие', description: 'Что с ними делать', choices: { softban: 'Софтбан', ban: 'Бан', kick: 'Кик', mute: 'Мут' } },
-          },
-        },
         escalation: {
           name: 'escalation',
           description: 'Автоматические наказания за предупреждения',
@@ -386,14 +378,6 @@ export const locales: Record<Locale, Dictionary> = {
       reportsSet: 'Жалобы приходят в {channel}.',
       reportsOff: 'Жалобы выключены.',
       nativeCasesSet: 'Кейсы за баны, кики и тайм-ауты из Discord: {state}.',
-      honeypot: 'Канал-ловушка',
-      honeypotAccess: 'В {channel} боту нужны права «Просмотр канала» и «Управлять сообщениями».',
-      honeypotSet: 'Канал-ловушка: {channel}. Кто в нём напишет — {action}.',
-      honeypotOff: 'Канал-ловушка выключен.',
-    },
-    honeypot: {
-      reason: 'Канал-ловушка: похоже на спам-бота',
-      actions: { softban: 'софтбан', ban: 'бан', kick: 'кик', mute: 'мут' },
     },
   },
   en: {
@@ -557,14 +541,6 @@ export const locales: Record<Locale, Dictionary> = {
           name: 'native-cases',
           description: 'Record cases for bans, kicks and timeouts done in Discord itself',
           options: { enabled: { name: 'enabled', description: 'Record them' } },
-        },
-        honeypot: {
-          name: 'honeypot',
-          description: 'A channel where whoever writes is taken for a spam bot; empty — off',
-          options: {
-            channel: { name: 'channel', description: 'Channel' },
-            action: { name: 'action', description: 'What to do with them', choices: { softban: 'Softban', ban: 'Ban', kick: 'Kick', mute: 'Mute' } },
-          },
         },
         escalation: {
           name: 'escalation',
@@ -780,14 +756,6 @@ export const locales: Record<Locale, Dictionary> = {
       reportsSet: 'Reports go to {channel}.',
       reportsOff: 'Reports are off.',
       nativeCasesSet: 'Cases for bans, kicks and timeouts from Discord: {state}.',
-      honeypot: 'Honeypot channel',
-      honeypotAccess: 'The bot needs View Channel and Manage Messages in {channel}.',
-      honeypotSet: 'Honeypot channel: {channel}. Whoever writes there gets: {action}.',
-      honeypotOff: 'The honeypot channel is off.',
-    },
-    honeypot: {
-      reason: 'Honeypot channel: looks like a spam bot',
-      actions: { softban: 'softban', ban: 'ban', kick: 'kick', mute: 'mute' },
     },
   },
 };

@@ -39,19 +39,6 @@ export const ModerationConfig = z
         announce: z.boolean(),
       })
       .default({ channelIds: [], announce: true }),
-    /**
-     * A channel nobody should write in: whoever does (bots and moderators aside) is taken for a spam bot.
-     * `softban` — banned to delete their messages and unbanned at once: they can come back.
-     */
-    honeypot: z
-      .object({
-        channelId: Snowflake.nullable(),
-        action: z.enum(['ban', 'softban', 'kick', 'mute']),
-        /** Ban and softban delete the member's messages of this many last hours (Discord allows up to 7 days). */
-        deleteHours: z.number().int().min(0).max(168),
-        muteSec: z.number().int().min(60).max(28 * 86_400),
-      })
-      .default({ channelId: null, action: 'softban', deleteHours: 24, muteSec: 86_400 }),
   })
   .refine((c) => new Set(c.escalation.map((r) => r.warns)).size === c.escalation.length, {
     message: 'Each warning count can have only one rule',
@@ -78,7 +65,6 @@ export const defaultModerationConfig: ModerationConfig = {
   reportChannelId: null,
   reportRoleId: null,
   lockdown: { channelIds: [], announce: true },
-  honeypot: { channelId: null, action: 'softban', deleteHours: 24, muteSec: 86_400 },
 };
 
 /** `note` — a moderator's note about a member: no punishment, only history. */

@@ -41,7 +41,7 @@ describe('/modsettings', () => {
     const i18n = new I18n('ru');
     i18n.register(moderation.id, moderation.locales!);
     const json = localizeCommand(modsettings.data.toJSON(), i18n, 'moderation') as { options: { name: string; description_localizations?: Record<string, string> }[] };
-    expect(json.options.map((o) => o.name)).toEqual(['show', 'log-channel', 'dm', 'require-reason', 'warn-expiry', 'appeal', 'dm-note', 'reports', 'native-cases', 'honeypot', 'escalation']);
+    expect(json.options.map((o) => o.name)).toEqual(['show', 'log-channel', 'dm', 'require-reason', 'warn-expiry', 'appeal', 'dm-note', 'reports', 'native-cases', 'escalation']);
     expect(json.options.every((o) => o.description_localizations?.ru)).toBe(true);
   });
 

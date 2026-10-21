@@ -1,5 +1,14 @@
 import { defineCommand } from '@bot/core';
-import { channelMention, EmbedBuilder, InteractionContextType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import {
+  channelMention,
+  ChannelType,
+  EmbedBuilder,
+  InteractionContextType,
+  MessageFlags,
+  PermissionFlagsBits,
+  SlashCommandBuilder,
+  type GuildBasedChannel,
+} from 'discord.js';
 import { AutomodConfig, FILTERS, type FilterName } from './config.js';
 import { endRaid, raidKey } from './raid.js';
 
@@ -23,7 +32,19 @@ export const automodCommand = defineCommand<AutomodConfig>({
         )
         .addBooleanOption((o) => o.setName('enabled').setDescription('On').setRequired(true)),
     )
-    .addSubcommand((s) => s.setName('raid-end').setDescription('End raid mode: unlock channels and resume invites')),
+    .addSubcommand((s) => s.setName('raid-end').setDescription('End raid mode: unlock channels and resume invites'))
+    .addSubcommand((s) =>
+      s
+        .setName('honeypot')
+        .setDescription('A channel where whoever writes is taken for a spam bot; empty — off')
+        .addChannelOption((o) => o.setName('channel').setDescription('Channel').addChannelTypes(ChannelType.GuildText))
+        .addStringOption((o) =>
+          o
+            .setName('action')
+            .setDescription('What to do with them')
+            .addChoices({ name: 'Softban', value: 'softban' }, { name: 'Ban', value: 'ban' }, { name: 'Kick', value: 'kick' }, { name: 'Mute', value: 'mute' }),
+        ),
+    ),
   cooldownMs: 2_000,
   async execute(interaction, ctx) {
     const guildId = interaction.guildId!;
@@ -48,6 +69,11 @@ export const automodCommand = defineCommand<AutomodConfig>({
           inline: true,
         },
         { name: ctx.t('automod.status.log'), value: config.logChannelId ? channelMention(config.logChannelId) : onOff(false), inline: true },
+        {
+          name: ctx.t('automod.status.honeypot'),
+          value: config.honeypot.channelId ? `${channelMention(config.honeypot.channelId)} · ${ctx.t(`automod.honeypot.actions.${config.honeypot.action}`)}` : onOff(false),
+          inline: true,
+        },
       );
       await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
       return;
@@ -60,6 +86,27 @@ export const automodCommand = defineCommand<AutomodConfig>({
       config.filters[name].enabled = enabled;
       await ctx.config.update(guildId, ctx.moduleId, { config: AutomodConfig.parse(config) }, interaction.user.id);
       await interaction.reply({ content: ctx.t('automod.filterSet', { filter: ctx.t(`automod.filters.${name}`), state: onOff(enabled) }), flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    if (sub === 'honeypot') {
+      const channel = interaction.options.getChannel('channel') as GuildBasedChannel | null;
+      const action = interaction.options.getString('action') as AutomodConfig['honeypot']['action'] | null;
+      const reply = (content: string) => interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+      if (channel) {
+        const me = channel.guild.members.me;
+        if (!me || !channel.permissionsFor(me).has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageMessages])) {
+          return void (await reply(ctx.t('automod.honeypot.access', { channel: channelMention(channel.id) })));
+        }
+      }
+      const config = structuredClone(await ctx.getConfig(guildId));
+      config.honeypot = { ...config.honeypot, channelId: channel?.id ?? null, ...(action ? { action } : {}) };
+      await ctx.config.update(guildId, ctx.moduleId, { config: AutomodConfig.parse(config) }, interaction.user.id);
+      await reply(
+        channel
+          ? ctx.t('automod.honeypot.set', { channel: channelMention(channel.id), action: ctx.t(`automod.honeypot.actions.${config.honeypot.action}`) })
+          : ctx.t('automod.honeypot.off'),
+      );
       return;
     }
 

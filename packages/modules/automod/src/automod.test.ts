@@ -1,7 +1,7 @@
 import { createTestRedis } from '@bot/testing';
 import { AutoModerationActionType, AutoModerationRuleTriggerType, type APIAutoModerationRule } from 'discord.js';
 import { describe, expect, it } from 'vitest';
-import { isExempt } from './bot.js';
+import { isExempt, isSpared } from './bot.js';
 import { AutomodConfig, defaultAutomodConfig } from './config.js';
 import { badLinks, bannedWord, capsPercent, emojiCount, inviteCodes, staticViolation } from './filters.js';
 import { fromDiscord, NativeRuleInput, toDiscord } from './native.js';
@@ -61,6 +61,20 @@ describe('exemptions', () => {
     expect(isExempt(config, scope, { roleIds: ['staff'], channelIds: ['general'], moderator: false })).toBe(true);
     expect(isExempt(config, scope, { roleIds: [], channelIds: ['memes'], moderator: false })).toBe(true);
     expect(isExempt(config, scope, { roleIds: [], channelIds: ['general'], moderator: false })).toBe(false);
+  });
+});
+
+describe('honeypot', () => {
+  it('spares the owner and moderators', () => {
+    const member = (id: string, moderator = false) => ({ id, guild: { ownerId: 'owner' }, permissions: { has: () => moderator } });
+    expect(isSpared(member('owner'))).toBe(true);
+    expect(isSpared(member('mod', true))).toBe(true);
+    expect(isSpared(member('spammer'))).toBe(false);
+  });
+
+  it('is off in configs saved before it', () => {
+    const { honeypot, ...old } = defaultAutomodConfig;
+    expect(AutomodConfig.parse(old).honeypot).toEqual({ ...honeypot, channelId: null });
   });
 });
 

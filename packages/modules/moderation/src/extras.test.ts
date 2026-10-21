@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { matchesClear } from './commands.js';
 import { defaultModerationConfig, ModerationConfig } from './config.js';
 import { LOCK_BITS, lockOverwrite, unlockOverwrite } from './lockdown.js';
-import { canPunish, isSpared } from './honeypot.js';
 import { nativeCase } from './native.js';
 
 describe('lockdown overwrites', () => {
@@ -68,28 +67,11 @@ describe('matchesClear', () => {
   });
 });
 
-describe('honeypot', () => {
-  const member = (id: string, moderator = false) => ({ id, guild: { ownerId: 'owner' }, permissions: { has: () => moderator } });
-
-  it('spares bots, the owner and moderators', () => {
-    expect(isSpared(member('1'), true)).toBe(true);
-    expect(isSpared(member('owner'), false)).toBe(true);
-    expect(isSpared(member('2', true), false)).toBe(true);
-    expect(isSpared(member('3'), false)).toBe(false);
-  });
-
-  it('checks the permission the action needs', () => {
-    const target = { bannable: false, kickable: true, moderatable: true };
-    expect(canPunish(target, 'softban')).toBe(false);
-    expect(canPunish(target, 'kick')).toBe(true);
-  });
-});
-
 describe('ModerationConfig', () => {
   it('reads configs saved before the new fields', () => {
-    const { appealUrl, dmNote, trackNativeActions, reportChannelId, reportRoleId, lockdown, honeypot, ...old } = defaultModerationConfig;
+    const { appealUrl, dmNote, trackNativeActions, reportChannelId, reportRoleId, lockdown, ...old } = defaultModerationConfig;
     expect(ModerationConfig.parse(old)).toEqual(defaultModerationConfig);
-    expect([appealUrl, dmNote, trackNativeActions, reportChannelId, reportRoleId, lockdown, honeypot]).toBeDefined();
+    expect([appealUrl, dmNote, trackNativeActions, reportChannelId, reportRoleId, lockdown]).toBeDefined();
   });
 
   it('accepts only http links for appeals', () => {

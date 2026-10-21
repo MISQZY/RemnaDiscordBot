@@ -94,18 +94,6 @@ export const modsettings = defineCommand<ModerationConfig>({
         .setDescription('Record cases for bans, kicks and timeouts done in Discord itself')
         .addBooleanOption((o) => o.setName('enabled').setDescription('Record them').setRequired(true)),
     )
-    .addSubcommand((s) =>
-      s
-        .setName('honeypot')
-        .setDescription('A channel where whoever writes is taken for a spam bot; empty — off')
-        .addChannelOption((o) => o.setName('channel').setDescription('Channel').addChannelTypes(ChannelType.GuildText))
-        .addStringOption((o) =>
-          o
-            .setName('action')
-            .setDescription('What to do with them')
-            .addChoices({ name: 'Softban', value: 'softban' }, { name: 'Ban', value: 'ban' }, { name: 'Kick', value: 'kick' }, { name: 'Mute', value: 'mute' }),
-        ),
-    )
     .addSubcommandGroup((g) =>
       g
         .setName('escalation')
@@ -154,11 +142,6 @@ export const modsettings = defineCommand<ModerationConfig>({
         { name: ctx.t('moderation.settings.appeal'), value: config.appealUrl ?? onOff(false), inline: true },
         { name: ctx.t('moderation.settings.reports'), value: config.reportChannelId ? channelMention(config.reportChannelId) : onOff(false), inline: true },
         { name: ctx.t('moderation.settings.nativeCases'), value: onOff(config.trackNativeActions), inline: true },
-        {
-          name: ctx.t('moderation.settings.honeypot'),
-          value: config.honeypot.channelId ? `${channelMention(config.honeypot.channelId)} · ${ctx.t(`moderation.honeypot.actions.${config.honeypot.action}`)}` : onOff(false),
-          inline: true,
-        },
       );
       await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
       return;
@@ -205,27 +188,6 @@ export const modsettings = defineCommand<ModerationConfig>({
       }
       if (!(await updateConfig(ctx, interaction, (c) => ({ ...c, reportChannelId: channel?.id ?? null, reportRoleId: channel ? (role?.id ?? null) : null })))) return;
       await reply(interaction, channel ? ctx.t('moderation.settings.reportsSet', { channel: channelMention(channel.id) }) : ctx.t('moderation.settings.reportsOff'));
-      return;
-    }
-
-    if (sub === 'honeypot') {
-      const channel = interaction.options.getChannel('channel') as GuildBasedChannel | null;
-      const action = interaction.options.getString('action') as ModerationConfig['honeypot']['action'] | null;
-      if (channel) {
-        const me = channel.guild.members.me;
-        if (!me || !channel.permissionsFor(me).has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageMessages])) {
-          return void (await reply(interaction, ctx.t('moderation.settings.honeypotAccess', { channel: channelMention(channel.id) })));
-        }
-      }
-      const saved = await updateConfig(ctx, interaction, (c) => ({ ...c, honeypot: { ...c.honeypot, channelId: channel?.id ?? null, ...(action ? { action } : {}) } }));
-      if (!saved) return;
-      const config = await ctx.getConfig(interaction.guildId!);
-      await reply(
-        interaction,
-        channel
-          ? ctx.t('moderation.settings.honeypotSet', { channel: channelMention(channel.id), action: ctx.t(`moderation.honeypot.actions.${config.honeypot.action}`) })
-          : ctx.t('moderation.settings.honeypotOff'),
-      );
       return;
     }
 

@@ -29,6 +29,14 @@ export const locales: Record<Locale, Dictionary> = {
           },
         },
         'raid-end': { name: 'raid-end', description: 'Завершить рейд-режим: открыть каналы и приглашения' },
+        honeypot: {
+          name: 'honeypot',
+          description: 'Канал-ловушка: кто в нём пишет, считается спам-ботом; пусто — выключить',
+          options: {
+            channel: { name: 'канал', description: 'Канал' },
+            action: { name: 'действие', description: 'Что с ними делать', choices: { softban: 'Софтбан', ban: 'Бан', kick: 'Кик', mute: 'Мут' } },
+          },
+        },
       },
     },
     name: 'Автомодерация',
@@ -77,6 +85,14 @@ export const locales: Record<Locale, Dictionary> = {
       accountAge: 'Возраст аккаунта',
       days: 'от {days, plural, one {# дня} other {# дней}}',
       log: 'Журнал',
+      honeypot: 'Канал-ловушка',
+    },
+    honeypot: {
+      reason: 'Канал-ловушка: похоже на спам-бота',
+      actions: { softban: 'софтбан', ban: 'бан', kick: 'кик', mute: 'мут' },
+      access: 'В {channel} боту нужны права «Просмотр канала» и «Управлять сообщениями».',
+      set: 'Канал-ловушка: {channel}. Кто в нём напишет — {action}.',
+      off: 'Канал-ловушка выключен.',
     },
   },
   en: {
@@ -106,6 +122,14 @@ export const locales: Record<Locale, Dictionary> = {
           },
         },
         'raid-end': { name: 'raid-end', description: 'End raid mode: unlock channels and resume invites' },
+        honeypot: {
+          name: 'honeypot',
+          description: 'A channel where whoever writes is taken for a spam bot; empty — off',
+          options: {
+            channel: { name: 'channel', description: 'Channel' },
+            action: { name: 'action', description: 'What to do with them', choices: { softban: 'Softban', ban: 'Ban', kick: 'Kick', mute: 'Mute' } },
+          },
+        },
       },
     },
     name: 'Automod',
@@ -154,6 +178,14 @@ export const locales: Record<Locale, Dictionary> = {
       accountAge: 'Account age',
       days: 'at least {days, plural, one {# day} other {# days}}',
       log: 'Log',
+      honeypot: 'Honeypot channel',
+    },
+    honeypot: {
+      reason: 'Honeypot channel: looks like a spam bot',
+      actions: { softban: 'softban', ban: 'ban', kick: 'kick', mute: 'mute' },
+      access: 'The bot needs View Channel and Manage Messages in {channel}.',
+      set: 'Honeypot channel: {channel}. Whoever writes there gets: {action}.',
+      off: 'The honeypot channel is off.',
     },
   },
 };

@@ -19,7 +19,6 @@ const config: ModerationConfig = {
   reportChannelId: null,
   reportRoleId: null,
   lockdown: { channelIds: [], announce: true },
-  honeypot: { channelId: null, action: 'softban', deleteHours: 24, muteSec: 86_400 },
 };
 
 describe('moderation', () => {

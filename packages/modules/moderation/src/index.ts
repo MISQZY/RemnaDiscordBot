@@ -6,7 +6,6 @@ import { defaultModerationConfig, ModerationConfig } from './config.js';
 import { unbanJob, unlockJob } from './jobs.js';
 import { locales } from './locales.js';
 import { contextMenus, MOD_PREFIX, moderationComponent } from './menus.js';
-import { onHoneypotMessage } from './honeypot.js';
 import { onAuditLogEntry } from './native.js';
 
 export { ModCaseDto, ModerationConfig, SYSTEM_MODERATOR } from './config.js';
@@ -27,16 +26,14 @@ export default defineModule({
       .textChannel(config.logChannelId, ['logChannelId'])
       .textChannel(config.reportChannelId, ['reportChannelId'])
       .role(config.reportRoleId, ['reportRoleId'])
-      .channels(config.lockdown.channelIds, ['lockdown', 'channelIds'])
-      .textChannel(config.honeypot.channelId, ['honeypot', 'channelId']).issues,
+      .channels(config.lockdown.channelIds, ['lockdown', 'channelIds']).issues,
   bot: {
-    // Audit log entries (bans, kicks and timeouts done in Discord) come with Guild Moderation; the honeypot needs
-    // messages, not their text.
-    intents: [GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildMessages],
+    // Audit log entries (bans, kicks and timeouts done in Discord) come with Guild Moderation.
+    intents: [GatewayIntentBits.GuildModeration],
     commands,
     contextMenus,
     components: { [MOD_PREFIX]: moderationComponent },
-    events: { guildAuditLogEntryCreate: onAuditLogEntry, messageCreate: onHoneypotMessage },
+    events: { guildAuditLogEntryCreate: onAuditLogEntry },
   },
   jobs: { unban: unbanJob, unlock: unlockJob },
   api: moderationApi,

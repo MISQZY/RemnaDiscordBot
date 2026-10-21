@@ -157,11 +157,30 @@ export async function enforce(ctx: Ctx, message: Message<true>, member: GuildMem
   await log.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => undefined);
 }
 
+/** Who the honeypot leaves alone: the owner and anyone who moderates messages (bots never get here). */
+export function isSpared(member: { id: string; permissions: { has(permission: bigint): boolean }; guild: { ownerId: string } }): boolean {
+  return member.id === member.guild.ownerId || member.permissions.has(PermissionFlagsBits.ManageMessages);
+}
+
+/** A message in the honeypot channel: deleted, and its author punished at once — one punishment for a burst. */
+async function honeypot(ctx: Ctx, message: Message<true>, member: GuildMember, config: AutomodConfig): Promise<void> {
+  await message.delete().catch(() => undefined);
+  if (!(await ctx.redis.set(`automod:honeypot:${message.guildId}:${member.id}`, '1', 'EX', 60, 'NX'))) return;
+  const t = await translator(ctx, message.guildId);
+  const { action, deleteHours, muteSec } = config.honeypot;
+  const punished = await punish(ctx, member, action, { reason: t('automod.honeypot.reason'), durationSec: muteSec, deleteMessageSeconds: deleteHours * 3600 });
+  if (!punished) ctx.logger.warn({ guildId: message.guildId, userId: member.id }, 'Honeypot: the bot could not punish this member');
+}
+
 export async function onMessage(ctx: Ctx, message: Message | PartialMessage): Promise<void> {
   if (message.partial || !message.inGuild() || message.author.bot || message.system || message.webhookId) return;
   const member = message.member ?? (await message.guild.members.fetch(message.author.id).catch(() => null));
   if (!member) return;
   const config = await ctx.getConfig(message.guildId);
+  if (config.honeypot.channelId && message.channelId === config.honeypot.channelId) {
+    if (!isSpared(member)) await honeypot(ctx, message, member, config);
+    return;
+  }
   const violation = await findViolation(ctx, message, member, config);
   if (violation) await enforce(ctx, message, member, config, violation);
 }
