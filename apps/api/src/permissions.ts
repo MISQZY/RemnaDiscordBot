@@ -2,10 +2,12 @@ import { PermissionFlagsBits } from 'discord-api-types/v10';
 
 /**
  * Permissions the bot requests on invite — what its modules need: Manage Server for invite tracking, Discord's
- * AutoMod and pausing invites in a raid; Manage Channels and threads for tickets, temporary voice and counters.
+ * AutoMod and pausing invites in a raid; Manage Channels and threads for tickets, temporary voice and counters;
+ * Change Nickname for the bot's name on a server.
  */
 export const BOT_INVITE_PERMISSIONS =
   PermissionFlagsBits.ViewChannel |
+  PermissionFlagsBits.ChangeNickname |
   PermissionFlagsBits.ManageGuild |
   PermissionFlagsBits.ManageChannels |
   PermissionFlagsBits.ManageThreads |

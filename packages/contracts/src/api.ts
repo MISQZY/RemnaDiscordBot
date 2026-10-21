@@ -78,6 +78,36 @@ export const GuildSettingsPatch = z
   .partial();
 export type GuildSettingsPatch = z.infer<typeof GuildSettingsPatch>;
 
+/** A picture for Discord as the dashboard sends it: a data URI of PNG, JPEG, GIF or WebP, up to 8 MB. */
+export const ImageDataUri = z
+  .string()
+  .max(11_200_000)
+  .regex(/^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/]+=*$/, 'A PNG, JPEG, GIF or WebP data URI');
+
+/** The bot's profile on one server: its own name, avatar, banner and "About me" there; `null` — the global one. */
+export const BotProfile = z.object({
+  nick: z.string().nullable(),
+  avatarUrl: z.string().nullable(),
+  bannerUrl: z.string().nullable(),
+  bio: z.string().nullable(),
+  /** What shows where nothing is set for the server. */
+  global: z.object({ name: z.string(), avatarUrl: z.string().nullable() }),
+  /** Whether the bot's owner lets servers change it (BOT_PROFILE_EDITS). */
+  editable: z.boolean(),
+});
+export type BotProfile = z.infer<typeof BotProfile>;
+
+/** Only what is sent changes; `null` resets to the global profile. */
+export const BotProfilePatch = z
+  .object({
+    nick: z.string().trim().min(1).max(32).nullable(),
+    avatar: ImageDataUri.nullable(),
+    banner: ImageDataUri.nullable(),
+    bio: z.string().trim().max(190).nullable(),
+  })
+  .partial();
+export type BotProfilePatch = z.infer<typeof BotProfilePatch>;
+
 export const GuildOverview = z.object({
   meta: GuildMeta,
   settings: GuildSettings,

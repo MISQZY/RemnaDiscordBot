@@ -27,4 +27,6 @@ export interface ApiOptions {
   linkClients: LinkClient[];
   /** Global request limit per minute per user/IP; 0 — unlimited. */
   rateLimitPerMinute: number;
+  /** Servers may change the bot's profile on them. */
+  botProfileEdits: boolean;
 }

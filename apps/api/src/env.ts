@@ -7,6 +7,11 @@ const ApiEnv = z.object({
   LOG_LEVEL: z.string().default('info'),
   API_HOST: z.string().default('127.0.0.1'),
   API_PORT: z.coerce.number().int().positive().default(3000),
+  /** Servers may change the bot's name, avatar, banner and "About me" on them from the dashboard. */
+  BOT_PROFILE_EDITS: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
   /** Global request limit per minute per user/IP; 0 — unlimited (load tests). */
   API_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().nonnegative().default(120),
   /** Internal port for Prometheus `/metrics`; not published outside the Docker network. */

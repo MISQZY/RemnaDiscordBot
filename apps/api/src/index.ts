@@ -78,6 +78,7 @@ const app = await buildServer({
     linkClients: env.LINK_CLIENTS,
     docs: true,
     rateLimitPerMinute: env.API_RATE_LIMIT_PER_MINUTE,
+    botProfileEdits: env.BOT_PROFILE_EDITS,
   },
 });
 

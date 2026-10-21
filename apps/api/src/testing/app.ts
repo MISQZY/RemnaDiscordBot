@@ -83,6 +83,7 @@ export async function createTestApp({ modules = [], rateLimitPerMinute = 0 }: Te
       linkClients: [TEST_CLIENT],
       docs: true,
       rateLimitPerMinute,
+      botProfileEdits: true,
     },
   };
 
