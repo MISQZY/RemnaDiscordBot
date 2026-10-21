@@ -1,10 +1,12 @@
 import { defineCommand, defineComponent, type InteractionContext } from '@bot/core';
+import { UserDirectory } from '@bot/discord';
 import {
   ActionRowBuilder,
   AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
+  escapeMarkdown,
   GuildMember,
   InteractionContextType,
   MessageFlags,
@@ -14,6 +16,7 @@ import {
 import type { LevelingConfig } from './config.js';
 import { syncRewards } from './bot.js';
 import { levelProgress, progressBar } from './formula.js';
+import { withNames } from './names.js';
 import { rankCardRendererFromEnv } from './rank-card.js';
 import { LevelingService } from './service.js';
 import { levels } from './settings.js';
@@ -24,10 +27,15 @@ export const COMPONENT_PREFIX = 'lvl';
 const rankCards = rankCardRendererFromEnv();
 
 async function leaderboardPage(ctx: InteractionContext<LevelingConfig>, guildId: string, page: number) {
-  const { items, total } = await new LevelingService(ctx.db).leaderboard(guildId, page, PAGE_SIZE);
+  const board = await new LevelingService(ctx.db).leaderboard(guildId, page, PAGE_SIZE);
+  const items = await withNames(board.items, new UserDirectory(ctx.redis, ctx.rest));
+  const { total } = board;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   // Everyone sees the leaderboard and the rank card — use the server's language.
-  const lines = items.map((e) => `**${e.rank}.** <@${e.userId}> · ${ctx.tGuild('leveling.levelShort', { level: e.level })} · ${e.xp} XP`);
+  // By name: a mention of a member the reader's Discord has not loaded shows as a bare ID.
+  const lines = items.map(
+    (e) => `**${e.rank}.** ${e.username ? escapeMarkdown(e.username) : `<@${e.userId}>`} · ${ctx.tGuild('leveling.levelShort', { level: e.level })} · ${e.xp} XP`,
+  );
 
   const embed = new EmbedBuilder()
     .setTitle(ctx.tGuild('leveling.leaderboardTitle'))

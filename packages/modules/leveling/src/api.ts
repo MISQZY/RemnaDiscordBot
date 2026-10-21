@@ -1,7 +1,9 @@
 import { HttpError, type ApiModuleContext, type ModuleServices } from '@bot/core';
+import { UserDirectory } from '@bot/discord';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { LeaderboardEntry, toEntry, type LevelingConfig } from './config.js';
+import { withNames } from './names.js';
 import { LevelingService } from './service.js';
 
 const LeaderboardQuery = z.object({
@@ -13,21 +15,22 @@ const MemberParams = z.object({ guildId: z.string(), userId: z.string() });
 
 const guildId = (request: FastifyRequest) => (request.params as { guildId: string }).guildId;
 
-function leaderboardRoute(app: FastifyInstance, service: LevelingService, guard?: (guildId: string) => Promise<void>) {
+function leaderboardRoute(app: FastifyInstance, service: LevelingService, users: UserDirectory, guard?: (guildId: string) => Promise<void>) {
   app.get(
     '/leaderboard',
     { schema: { tags: ['leveling'], summary: 'XP leaderboard', querystring: LeaderboardQuery, response: { 200: LeaderboardPage } } },
     async (request) => {
       await guard?.(guildId(request));
       const { page, limit } = request.query as z.infer<typeof LeaderboardQuery>;
-      return service.leaderboard(guildId(request), page, limit);
+      const { items, total } = await service.leaderboard(guildId(request), page, limit);
+      return { items: await withNames(items, users), total };
     },
   );
 }
 
 export function levelingApi(app: FastifyInstance, ctx: ApiModuleContext<LevelingConfig>): void {
   const service = new LevelingService(ctx.db);
-  leaderboardRoute(app, service);
+  leaderboardRoute(app, service, new UserDirectory(ctx.redis, ctx.rest));
 
   async function memberEntry(request: FastifyRequest) {
     const { userId } = request.params as { userId: string };
@@ -77,7 +80,7 @@ export function levelingApi(app: FastifyInstance, ctx: ApiModuleContext<Leveling
 
 /** Public leaderboard — when allowed in the settings. */
 export function levelingPublicApi(app: FastifyInstance, ctx: ModuleServices<LevelingConfig>): void {
-  leaderboardRoute(app, new LevelingService(ctx.db), async (id) => {
+  leaderboardRoute(app, new LevelingService(ctx.db), new UserDirectory(ctx.redis, ctx.rest), async (id) => {
     if (!(await ctx.getConfig(id)).publicLeaderboard) throw HttpError.notFound();
   });
 }
