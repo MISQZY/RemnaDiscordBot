@@ -4,6 +4,7 @@ import { welcomeApi } from './api.js';
 import { messageModalHandler, MODAL_PREFIX, welcomeCommand } from './commands/welcome.js';
 import { defaultWelcomeConfig, WelcomeConfig } from './config.js';
 import { greet } from './greet.js';
+import { inviterVars, onInviteJoined } from './inviter.js';
 import { locales } from './locales.js';
 
 export { WelcomeConfig } from './config.js';
@@ -33,6 +34,8 @@ export default defineModule({
     intents: [GatewayIntentBits.GuildMembers],
     commands: [welcomeCommand],
     components: { [MODAL_PREFIX]: messageModalHandler },
+    // The inviter comes from the invites module over the bus.
+    setup: (ctx) => ctx.bus.on('invites.joined', onInviteJoined),
     events: {
       guildMemberAdd: async (ctx, member) => {
         const config = await ctx.getConfig(member.guild.id);
@@ -42,8 +45,9 @@ export default defineModule({
           await ctx.redis.set(pendingKey(member.guild.id, member.id), '1', 'EX', PENDING_TTL_SEC);
           return;
         }
-        await greet('join', member, config, ctx.logger);
-        await greet('dm', member, config, ctx.logger);
+        const vars = await inviterVars(ctx, member.guild.id, member.id, config);
+        await greet('join', member, config, ctx.logger, { vars });
+        await greet('dm', member, config, ctx.logger, { vars });
       },
       guildMemberUpdate: async (ctx, _oldMember, member) => {
         if (member.pending) return;

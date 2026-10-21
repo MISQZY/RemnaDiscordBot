@@ -1,12 +1,14 @@
 import { memberTemplateVars } from '@bot/discord';
 import type { Logger } from '@bot/logger';
-import { renderMessage } from '@bot/templates';
+import { renderMessage, type TemplateVars } from '@bot/templates';
 import type { GuildMember, PartialGuildMember } from 'discord.js';
 import type { WelcomeConfig, WelcomeKind } from './config.js';
 
 export interface GreetOptions {
   /** Send even when the message is disabled in the config (a test send). */
   force?: boolean;
+  /** Placeholders found elsewhere: the inviter of the invites module. */
+  vars?: TemplateVars;
 }
 
 /** Sends the welcome, farewell or DM. Returns whether anything was sent. */
@@ -15,12 +17,12 @@ export async function greet(
   member: GuildMember | PartialGuildMember,
   config: WelcomeConfig,
   logger: Logger,
-  { force = false }: GreetOptions = {},
+  { force = false, vars = {} }: GreetOptions = {},
 ): Promise<boolean> {
   const settings = kind === 'join' ? config.join : kind === 'leave' ? config.leave : config.joinDm;
   if (!settings.enabled && !force) return false;
 
-  const message = renderMessage(settings.message, memberTemplateVars(member));
+  const message = renderMessage(settings.message, { ...memberTemplateVars(member), ...vars });
 
   if (kind === 'dm') {
     try {
