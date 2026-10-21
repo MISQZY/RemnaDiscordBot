@@ -1,6 +1,6 @@
 import { defineCommand, localizeCommand, type AnyModule } from '@bot/core';
 import type { I18n } from '@bot/i18n';
-import { EmbedBuilder, MessageFlags, SlashCommandBuilder } from 'discord.js';
+import { ApplicationCommandType, EmbedBuilder, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import type { GeneralConfig } from '../config.js';
 
 export interface HelpSection {
@@ -87,7 +87,9 @@ export const help = defineCommand<GeneralConfig>({
       interaction.guild?.commands.fetch().catch(() => null),
     ]);
     const commandIds = new Map<string, string>();
-    for (const command of [...(global?.values() ?? []), ...(guild?.values() ?? [])]) commandIds.set(command.name, command.id);
+    for (const command of [...(global?.values() ?? []), ...(guild?.values() ?? [])]) {
+      if (command.type === ApplicationCommandType.ChatInput) commandIds.set(command.name, command.id);
+    }
 
     const moduleCommands = new Set(ctx.registry.allCommands().map(({ item }) => item.data.name));
     const modules = ctx.registry.all();
@@ -97,7 +99,10 @@ export const help = defineCommand<GeneralConfig>({
       modules,
       enabled,
       commandIds,
-      extraCommands: [...(guild?.values() ?? [])].filter((c) => !moduleCommands.has(c.name)).map((c) => ({ name: c.name, description: c.description })),
+      // Menu commands (Apps) have no slash to show.
+      extraCommands: [...(guild?.values() ?? [])]
+        .filter((c) => c.type === ApplicationCommandType.ChatInput && !moduleCommands.has(c.name))
+        .map((c) => ({ name: c.name, description: c.description })),
       locale: interaction.locale,
       i18n: ctx.i18n,
       moduleName: (id) => (ctx.i18n.has(`${id}.name`, ctx.locale) ? ctx.t(`${id}.name`) : id),

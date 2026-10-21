@@ -1,9 +1,18 @@
 import { localizedCommandPayloads, registerCoreLocales, type ModuleRegistry } from '@bot/core';
 import { I18n } from '@bot/i18n';
 import type { Logger } from '@bot/logger';
-import { Routes, type APIApplicationCommand, type REST, type RESTPostAPIChatInputApplicationCommandsJSONBody } from 'discord.js';
+import {
+  Routes,
+  type APIApplicationCommand,
+  type REST,
+  type RESTPostAPIChatInputApplicationCommandsJSONBody,
+  type RESTPostAPIContextMenuApplicationCommandsJSONBody,
+} from 'discord.js';
 
-type CommandBody = RESTPostAPIChatInputApplicationCommandsJSONBody;
+type CommandBody = RESTPostAPIChatInputApplicationCommandsJSONBody | RESTPostAPIContextMenuApplicationCommandsJSONBody;
+
+/** Slash commands have no `type` in our payloads; a user and a message menu command may share a name. */
+const commandKey = (command: { type?: number; name: string }) => `${command.type ?? 1}:${command.name}`;
 
 /** Slash command JSON of all modules with translations from their dictionaries. */
 export function collectCommandPayloads(registry: ModuleRegistry): CommandBody[] {
@@ -14,7 +23,7 @@ export function collectCommandPayloads(registry: ModuleRegistry): CommandBody[] 
 }
 
 /** Command fields we set; the rest (id, version…) Discord adds itself. */
-const COMPARED_KEYS = ['name', 'description', 'options', 'name_localizations', 'description_localizations', 'default_member_permissions', 'contexts'] as const;
+const COMPARED_KEYS = ['type', 'name', 'description', 'options', 'name_localizations', 'description_localizations', 'default_member_permissions', 'contexts'] as const;
 
 /** Canonical form for comparison: no empty values and sorted keys. */
 function canonical(value: unknown): unknown {
@@ -30,7 +39,8 @@ function canonical(value: unknown): unknown {
 /** `guild` — guild commands: Discord does not store `contexts` for them, so it is not compared. */
 export function sameCommand(existing: Partial<APIApplicationCommand>, desired: CommandBody, scope: 'global' | 'guild' = 'global'): boolean {
   const keys = scope === 'guild' ? COMPARED_KEYS.filter((key) => key !== 'contexts') : COMPARED_KEYS;
-  const pick = (command: object) => Object.fromEntries(keys.map((key) => [key, (command as Record<string, unknown>)[key]]));
+  // Discord answers with `type` 1 for slash commands, which our payloads leave out.
+  const pick = (command: object) => Object.fromEntries(keys.map((key) => [key, key === 'type' ? ((command as { type?: number }).type ?? 1) : (command as Record<string, unknown>)[key]]));
   return JSON.stringify(canonical(pick(existing))) === JSON.stringify(canonical(pick(desired)));
 }
 
@@ -62,20 +72,20 @@ export async function syncCommands(rest: REST, body: CommandBody[], { guildId, a
 
   if (!guildId) {
     const existing = (await rest.get(globalRoute, WITH_LOCALIZATIONS)) as APIApplicationCommand[];
-    const byName = new Map(existing.map((c) => [c.name, c]));
-    const changed = existing.length !== body.length || body.some((command) => !byName.has(command.name) || !sameCommand(byName.get(command.name)!, command));
+    const byKey = new Map(existing.map((c) => [commandKey(c), c]));
+    const changed = existing.length !== body.length || body.some((command) => !byKey.has(commandKey(command)) || !sameCommand(byKey.get(commandKey(command))!, command));
     if (changed) {
       await rest.put(globalRoute, { body });
-      for (const command of body) (byName.has(command.name) ? result.updated : result.created).push(command.name);
+      for (const command of body) (byKey.has(commandKey(command)) ? result.updated : result.created).push(command.name);
     }
     return result;
   }
 
   // The guild also has custom commands — update one by one without touching anything else.
   const guildRoute = Routes.applicationGuildCommands(appId, guildId);
-  const existing = new Map(((await rest.get(guildRoute, WITH_LOCALIZATIONS)) as APIApplicationCommand[]).map((c) => [c.name, c]));
+  const existing = new Map(((await rest.get(guildRoute, WITH_LOCALIZATIONS)) as APIApplicationCommand[]).map((c) => [commandKey(c), c]));
   for (const command of body) {
-    const current = existing.get(command.name);
+    const current = existing.get(commandKey(command));
     if (!current) {
       await rest.post(guildRoute, { body: command });
       result.created.push(command.name);

@@ -15,6 +15,21 @@ describe('ModuleRegistry', () => {
     expect(registry.subscribedEvents()).toEqual(['messageCreate']);
   });
 
+  it('finds context menu commands by type and name and refuses duplicates', () => {
+    const menu = (type: 2 | 3, name: string) => ({ key: name, data: { name, toJSON: () => ({ type, name }) }, async execute() {} });
+    const leveling = createTestModule('leveling');
+    leveling.bot!.contextMenus = [menu(2, 'Report'), menu(3, 'Report')];
+    const registry = new ModuleRegistry([leveling]);
+
+    expect(registry.findContextMenu(2, 'Report')?.module.id).toBe('leveling');
+    expect(registry.findContextMenu(3, 'Report')).toBeDefined();
+    expect(registry.allContextMenus()).toHaveLength(2);
+
+    const welcome = createTestModule('welcome');
+    welcome.bot!.contextMenus = [menu(2, 'Report')];
+    expect(() => registry.register(welcome)).toThrow(/already registered/);
+  });
+
   it('merges gateway intents of all modules', () => {
     const leveling = createTestModule('leveling');
     leveling.bot!.intents = [GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent];

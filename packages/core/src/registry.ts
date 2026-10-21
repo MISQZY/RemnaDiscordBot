@@ -2,7 +2,7 @@ import { ModuleId } from '@bot/contracts';
 import type { I18n } from '@bot/i18n';
 import type { ClientEvents, GatewayIntentBits, Partials } from 'discord.js';
 import { CORE_NAMESPACE } from './locales.js';
-import type { AnyModule, ComponentHandler, EventHandlers, FallbackCommand, JobHandler, SlashCommand } from './module.js';
+import type { AnyModule, ComponentHandler, ContextMenuCommand, EventHandlers, FallbackCommand, JobHandler, SlashCommand } from './module.js';
 
 export interface Registered<T> {
   module: AnyModule;
@@ -11,9 +11,16 @@ export interface Registered<T> {
 
 type AnyEventHandler = NonNullable<EventHandlers<unknown>[keyof ClientEvents]>;
 
+const contextMenuKey = (command: ContextMenuCommand) => {
+  const { type, name } = command.data.toJSON();
+  return `${type}:${name}`;
+};
+
 export class ModuleRegistry {
   private readonly modules = new Map<string, AnyModule>();
   private readonly commands = new Map<string, Registered<SlashCommand>>();
+  /** By `<type>:<name>`: a user and a message command may share a name. */
+  private readonly contextMenus = new Map<string, Registered<ContextMenuCommand>>();
   private readonly components = new Map<string, Registered<ComponentHandler>>();
   private readonly events = new Map<keyof ClientEvents, Registered<AnyEventHandler>[]>();
   private fallback: Registered<FallbackCommand> | undefined;
@@ -37,6 +44,10 @@ export class ModuleRegistry {
       const owner = this.commands.get(command.data.name);
       if (owner) throw new Error(`Command "/${command.data.name}" is already registered by "${owner.module.id}"`);
     }
+    for (const command of module.bot?.contextMenus ?? []) {
+      const owner = this.contextMenus.get(contextMenuKey(command));
+      if (owner) throw new Error(`Context menu "${command.data.name}" is already registered by "${owner.module.id}"`);
+    }
     for (const prefix of Object.keys(module.bot?.components ?? {})) {
       const owner = this.components.get(prefix);
       if (owner) throw new Error(`Component prefix "${prefix}" is already registered by "${owner.module.id}"`);
@@ -50,6 +61,9 @@ export class ModuleRegistry {
     if (module.bot?.fallbackCommand) this.fallback = { module, item: module.bot.fallbackCommand };
     for (const command of module.bot?.commands ?? []) {
       this.commands.set(command.data.name, { module, item: command });
+    }
+    for (const command of module.bot?.contextMenus ?? []) {
+      this.contextMenus.set(contextMenuKey(command), { module, item: command });
     }
     for (const [prefix, handler] of Object.entries(module.bot?.components ?? {})) {
       this.components.set(prefix, { module, item: handler });
@@ -85,6 +99,15 @@ export class ModuleRegistry {
 
   findCommand(name: string): Registered<SlashCommand> | undefined {
     return this.commands.get(name);
+  }
+
+  allContextMenus(): Registered<ContextMenuCommand>[] {
+    return [...this.contextMenus.values()];
+  }
+
+  /** `type` — 2 for the user menu, 3 for the message menu (ApplicationCommandType). */
+  findContextMenu(type: number, name: string): Registered<ContextMenuCommand> | undefined {
+    return this.contextMenus.get(`${type}:${name}`);
   }
 
   /** Handler for commands that are not in the registry. */

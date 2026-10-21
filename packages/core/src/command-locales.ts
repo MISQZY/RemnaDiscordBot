@@ -1,8 +1,10 @@
 import type { I18n } from '@bot/i18n';
-import type { RESTPostAPIChatInputApplicationCommandsJSONBody } from 'discord.js';
+import type { RESTPostAPIChatInputApplicationCommandsJSONBody, RESTPostAPIContextMenuApplicationCommandsJSONBody } from 'discord.js';
+import type { ContextMenuCommand } from './module.js';
 import type { ModuleRegistry } from './registry.js';
 
 type CommandJson = RESTPostAPIChatInputApplicationCommandsJSONBody;
+type ContextMenuJson = RESTPostAPIContextMenuApplicationCommandsJSONBody;
 
 interface Node {
   name: string;
@@ -66,7 +68,23 @@ function localizeNode(node: Node, key: string, i18n: I18n, isOption: boolean): v
   }
 }
 
-/** JSON of all modules' slash commands with translations from the dictionaries. */
-export function localizedCommandPayloads(registry: ModuleRegistry, i18n: I18n): CommandJson[] {
-  return registry.allCommands().map(({ module, item }) => localizeCommand(item.data.toJSON(), i18n, module.id));
+/**
+ * A context menu command with its translated names: `<module>.contextMenus.<key>`. The builder's English name stays
+ * the base one — the dispatcher finds the command by it.
+ */
+export function localizeContextMenu(command: ContextMenuCommand, i18n: I18n, moduleId: string): ContextMenuJson {
+  const json = structuredClone(command.data.toJSON());
+  const names = i18n.localizations(`${moduleId}.contextMenus.${command.key}`);
+  delete names['en-US'];
+  delete names['en-GB'];
+  if (Object.keys(names).length > 0) json.name_localizations = { ...json.name_localizations, ...names };
+  return json;
+}
+
+/** JSON of all modules' slash and context menu commands with translations from the dictionaries. */
+export function localizedCommandPayloads(registry: ModuleRegistry, i18n: I18n): (CommandJson | ContextMenuJson)[] {
+  return [
+    ...registry.allCommands().map(({ module, item }) => localizeCommand(item.data.toJSON(), i18n, module.id)),
+    ...registry.allContextMenus().map(({ module, item }) => localizeContextMenu(item, i18n, module.id)),
+  ];
 }

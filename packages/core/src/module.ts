@@ -5,11 +5,14 @@ import type {
   Awaitable,
   ChatInputCommandInteraction,
   ClientEvents,
+  MessageContextMenuCommandInteraction,
   GatewayIntentBits,
   Partials,
   MessageComponentInteraction,
   ModalSubmitInteraction,
   RESTPostAPIChatInputApplicationCommandsJSONBody,
+  RESTPostAPIContextMenuApplicationCommandsJSONBody,
+  UserContextMenuCommandInteraction,
 } from 'discord.js';
 import type { FastifyInstance } from 'fastify';
 import type { z } from 'zod';
@@ -34,6 +37,21 @@ export interface SlashCommand<TConfig = unknown> {
   autocomplete?(interaction: AutocompleteInteraction, ctx: InteractionContext<TConfig>): Promise<void>;
 }
 
+/**
+ * A command in the user or message menu (Apps). Its name is shown to users, so it is translated:
+ * `<module>.contextMenus.<key>` in the module's dictionaries; the builder's name is the English one.
+ */
+export interface ContextMenuCommand<TConfig = unknown> {
+  key: string;
+  /** A `ContextMenuCommandBuilder` or any object with the same contract. */
+  data: { name: string; toJSON(): RESTPostAPIContextMenuApplicationCommandsJSONBody };
+  cooldownMs?: number;
+  execute(
+    interaction: UserContextMenuCommandInteraction | MessageContextMenuCommandInteraction,
+    ctx: InteractionContext<TConfig>,
+  ): Promise<void>;
+}
+
 export interface FallbackCommand<TConfig = unknown> {
   execute(interaction: ChatInputCommandInteraction, ctx: InteractionContext<TConfig>): Promise<void>;
 }
@@ -55,6 +73,8 @@ export interface BotFacet<TConfig> {
   /** discord.js partials — events for uncached objects (deleting old messages, etc.). */
   partials?: Partials[];
   commands?: SlashCommand<TConfig>[];
+  /** Commands in the user and message menus (Apps). */
+  contextMenus?: ContextMenuCommand<TConfig>[];
   events?: EventHandlers<TConfig>;
   /** Component handlers by `customId` prefix (the part before the first `:`). */
   components?: Record<string, ComponentHandler<TConfig>>;
@@ -125,6 +145,10 @@ export function defineModule<TSchema extends z.ZodType>(module: ModuleDefinition
 }
 
 export function defineCommand<TConfig = unknown>(command: SlashCommand<TConfig>): SlashCommand<TConfig> {
+  return command;
+}
+
+export function defineContextMenu<TConfig = unknown>(command: ContextMenuCommand<TConfig>): ContextMenuCommand<TConfig> {
   return command;
 }
 

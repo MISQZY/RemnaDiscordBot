@@ -10,7 +10,7 @@ import {
 } from 'discord.js';
 import type { BotModuleContext, BotServices } from '../context.js';
 import { metrics } from '../metrics.js';
-import type { AnyModule, InteractionContext, SlashCommand } from '../module.js';
+import type { AnyModule, ContextMenuCommand, InteractionContext, SlashCommand } from '../module.js';
 import { RedisKeys } from '../redis-keys.js';
 import type { ModuleRegistry } from '../registry.js';
 import { extractGuildId } from './guild-id.js';
@@ -121,6 +121,23 @@ export class Dispatcher {
         return;
       }
 
+      if (interaction.isContextMenuCommand()) {
+        const entry = this.registry.findContextMenu(interaction.commandType, interaction.commandName);
+        if (!entry) return;
+        const ctx = await this.interactionContext(entry.module, interaction);
+        if (!(await this.isEnabledFor(entry.module, interaction.guildId))) {
+          await interaction.reply(this.ephemeral(ctx.t('core.moduleDisabled', { module: this.moduleName(entry.module, ctx), id: entry.module.id })));
+          return;
+        }
+        const retryAfterMs = await this.acquireCooldown(entry.item, interaction.user.id);
+        if (retryAfterMs > 0) {
+          await interaction.reply(this.ephemeral(ctx.t('core.cooldown', { seconds: Math.ceil(retryAfterMs / 1000) })));
+          return;
+        }
+        await this.timeCommand(entry.module, `menu:${entry.item.key}`, () => entry.item.execute(interaction, ctx));
+        return;
+      }
+
       if (interaction.isMessageComponent() || interaction.isModalSubmit()) {
         const entry = this.registry.findComponent(interaction.customId);
         if (!entry) return;
@@ -177,9 +194,9 @@ export class Dispatcher {
   }
 
   /** Returns 0 when the cooldown was taken, otherwise how many milliseconds to wait. */
-  private async acquireCooldown(command: SlashCommand, userId: string): Promise<number> {
+  private async acquireCooldown(command: SlashCommand | ContextMenuCommand, userId: string): Promise<number> {
     if (!command.cooldownMs) return 0;
-    const key = RedisKeys.cooldown(command.data.name, userId);
+    const key = RedisKeys.cooldown('key' in command ? `menu:${command.key}` : command.data.name, userId);
     const acquired = await this.services.redis.set(key, '1', 'PX', command.cooldownMs, 'NX');
     if (acquired) return 0;
     return Math.max(await this.services.redis.pttl(key), 1);
