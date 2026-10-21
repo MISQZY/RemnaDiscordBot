@@ -23,4 +23,8 @@ export class HttpError extends Error {
   static notFound(message = 'Not found') {
     return new HttpError(404, 'NOT_FOUND', message);
   }
+
+  static tooManyRequests(message: string) {
+    return new HttpError(429, 'RATE_LIMITED', message);
+  }
 }
