@@ -50,6 +50,12 @@ lavalink:
     youtubeSearchEnabled: false
     soundcloudSearchEnabled: true
     gc-warnings: true
+    # yt-cipher takes a while on a new YouTube player script: with the default timeouts TV playback fails with
+    # "Read timed out" (as its README warns).
+    timeouts:
+      connectTimeoutMs: 10000
+      connectionRequestTimeoutMs: 10000
+      socketTimeoutMs: 10000
 
 # Values from the container's environment (docker-compose.yml passes them from .env): ${NAME:default}.
 plugins:
