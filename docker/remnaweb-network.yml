@@ -1,0 +1,14 @@
+# Bot on the same server as RemnaWeb: the API joins the Docker network of the Remnawave panel and RemnaWeb, where
+# RemnaWeb reaches it as http://discord-bot-api:3000 and the panel's reverse proxy serves its public domain.
+# COMPOSE_FILE=docker-compose.yml:docker/remnaweb-network.yml
+services:
+  api:
+    networks:
+      default:
+      remnaweb:
+        aliases: [discord-bot-api]
+
+networks:
+  remnaweb:
+    name: ${REMNAWEB_NETWORK:-remnawave-network}
+    external: true

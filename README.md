@@ -129,6 +129,10 @@ cp .env.example .env
 
 `deploy.sh` подтягивает код, скачивает образы, останавливает приложение, делает дамп базы в `backups/pre-deploy.dump`, применяет миграции и ждёт healthy. Если контейнеры не поднялись — восстанавливает дамп и возвращает прошлые образы. Удачный тег закрепляется в `.env` (`IMAGE_TAG`).
 
+### RemnaWeb на том же сервере
+
+`COMPOSE_FILE=docker-compose.yml:docker/remnaweb-network.yml` подключает API к сети `remnawave-network` (другое имя — `REMNAWEB_NETWORK`) под именем `discord-bot-api`: RemnaWeb ходит в него по `DISCORD_API_URL=http://discord-bot-api:3000`, а reverse proxy панели отдаёт публичный домен API (`API_PUBLIC_URL`) на `discord-bot-api:3000`. Вместе с мониторингом файлы перечисляются через `:`.
+
 ### Мониторинг
 
 Prometheus и Grafana — внешние (стек мониторинга RemnaWeb). `/metrics` отдают менеджер бота (`:3001`, с метриками всех кластеров), воркер (`:3002`) и API (`:9464`, только внутри Docker-сети).
