@@ -131,7 +131,7 @@ cp .env.example .env
 
 ### RemnaWeb на том же сервере
 
-`COMPOSE_FILE=docker-compose.yml:docker/remnaweb-network.yml` подключает API к сети `remnawave-network` (другое имя — `REMNAWEB_NETWORK`) под именем `discord-bot-api`: RemnaWeb ходит в него по `DISCORD_API_URL=http://discord-bot-api:3000`, а reverse proxy панели отдаёт публичный домен API (`API_PUBLIC_URL`) на `discord-bot-api:3000`. Вместе с мониторингом файлы перечисляются через `:`.
+Не подключайте сервисы бота к сети `remnawave-network`: Compose регистрирует их там и под именами сервисов, а `api` в этой сети — API RemnaWeb, на который шлюз RemnaWeb отправляет `/api/*`; запросы начнут уходить в API бота. Вместо этого reverse proxy подключается к сети бота (`docker network connect discord-bot_default <прокси>`) и отдаёт публичный домен API (`API_PUBLIC_URL`) на `discord-bot-api-1:3000`, а RemnaWeb ходит в бота по этому публичному адресу (`DISCORD_API_URL` = `DISCORD_API_PUBLIC_URL`).
 
 ### Мониторинг
 
