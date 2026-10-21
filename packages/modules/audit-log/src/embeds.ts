@@ -91,6 +91,8 @@ export function memberUpdated(
     rolesAdded: string[];
     rolesRemoved: string[];
     timeoutUntil?: number | null;
+    /** The server avatar changed: the new one, `null` when it was removed. */
+    avatarUrl?: string | null;
   },
 ): APIEmbed | null {
   const fields: NonNullable<APIEmbed['fields']> = [];
@@ -105,8 +107,16 @@ export function memberUpdated(
   if (data.timeoutUntil !== undefined) {
     fields.push({ name: t('audit-log.fields.timeout'), value: data.timeoutUntil ? time(data.timeoutUntil, 'f') : t('audit-log.members.timeoutRemoved') });
   }
+  if (data.avatarUrl !== undefined) fields.push({ name: t('audit-log.fields.serverAvatar'), value: data.avatarUrl ?? t('audit-log.members.avatarRemoved') });
   if (fields.length === 0) return null;
-  return { title: t('audit-log.members.updated'), color: COLOR.update, description: user(data.userId), fields, timestamp: new Date().toISOString() };
+  return {
+    title: t('audit-log.members.updated'),
+    color: COLOR.update,
+    description: user(data.userId),
+    fields,
+    ...(data.avatarUrl ? { thumbnail: { url: data.avatarUrl } } : {}),
+    timestamp: new Date().toISOString(),
+  };
 }
 
 export function voiceChanged(t: Translate, data: { userId: string; from: string | null; to: string | null }): APIEmbed | null {
@@ -124,12 +134,39 @@ export function voiceChanged(t: Translate, data: { userId: string; from: string 
   };
 }
 
-export function serverChanged(t: Translate, data: { kind: 'channelCreated' | 'channelDeleted' | 'roleCreated' | 'roleDeleted'; name: string; id: string }): APIEmbed {
+export type ServerChange =
+  | 'channelCreated'
+  | 'channelDeleted'
+  | 'roleCreated'
+  | 'roleDeleted'
+  | 'threadCreated'
+  | 'threadDeleted'
+  | 'emojiCreated'
+  | 'emojiDeleted'
+  | 'stickerCreated'
+  | 'stickerDeleted'
+  | 'inviteDeleted';
+
+export function serverChanged(t: Translate, data: { kind: ServerChange; name: string; id: string; parentId?: string | null; authorId?: string | null }): APIEmbed {
   const created = data.kind.endsWith('Created');
   return {
     title: t(`audit-log.server.${data.kind}`),
     color: created ? COLOR.create : COLOR.delete,
     description: `**${data.name}** (\`${data.id}\`)`,
+    fields: [
+      ...(data.parentId ? [{ name: t('audit-log.fields.channel'), value: channel(data.parentId), inline: true }] : []),
+      ...(data.authorId ? [{ name: t('audit-log.fields.author'), value: user(data.authorId), inline: true }] : []),
+    ],
+    timestamp: new Date().toISOString(),
+  };
+}
+
+/** The webhooks of a channel changed: Discord does not say which, only where. */
+export function webhooksUpdated(t: Translate, data: { channelId: string }): APIEmbed {
+  return {
+    title: t('audit-log.server.webhooksUpdated'),
+    color: COLOR.update,
+    description: channel(data.channelId),
     timestamp: new Date().toISOString(),
   };
 }
@@ -137,12 +174,12 @@ export function serverChanged(t: Translate, data: { kind: 'channelCreated' | 'ch
 /** A before → after line per changed property; `null` when nothing visible changed. */
 export function entityUpdated(
   t: Translate,
-  data: { kind: 'channel' | 'role'; id: string; name: string; changes: { field: string; before: string; after: string }[] },
+  data: { kind: 'channel' | 'role' | 'thread' | 'emoji' | 'sticker' | 'guild'; id: string; name: string; changes: { field: string; before: string; after: string }[] },
 ): APIEmbed | null {
   if (data.changes.length === 0) return null;
-  const mention = data.kind === 'channel' ? channel(data.id) : `<@&${data.id}>`;
+  const mention = data.kind === 'channel' || data.kind === 'thread' ? channel(data.id) : data.kind === 'role' ? `<@&${data.id}>` : `\`${data.id}\``;
   return {
-    title: t(data.kind === 'channel' ? 'audit-log.server.channelUpdated' : 'audit-log.server.roleUpdated'),
+    title: t(`audit-log.server.${data.kind}Updated`),
     color: COLOR.update,
     description: `${mention} · **${data.name}**`,
     fields: data.changes.map((c) => ({ name: t(`audit-log.changes.${c.field}`), value: `${c.before || '—'} → ${c.after || '—'}`.slice(0, 1024) })),

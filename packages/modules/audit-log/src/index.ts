@@ -28,6 +28,7 @@ export default defineModule({
       GatewayIntentBits.GuildVoiceStates,
       GatewayIntentBits.GuildModeration,
       GatewayIntentBits.GuildInvites,
+      GatewayIntentBits.GuildWebhooks,
     ],
     // The bot caches neither messages nor all members — their events arrive as partials.
     partials: [Partials.Message, Partials.GuildMember, Partials.User],

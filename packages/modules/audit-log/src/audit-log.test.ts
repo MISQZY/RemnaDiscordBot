@@ -4,8 +4,8 @@ import { createLogger } from '@bot/logger';
 import { createTestRedis } from '@bot/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { defaultAuditLogConfig, type AuditLogConfig } from './config.js';
-import { caseCreated, entityUpdated, memberUpdated, messageDeleted, voiceChanged } from './embeds.js';
-import { onCaseCreated } from './handlers.js';
+import { caseCreated, entityUpdated, memberUpdated, messageDeleted, serverChanged, voiceChanged } from './embeds.js';
+import { onCaseCreated, overwriteChanges } from './handlers.js';
 import auditLog from './index.js';
 
 const i18n = new I18n('ru');
@@ -24,6 +24,31 @@ describe('embeds', () => {
     const unknown = messageDeleted(t, { authorId: null, channelId: '2', content: null, attachments: [], createdAt: null });
     expect(unknown.fields?.[0]?.value).toBe('неизвестно');
     expect(unknown.fields?.at(-1)?.value).toContain('текст недоступен');
+  });
+
+  it('describes changed channel overwrites per role and member', () => {
+    const perms = (allow: bigint, deny: bigint, names: { allow: string[]; deny: string[] }) => ({
+      allow: { bitfield: allow, toArray: () => names.allow },
+      deny: { bitfield: deny, toArray: () => names.deny },
+    });
+    const before = { cache: new Map([[GUILD, { id: GUILD, type: 0, ...perms(0n, 0n, { allow: [], deny: [] }) }]]) };
+    const after = {
+      cache: new Map([
+        [GUILD, { id: GUILD, type: 0, ...perms(0n, 2048n, { allow: [], deny: ['SendMessages'] }) }],
+        ['5', { id: '5', type: 1, ...perms(1024n, 0n, { allow: ['ViewChannel'], deny: [] }) }],
+      ]),
+    };
+    expect(overwriteChanges(before, after, GUILD)).toEqual([
+      { field: 'overwrite', before: '@everyone: —', after: '-SendMessages' },
+      { field: 'overwrite', before: '<@5>: —', after: '+ViewChannel' },
+    ]);
+    expect(overwriteChanges(after, after, GUILD)).toEqual([]);
+  });
+
+  it('names threads with their channel and author', () => {
+    const embed = serverChanged(t, { kind: 'threadCreated', name: 'help', id: '9', parentId: TEXT_CHANNEL, authorId: '1' });
+    expect(embed.title).toBe('Создана ветка');
+    expect(embed.fields?.map((f) => f.value)).toEqual([`<#${TEXT_CHANNEL}>`, '<@1> (`1`)']);
   });
 
   it('skips member updates without visible changes', () => {

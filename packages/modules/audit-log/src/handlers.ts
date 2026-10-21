@@ -37,6 +37,26 @@ async function prepare(ctx: Ctx, guild: Guild, category: LogCategory) {
   return { config, t, send };
 }
 
+/** Who an overwrite is for, as Discord shows it in the channel settings. */
+const overwriteTarget = (overwrite: { id: string; type: number }, guildId: string) =>
+  overwrite.id === guildId ? '@everyone' : overwrite.type === 0 ? `<@&${overwrite.id}>` : `<@${overwrite.id}>`;
+
+type Overwrites = { cache: ReadonlyMap<string, { id: string; type: number; allow: { bitfield: bigint; toArray(): string[] }; deny: { bitfield: bigint; toArray(): string[] } }> };
+
+/** Overwrites added, removed or changed between two snapshots of a channel: one line per role or member. */
+export function overwriteChanges(before: Overwrites, after: Overwrites, guildId: string): { field: string; before: string; after: string }[] {
+  const ids = new Set([...before.cache.keys(), ...after.cache.keys()]);
+  const lines: { field: string; before: string; after: string }[] = [];
+  for (const id of ids) {
+    const old = before.cache.get(id);
+    const now = after.cache.get(id);
+    const describe = (o: typeof old) => (o ? [...o.allow.toArray().map((p) => `+${p}`), ...o.deny.toArray().map((p) => `-${p}`)].join(' ') : '');
+    if (old && now && old.allow.bitfield === now.allow.bitfield && old.deny.bitfield === now.deny.bitfield) continue;
+    lines.push({ field: 'overwrite', before: `${overwriteTarget((old ?? now)!, guildId)}: ${describe(old) || '—'}`, after: describe(now) });
+  }
+  return lines;
+}
+
 /** Properties whose text differs between two snapshots. */
 function diff<T extends Record<string, string>>(before: T, after: T): { field: string; before: string; after: string }[] {
   return Object.keys(after)
@@ -49,7 +69,8 @@ function diff<T extends Record<string, string>>(before: T, after: T): { field: s
  * kicks, mutes and warnings have no event of their own in this category.
  */
 export async function onCaseCreated(ctx: Ctx, { guildId, case: modCase }: { guildId: string; case: ModCaseDto }): Promise<void> {
-  if (modCase.type === 'ban' || modCase.type === 'unban') return;
+  // Notes are the moderators' own; bans come from guildBanAdd.
+  if (modCase.type === 'ban' || modCase.type === 'unban' || modCase.type === 'note') return;
   if (!(await ctx.config.isEnabled(guildId, ctx.moduleId))) return;
   const guild = ctx.client.guilds.cache.get(guildId);
   if (!guild) return;
@@ -146,6 +167,7 @@ export function createHandlers(): EventHandlers<AuditLogConfig> {
       const after = new Set(newMember.roles.cache.keys());
       const oldTimeout = oldMember.communicationDisabledUntilTimestamp ?? null;
       const newTimeout = newMember.communicationDisabledUntilTimestamp ?? null;
+      const avatarChanged = oldMember.avatar !== newMember.avatar;
 
       await log.send(
         embeds.memberUpdated(log.t, {
@@ -154,6 +176,7 @@ export function createHandlers(): EventHandlers<AuditLogConfig> {
           rolesAdded: [...after].filter((id) => !before.has(id)),
           rolesRemoved: [...before].filter((id) => !after.has(id)),
           timeoutUntil: oldTimeout !== newTimeout ? newTimeout : undefined,
+          avatarUrl: avatarChanged ? (newMember.avatarURL({ size: 256 }) ?? null) : undefined,
         }),
       );
     },
@@ -187,7 +210,88 @@ export function createHandlers(): EventHandlers<AuditLogConfig> {
         slowmode: 'rateLimitPerUser' in channel ? `${channel.rateLimitPerUser ?? 0} s` : '',
         parent: channel.parentId ? `<#${channel.parentId}>` : '',
       });
-      await log.send(embeds.entityUpdated(log.t, { kind: 'channel', id: newChannel.id, name: newChannel.name, changes: diff(read(oldChannel), read(newChannel)) }));
+      const changes = [...diff(read(oldChannel), read(newChannel)), ...overwriteChanges(oldChannel.permissionOverwrites, newChannel.permissionOverwrites, newChannel.guild.id)];
+      await log.send(embeds.entityUpdated(log.t, { kind: 'channel', id: newChannel.id, name: newChannel.name, changes }));
+    },
+
+    threadCreate: async (ctx, thread, newlyCreated) => {
+      if (!newlyCreated) return;
+      const log = await prepare(ctx, thread.guild, 'server');
+      if (!log || isIgnored(log.config, { channelId: thread.parentId })) return;
+      await log.send(embeds.serverChanged(log.t, { kind: 'threadCreated', name: thread.name, id: thread.id, parentId: thread.parentId, authorId: thread.ownerId }));
+    },
+
+    threadDelete: async (ctx, thread) => {
+      const log = await prepare(ctx, thread.guild, 'server');
+      if (!log || isIgnored(log.config, { channelId: thread.parentId })) return;
+      await log.send(embeds.serverChanged(log.t, { kind: 'threadDeleted', name: thread.name, id: thread.id, parentId: thread.parentId }));
+    },
+
+    threadUpdate: async (ctx, oldThread, newThread) => {
+      const log = await prepare(ctx, newThread.guild, 'server');
+      if (!log || isIgnored(log.config, { channelId: newThread.parentId })) return;
+      const yesNo = (value: boolean | null) => log.t(value ? 'audit-log.yes' : 'audit-log.no');
+      const read = (thread: typeof newThread) => ({ name: thread.name, archived: yesNo(thread.archived), locked: yesNo(thread.locked) });
+      await log.send(embeds.entityUpdated(log.t, { kind: 'thread', id: newThread.id, name: newThread.name, changes: diff(read(oldThread), read(newThread)) }));
+    },
+
+    emojiCreate: async (ctx, emoji) => {
+      const log = await prepare(ctx, emoji.guild, 'server');
+      await log?.send(embeds.serverChanged(log.t, { kind: 'emojiCreated', name: `${emoji.toString()} :${emoji.name}:`, id: emoji.id }));
+    },
+
+    emojiDelete: async (ctx, emoji) => {
+      const log = await prepare(ctx, emoji.guild, 'server');
+      await log?.send(embeds.serverChanged(log.t, { kind: 'emojiDeleted', name: `:${emoji.name}:`, id: emoji.id }));
+    },
+
+    emojiUpdate: async (ctx, oldEmoji, newEmoji) => {
+      const log = await prepare(ctx, newEmoji.guild, 'server');
+      await log?.send(embeds.entityUpdated(log.t, { kind: 'emoji', id: newEmoji.id, name: newEmoji.toString(), changes: diff({ name: oldEmoji.name ?? '' }, { name: newEmoji.name ?? '' }) }));
+    },
+
+    stickerCreate: async (ctx, sticker) => {
+      if (!sticker.guild) return;
+      const log = await prepare(ctx, sticker.guild, 'server');
+      await log?.send(embeds.serverChanged(log.t, { kind: 'stickerCreated', name: sticker.name, id: sticker.id }));
+    },
+
+    stickerDelete: async (ctx, sticker) => {
+      if (!sticker.guild) return;
+      const log = await prepare(ctx, sticker.guild, 'server');
+      await log?.send(embeds.serverChanged(log.t, { kind: 'stickerDeleted', name: sticker.name, id: sticker.id }));
+    },
+
+    stickerUpdate: async (ctx, oldSticker, newSticker) => {
+      if (!newSticker.guild) return;
+      const log = await prepare(ctx, newSticker.guild, 'server');
+      const read = (s: typeof newSticker) => ({ name: s.name, description: s.description ?? '', tags: s.tags ?? '' });
+      await log?.send(embeds.entityUpdated(log.t, { kind: 'sticker', id: newSticker.id, name: newSticker.name, changes: diff(read(oldSticker), read(newSticker)) }));
+    },
+
+    webhooksUpdate: async (ctx, channel) => {
+      const log = await prepare(ctx, channel.guild, 'server');
+      if (!log || isIgnored(log.config, { channelId: channel.id })) return;
+      await log.send(embeds.webhooksUpdated(log.t, { channelId: channel.id }));
+    },
+
+    guildUpdate: async (ctx, oldGuild, newGuild) => {
+      const log = await prepare(ctx, newGuild, 'server');
+      if (!log) return;
+      const channelOf = (id: string | null) => (id ? `<#${id}>` : '');
+      const read = (guild: typeof newGuild) => ({
+        name: guild.name,
+        icon: guild.icon ?? '',
+        verificationLevel: String(guild.verificationLevel),
+        explicitContentFilter: String(guild.explicitContentFilter),
+        mfaLevel: String(guild.mfaLevel),
+        vanityCode: guild.vanityURLCode ?? '',
+        systemChannel: channelOf(guild.systemChannelId),
+        rulesChannel: channelOf(guild.rulesChannelId),
+        afkChannel: channelOf(guild.afkChannelId),
+        owner: guild.ownerId ? `<@${guild.ownerId}>` : '',
+      });
+      await log.send(embeds.entityUpdated(log.t, { kind: 'guild', id: newGuild.id, name: newGuild.name, changes: diff(read(oldGuild), read(newGuild)) }));
     },
 
     roleCreate: async (ctx, role) => {
@@ -230,6 +334,14 @@ export function createHandlers(): EventHandlers<AuditLogConfig> {
           expiresAt: invite.expiresTimestamp,
         }),
       );
+    },
+
+    inviteDelete: async (ctx, invite) => {
+      const guild = invite.guild && 'channels' in invite.guild ? invite.guild : null;
+      if (!guild) return;
+      const log = await prepare(ctx, guild, 'server');
+      if (!log || isIgnored(log.config, { channelId: invite.channelId })) return;
+      await log.send(embeds.serverChanged(log.t, { kind: 'inviteDeleted', name: `discord.gg/${invite.code}`, id: invite.code, parentId: invite.channelId }));
     },
 
     guildBanAdd: async (ctx, ban) => {
