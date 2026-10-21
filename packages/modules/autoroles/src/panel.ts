@@ -72,7 +72,7 @@ export function computeRoleChanges(
   }
 }
 
-const BUTTON_STYLES = {
+export const BUTTON_STYLES = {
   primary: ButtonStyle.Primary,
   secondary: ButtonStyle.Secondary,
   success: ButtonStyle.Success,

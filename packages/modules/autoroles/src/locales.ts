@@ -161,6 +161,8 @@ export const locales: Record<Locale, Dictionary> = {
     limit: 'Можно выбрать не больше {max, plural, one {# роли} other {# ролей}} из этой панели.',
     cannotManage: 'Часть ролей бот выдать не может — сообщите администратору.',
     panelMissing: 'Эта панель ролей больше не существует.',
+    infoPanelMissing: 'Эта панель больше не существует.',
+    infoItemMissing: 'Этого пункта в панели больше нет.',
     reply: {
       none: 'нет',
       on: 'включено',
@@ -347,6 +349,8 @@ export const locales: Record<Locale, Dictionary> = {
     limit: 'You can pick at most {max, plural, one {# role} other {# roles}} from this panel.',
     cannotManage: 'The bot cannot manage some of these roles — please tell an administrator.',
     panelMissing: 'This role panel no longer exists.',
+    infoPanelMissing: 'This panel no longer exists.',
+    infoItemMissing: 'This item is no longer on the panel.',
     reply: {
       none: 'none',
       on: 'enabled',

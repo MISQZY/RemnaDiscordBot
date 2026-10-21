@@ -103,6 +103,25 @@ model RolePanel {
   @@index([guildId])
 }
 
+/// A panel whose items each show the member who picked them a message (autoroles module).
+model InfoPanel {
+  id        String   @id @default(cuid())
+  guildId   String
+  channelId String
+  /// The Discord message; `null` — the panel is not published yet.
+  messageId String?
+  /// `buttons` | `select`
+  kind      String
+  /// MessageTemplate — the text above the buttons.
+  message   Json
+  /// [{ id, label, emoji?, style, description?, reply: MessageTemplate }]
+  items     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId])
+}
+
 /// A member's roles at the time they left — restored when they come back (autoroles module).
 model MemberRoleBackup {
   guildId String

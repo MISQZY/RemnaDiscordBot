@@ -1,7 +1,9 @@
 import { defineComponent, type BotModuleContext } from '@bot/core';
-import { changeMemberRoles } from '@bot/discord';
+import { changeMemberRoles, memberTemplateVars } from '@bot/discord';
+import { channelVars, renderMessage } from '@bot/templates';
 import { MessageFlags, roleMention, type GuildMember, type PartialGuildMember } from 'discord.js';
 import type { AutorolesConfig } from './config.js';
+import { toInfoPanel } from './info-panel.js';
 import { computeRoleChanges, toPanel } from './panel.js';
 import { persistedRoles } from './persistence.js';
 
@@ -105,5 +107,38 @@ export const panelComponent = defineComponent<AutorolesConfig>({
       flags: MessageFlags.Ephemeral,
       allowedMentions: { parse: [] },
     });
+  },
+});
+
+/** A button click or dropdown pick on an info panel: the member alone sees the item's reply. */
+export const infoPanelComponent = defineComponent<AutorolesConfig>({
+  async handle(interaction, ctx) {
+    if (!interaction.inCachedGuild() || interaction.isModalSubmit()) return;
+    const [, panelId, buttonItemId] = interaction.customId.split(':');
+
+    const row = panelId ? await ctx.db.infoPanel.findUnique({ where: { id: panelId } }) : null;
+    if (!row || row.guildId !== interaction.guildId) {
+      await interaction.reply({ content: ctx.t('autoroles.infoPanelMissing'), flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    const isSelect = interaction.isStringSelectMenu();
+    const itemId = isSelect ? interaction.values[0] : buttonItemId;
+    const item = toInfoPanel(row).items.find((i) => i.id === itemId);
+    if (!item) {
+      await interaction.reply({ content: ctx.t('autoroles.infoItemMissing'), flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    const channel = { id: interaction.channelId, name: interaction.channel?.name ?? '' };
+    const reply = { ...renderMessage(item.reply, { ...memberTemplateVars(interaction.member), ...channelVars(channel) }), flags: MessageFlags.Ephemeral } as const;
+    if (!isSelect) {
+      await interaction.reply(reply);
+      return;
+    }
+    // Discord keeps the picked option selected, and picking it again would send nothing: the menu is reset
+    // to the posted one, and the reply follows.
+    await interaction.update({ components: interaction.message.components });
+    await interaction.followUp(reply);
   },
 });

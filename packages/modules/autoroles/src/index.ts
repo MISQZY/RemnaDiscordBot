@@ -1,16 +1,17 @@
 import { defineModule, EntityChecker } from '@bot/core';
 import { GatewayIntentBits } from 'discord.js';
 import { autorolesApi } from './api.js';
-import { onMemberJoin, onMemberLeave, panelComponent } from './bot.js';
+import { infoPanelComponent, onMemberJoin, onMemberLeave, panelComponent } from './bot.js';
 import { autorolesCommand } from './commands.js';
 import { AutorolesConfig, defaultAutorolesConfig } from './config.js';
+import { INFO_COMPONENT_PREFIX } from './info-panel.js';
 import { assignJoinRoles } from './jobs.js';
 import { locales } from './locales.js';
 import { COMPONENT_PREFIX } from './panel.js';
 
-export { AutorolesConfig, Panel, PanelInput } from './config.js';
+export { AutorolesConfig, InfoPanel, InfoPanelInput, Panel, PanelInput } from './config.js';
 
-/** Join roles, role restore for returning members, self-assignable role panels. */
+/** Automation: join roles, role restore for returning members, self-assignable role panels and info panels. */
 export default defineModule({
   id: 'autoroles',
   configSchema: AutorolesConfig,
@@ -30,7 +31,7 @@ export default defineModule({
       guildMemberRemove: onMemberLeave,
     },
     commands: [autorolesCommand],
-    components: { [COMPONENT_PREFIX]: panelComponent },
+    components: { [COMPONENT_PREFIX]: panelComponent, [INFO_COMPONENT_PREFIX]: infoPanelComponent },
   },
   jobs: { assignJoinRoles },
   api: autorolesApi,
