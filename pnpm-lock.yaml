@@ -331,6 +331,9 @@ importers:
       '@bot/module-audit-log':
         specifier: workspace:*
         version: link:../modules/audit-log
+      '@bot/module-automod':
+        specifier: workspace:*
+        version: link:../modules/automod
       '@bot/module-autoroles':
         specifier: workspace:*
         version: link:../modules/autoroles
@@ -340,9 +343,18 @@ importers:
       '@bot/module-general':
         specifier: workspace:*
         version: link:../modules/general
+      '@bot/module-giveaways':
+        specifier: workspace:*
+        version: link:../modules/giveaways
+      '@bot/module-invites':
+        specifier: workspace:*
+        version: link:../modules/invites
       '@bot/module-leveling':
         specifier: workspace:*
         version: link:../modules/leveling
+      '@bot/module-messages':
+        specifier: workspace:*
+        version: link:../modules/messages
       '@bot/module-moderation':
         specifier: workspace:*
         version: link:../modules/moderation
@@ -352,6 +364,24 @@ importers:
       '@bot/module-notifications':
         specifier: workspace:*
         version: link:../modules/notifications
+      '@bot/module-server-stats':
+        specifier: workspace:*
+        version: link:../modules/server-stats
+      '@bot/module-starboard':
+        specifier: workspace:*
+        version: link:../modules/starboard
+      '@bot/module-suggestions':
+        specifier: workspace:*
+        version: link:../modules/suggestions
+      '@bot/module-temp-voice':
+        specifier: workspace:*
+        version: link:../modules/temp-voice
+      '@bot/module-tickets':
+        specifier: workspace:*
+        version: link:../modules/tickets
+      '@bot/module-verification':
+        specifier: workspace:*
+        version: link:../modules/verification
       '@bot/module-welcome':
         specifier: workspace:*
         version: link:../modules/welcome
@@ -396,6 +426,49 @@ importers:
       '@bot/testing':
         specifier: workspace:*
         version: link:../../testing
+
+  packages/modules/automod:
+    dependencies:
+      '@bot/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@bot/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@bot/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@bot/discord':
+        specifier: workspace:*
+        version: link:../../discord
+      '@bot/i18n':
+        specifier: workspace:*
+        version: link:../../i18n
+      '@bot/module-moderation':
+        specifier: workspace:*
+        version: link:../moderation
+      '@bot/templates':
+        specifier: workspace:*
+        version: link:../../templates
+      discord.js:
+        specifier: 14.27.0
+        version: 14.27.0
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@bot/config':
+        specifier: workspace:*
+        version: link:../../config
+      '@bot/logger':
+        specifier: workspace:*
+        version: link:../../logger
+      '@bot/testing':
+        specifier: workspace:*
+        version: link:../../testing
+      fastify:
+        specifier: 5.12.7
+        version: 5.12.7
 
   packages/modules/autoroles:
     dependencies:
@@ -499,7 +572,127 @@ importers:
         specifier: workspace:*
         version: link:../../config
 
+  packages/modules/giveaways:
+    dependencies:
+      '@bot/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@bot/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@bot/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@bot/discord':
+        specifier: workspace:*
+        version: link:../../discord
+      '@bot/i18n':
+        specifier: workspace:*
+        version: link:../../i18n
+      '@bot/templates':
+        specifier: workspace:*
+        version: link:../../templates
+      discord.js:
+        specifier: 14.27.0
+        version: 14.27.0
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@bot/config':
+        specifier: workspace:*
+        version: link:../../config
+      '@bot/logger':
+        specifier: workspace:*
+        version: link:../../logger
+      '@bot/testing':
+        specifier: workspace:*
+        version: link:../../testing
+      fastify:
+        specifier: 5.12.7
+        version: 5.12.7
+
+  packages/modules/invites:
+    dependencies:
+      '@bot/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@bot/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@bot/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@bot/discord':
+        specifier: workspace:*
+        version: link:../../discord
+      '@bot/i18n':
+        specifier: workspace:*
+        version: link:../../i18n
+      '@bot/templates':
+        specifier: workspace:*
+        version: link:../../templates
+      discord.js:
+        specifier: 14.27.0
+        version: 14.27.0
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@bot/config':
+        specifier: workspace:*
+        version: link:../../config
+      '@bot/logger':
+        specifier: workspace:*
+        version: link:../../logger
+      '@bot/testing':
+        specifier: workspace:*
+        version: link:../../testing
+      fastify:
+        specifier: 5.12.7
+        version: 5.12.7
+
   packages/modules/leveling:
+    dependencies:
+      '@bot/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@bot/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@bot/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@bot/discord':
+        specifier: workspace:*
+        version: link:../../discord
+      '@bot/i18n':
+        specifier: workspace:*
+        version: link:../../i18n
+      '@bot/templates':
+        specifier: workspace:*
+        version: link:../../templates
+      discord.js:
+        specifier: 14.27.0
+        version: 14.27.0
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@bot/config':
+        specifier: workspace:*
+        version: link:../../config
+      '@bot/logger':
+        specifier: workspace:*
+        version: link:../../logger
+      '@bot/testing':
+        specifier: workspace:*
+        version: link:../../testing
+      fastify:
+        specifier: 5.12.7
+        version: 5.12.7
+
+  packages/modules/messages:
     dependencies:
       '@bot/contracts':
         specifier: workspace:*
@@ -653,6 +846,246 @@ importers:
         specifier: 5.12.7
         version: 5.12.7
 
+  packages/modules/server-stats:
+    dependencies:
+      '@bot/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@bot/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@bot/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@bot/discord':
+        specifier: workspace:*
+        version: link:../../discord
+      '@bot/i18n':
+        specifier: workspace:*
+        version: link:../../i18n
+      '@bot/templates':
+        specifier: workspace:*
+        version: link:../../templates
+      discord.js:
+        specifier: 14.27.0
+        version: 14.27.0
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@bot/config':
+        specifier: workspace:*
+        version: link:../../config
+      '@bot/logger':
+        specifier: workspace:*
+        version: link:../../logger
+      '@bot/testing':
+        specifier: workspace:*
+        version: link:../../testing
+      fastify:
+        specifier: 5.12.7
+        version: 5.12.7
+
+  packages/modules/starboard:
+    dependencies:
+      '@bot/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@bot/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@bot/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@bot/discord':
+        specifier: workspace:*
+        version: link:../../discord
+      '@bot/i18n':
+        specifier: workspace:*
+        version: link:../../i18n
+      '@bot/templates':
+        specifier: workspace:*
+        version: link:../../templates
+      discord.js:
+        specifier: 14.27.0
+        version: 14.27.0
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@bot/config':
+        specifier: workspace:*
+        version: link:../../config
+      '@bot/logger':
+        specifier: workspace:*
+        version: link:../../logger
+      '@bot/testing':
+        specifier: workspace:*
+        version: link:../../testing
+      fastify:
+        specifier: 5.12.7
+        version: 5.12.7
+
+  packages/modules/suggestions:
+    dependencies:
+      '@bot/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@bot/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@bot/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@bot/discord':
+        specifier: workspace:*
+        version: link:../../discord
+      '@bot/i18n':
+        specifier: workspace:*
+        version: link:../../i18n
+      '@bot/templates':
+        specifier: workspace:*
+        version: link:../../templates
+      discord.js:
+        specifier: 14.27.0
+        version: 14.27.0
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@bot/config':
+        specifier: workspace:*
+        version: link:../../config
+      '@bot/logger':
+        specifier: workspace:*
+        version: link:../../logger
+      '@bot/testing':
+        specifier: workspace:*
+        version: link:../../testing
+      fastify:
+        specifier: 5.12.7
+        version: 5.12.7
+
+  packages/modules/temp-voice:
+    dependencies:
+      '@bot/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@bot/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@bot/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@bot/discord':
+        specifier: workspace:*
+        version: link:../../discord
+      '@bot/i18n':
+        specifier: workspace:*
+        version: link:../../i18n
+      '@bot/templates':
+        specifier: workspace:*
+        version: link:../../templates
+      discord.js:
+        specifier: 14.27.0
+        version: 14.27.0
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@bot/config':
+        specifier: workspace:*
+        version: link:../../config
+      '@bot/logger':
+        specifier: workspace:*
+        version: link:../../logger
+      '@bot/testing':
+        specifier: workspace:*
+        version: link:../../testing
+      fastify:
+        specifier: 5.12.7
+        version: 5.12.7
+
+  packages/modules/tickets:
+    dependencies:
+      '@bot/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@bot/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@bot/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@bot/discord':
+        specifier: workspace:*
+        version: link:../../discord
+      '@bot/i18n':
+        specifier: workspace:*
+        version: link:../../i18n
+      '@bot/templates':
+        specifier: workspace:*
+        version: link:../../templates
+      discord.js:
+        specifier: 14.27.0
+        version: 14.27.0
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@bot/config':
+        specifier: workspace:*
+        version: link:../../config
+      '@bot/logger':
+        specifier: workspace:*
+        version: link:../../logger
+      '@bot/testing':
+        specifier: workspace:*
+        version: link:../../testing
+      fastify:
+        specifier: 5.12.7
+        version: 5.12.7
+
+  packages/modules/verification:
+    dependencies:
+      '@bot/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@bot/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@bot/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@bot/discord':
+        specifier: workspace:*
+        version: link:../../discord
+      '@bot/i18n':
+        specifier: workspace:*
+        version: link:../../i18n
+      '@bot/templates':
+        specifier: workspace:*
+        version: link:../../templates
+      discord.js:
+        specifier: 14.27.0
+        version: 14.27.0
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@bot/config':
+        specifier: workspace:*
+        version: link:../../config
+      '@bot/logger':
+        specifier: workspace:*
+        version: link:../../logger
+      '@bot/testing':
+        specifier: workspace:*
+        version: link:../../testing
+      fastify:
+        specifier: 5.12.7
+        version: 5.12.7
+
   packages/modules/welcome:
     dependencies:
       '@bot/contracts':
@@ -667,6 +1100,9 @@ importers:
       '@bot/i18n':
         specifier: workspace:*
         version: link:../../i18n
+      '@bot/module-invites':
+        specifier: workspace:*
+        version: link:../invites
       '@bot/templates':
         specifier: workspace:*
         version: link:../../templates

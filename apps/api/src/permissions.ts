@@ -1,8 +1,20 @@
 import { PermissionFlagsBits } from 'discord-api-types/v10';
 
-/** Permissions the bot requests on invite — based on what the MVP modules need. */
+/**
+ * Permissions the bot requests on invite — what its modules need: Manage Server for invite tracking, Discord's
+ * AutoMod and pausing invites in a raid; Manage Channels and threads for tickets, temporary voice and counters.
+ */
 export const BOT_INVITE_PERMISSIONS =
   PermissionFlagsBits.ViewChannel |
+  PermissionFlagsBits.ManageGuild |
+  PermissionFlagsBits.ManageChannels |
+  PermissionFlagsBits.ManageThreads |
+  PermissionFlagsBits.CreatePublicThreads |
+  PermissionFlagsBits.CreatePrivateThreads |
+  PermissionFlagsBits.SendMessagesInThreads |
+  PermissionFlagsBits.Connect |
+  PermissionFlagsBits.Speak |
+  PermissionFlagsBits.MoveMembers |
   PermissionFlagsBits.SendMessages |
   PermissionFlagsBits.EmbedLinks |
   PermissionFlagsBits.AttachFiles |
