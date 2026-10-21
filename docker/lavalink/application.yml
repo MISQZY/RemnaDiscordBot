@@ -72,6 +72,9 @@ plugins:
       countryCode: "${SPOTIFY_COUNTRY:US}"
       playlistLoadLimit: 6
       albumLoadLimit: 6
+      # Resolving artists asks /v1/artists?ids=, which Spotify closed to development mode apps in February 2026:
+      # search would answer 403 (LavaSrc#351). Album links still fail on /v1/tracks?ids= until LavaSrc fixes it.
+      resolveArtistsInSearch: false
     deezer:
       arl: "${DEEZER_ARL:}"
       masterDecryptionKey: "${DEEZER_MASTER_KEY:}"
