@@ -175,6 +175,20 @@ describe('Dispatcher interactions', () => {
     expect(fallback).toHaveBeenCalledWith(interaction, expect.objectContaining({ moduleId: 'custom', locale: 'en' }));
   });
 
+  it('replies to a fallback command when its module is disabled', async () => {
+    const fallback = vi.fn(async () => {});
+    const custom = createTestModule('custom');
+    custom.bot!.fallbackCommand = { execute: fallback };
+    const { services } = setup({ enabled: false });
+    const dispatcher = new Dispatcher(services, new ModuleRegistry([custom]));
+    const interaction = chatInput('my-dynamic-command');
+
+    await dispatcher.handleInteraction(interaction as never);
+
+    expect(fallback).not.toHaveBeenCalled();
+    expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining('/modules enable custom') }));
+  });
+
   it('allows only one fallback handler', () => {
     const a = createTestModule('a-mod');
     const b = createTestModule('b-mod');

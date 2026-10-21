@@ -143,11 +143,18 @@ export class Dispatcher {
     }
   }
 
-  /** A command not in the registry — hand it to the module with `fallbackCommand` (if enabled in the guild). */
+  /**
+   * A command not in the registry — hand it to the module with `fallbackCommand`. Its commands stay registered in
+   * Discord while the module is off, so a disabled module answers as for any other command rather than not at all.
+   */
   private async runFallback(interaction: ChatInputCommandInteraction): Promise<void> {
     const fallback = this.registry.fallbackCommand();
-    if (!fallback || !(await this.isEnabledFor(fallback.module, interaction.guildId))) return;
+    if (!fallback) return;
     const ctx = await this.interactionContext(fallback.module, interaction);
+    if (!(await this.isEnabledFor(fallback.module, interaction.guildId))) {
+      await interaction.reply(this.ephemeral(ctx.t('core.moduleDisabled', { module: this.moduleName(fallback.module, ctx), id: fallback.module.id })));
+      return;
+    }
     await this.timeCommand(fallback.module, 'fallback', () => fallback.item.execute(interaction, ctx));
   }
 
