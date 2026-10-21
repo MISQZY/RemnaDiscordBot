@@ -1,5 +1,5 @@
 import type { BotModuleContext } from '@bot/core';
-import { memberTemplateVars } from '@bot/discord';
+import { changeMemberRoles, memberTemplateVars } from '@bot/discord';
 import { renderMessage } from '@bot/templates';
 import type { GuildMember, Message } from 'discord.js';
 import type { LevelingConfig } from './config.js';
@@ -17,8 +17,7 @@ export async function syncRewards(member: GuildMember, level: number, config: Le
   const toAdd = add.filter((id) => manageable(id) && !member.roles.cache.has(id));
   const toRemove = remove.filter((id) => manageable(id) && member.roles.cache.has(id));
   try {
-    if (toAdd.length > 0) await member.roles.add(toAdd, 'Leveling: level reward');
-    if (toRemove.length > 0) await member.roles.remove(toRemove, 'Leveling: level reward');
+    await changeMemberRoles(member, { add: toAdd, remove: toRemove }, 'Leveling: level reward');
   } catch (err) {
     logger.warn({ err, guildId: member.guild.id, userId: member.id }, 'Level rewards not applied');
   }

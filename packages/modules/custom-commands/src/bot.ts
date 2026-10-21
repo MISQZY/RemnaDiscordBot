@@ -1,6 +1,6 @@
 import type { BotModuleContext, FallbackCommand } from '@bot/core';
 import type { CustomCommand } from '@bot/db';
-import { memberTemplateVars } from '@bot/discord';
+import { changeMemberRoles, memberTemplateVars } from '@bot/discord';
 import { channelVars, renderMessage } from '@bot/templates';
 import { MessageFlags, type GuildMember, type Message } from 'discord.js';
 import { LRUCache } from 'lru-cache';
@@ -46,8 +46,7 @@ async function applyActions(ctx: Ctx, command: CommandDto, member: GuildMember):
   const add = command.actions.addRoleIds.filter(editable);
   const remove = command.actions.removeRoleIds.filter(editable);
   try {
-    if (add.length > 0) await member.roles.add(add, `Custom command: ${command.name}`);
-    if (remove.length > 0) await member.roles.remove(remove, `Custom command: ${command.name}`);
+    await changeMemberRoles(member, { add, remove }, `Custom command: ${command.name}`);
   } catch (err) {
     ctx.logger.warn({ err, commandId: command.id }, 'Custom command role actions failed');
   }

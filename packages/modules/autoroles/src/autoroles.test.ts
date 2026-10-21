@@ -100,7 +100,7 @@ describe('join roles', () => {
 
     await onMemberJoin(context, m);
 
-    expect(m.roles.add).toHaveBeenCalledWith(['10'], 'Autoroles: join roles');
+    expect(m.roles.add).toHaveBeenCalledWith('10', 'Autoroles: join roles');
   });
 
   it('schedules delayed join roles', async () => {

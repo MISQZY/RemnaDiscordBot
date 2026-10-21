@@ -1,4 +1,5 @@
 import { defineComponent, type BotModuleContext } from '@bot/core';
+import { changeMemberRoles } from '@bot/discord';
 import { MessageFlags, roleMention, type GuildMember, type PartialGuildMember } from 'discord.js';
 import type { AutorolesConfig } from './config.js';
 import { computeRoleChanges, toPanel } from './panel.js';
@@ -25,7 +26,7 @@ export async function onMemberJoin(ctx: BotModuleContext<AutorolesConfig>, membe
     });
     if (backup) {
       const roles = assignable(member, persistedRoles(backup.roleIds as string[], config.persistence));
-      if (roles.length > 0) await member.roles.add(roles, `${REASON}: restore roles`);
+      await changeMemberRoles(member, { add: roles }, `${REASON}: restore roles`);
       await ctx.db.memberRoleBackup.delete({ where: { guildId_userId: { guildId: member.guild.id, userId: member.id } } });
     }
   }
@@ -34,7 +35,7 @@ export async function onMemberJoin(ctx: BotModuleContext<AutorolesConfig>, membe
   if (joinRoles.length === 0) return;
 
   if (config.joinRoles.delaySec === 0) {
-    await member.roles.add(joinRoles, `${REASON}: join roles`);
+    await changeMemberRoles(member, { add: joinRoles }, `${REASON}: join roles`);
     return;
   }
   await ctx.scheduler.schedule({
@@ -92,8 +93,7 @@ export const panelComponent = defineComponent<AutorolesConfig>({
     const add = assignable(member, changes.add);
     const remove = assignable(member, changes.remove);
     const skipped = changes.add.length + changes.remove.length - add.length - remove.length;
-    if (add.length > 0) await member.roles.add(add, `${REASON}: role panel`);
-    if (remove.length > 0) await member.roles.remove(remove, `${REASON}: role panel`);
+    await changeMemberRoles(member, { add, remove }, `${REASON}: role panel`);
 
     const lines = [
       add.length > 0 ? ctx.t('autoroles.added', { roles: add.map(roleMention).join(', ') }) : null,
