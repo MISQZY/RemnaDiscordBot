@@ -1,5 +1,5 @@
 # Monorepo app image: docker build --build-arg APP=bot|api|worker [--target migrate].
-FROM node:24-alpine AS base
+FROM node:25-alpine AS base
 # The Prisma engine needs openssl on musl.
 RUN apk add --no-cache openssl && corepack enable
 WORKDIR /repo
@@ -26,7 +26,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
   && CI=true pnpm install --prod --frozen-lockfile --offline --ignore-scripts \
   && find packages apps -name node_modules -prune -o -type d -name src -print | xargs rm -rf
 
-FROM node:24-alpine AS runtime
+FROM node:25-alpine AS runtime
 ARG APP=bot
 ARG HEALTH_PORT=3001
 RUN apk add --no-cache openssl
