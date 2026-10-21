@@ -2,8 +2,19 @@ import { HttpError, type ApiModuleContext } from '@bot/core';
 import { UserDirectory, UserInfo } from '@bot/discord';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { Snowflake } from '@bot/contracts';
 import { CaseType, ModCaseDto, toCaseDto, type ModerationConfig } from './config.js';
+import { LockdownService } from './lockdown.js';
 import { ModerationService } from './service.js';
+
+const LockedChannel = z.object({ channelId: Snowflake, endsAt: z.iso.datetime().nullable(), createdAt: z.iso.datetime() });
+const LockBody = z.object({
+  /** `null` — a server lockdown: the channels from the settings or every public one. */
+  channelIds: z.array(Snowflake).min(1).max(100).nullable(),
+  durationSec: z.number().int().min(60).max(30 * 86_400).nullable().default(null),
+  reason: z.string().max(300).nullable().default(null),
+});
+const LockAnswer = z.object({ locked: z.array(Snowflake), skipped: z.array(Snowflake), failed: z.array(Snowflake) });
 
 const CaseParams = z.object({ guildId: z.string(), number: z.coerce.number().int().min(1) });
 const CasesQuery = z.object({
@@ -91,6 +102,76 @@ export function moderationApi(app: FastifyInstance, ctx: ApiModuleContext<Modera
       const { reason } = request.body as { reason: string | null };
       const config = await ctx.getConfig(modCase.guildId);
       return toCaseDto(await service.revoke(modCase.guildId, modCase.number, ctx.currentUserId(request), reason, config));
+    },
+  );
+
+  app.post(
+    '/notes',
+    {
+      schema: {
+        tags: ['moderation'],
+        summary: 'Add a note about a member to their history',
+        body: z.object({ targetId: Snowflake, text: z.string().min(1).max(500) }),
+        response: { 201: ModCaseDto },
+      },
+    },
+    async (request, reply) => {
+      const { targetId, text } = request.body as { targetId: string; text: string };
+      const config = await ctx.getConfig(guildId(request));
+      const modCase = await service.note({ guildId: guildId(request), targetId, moderatorId: ctx.currentUserId(request), reason: text }, config);
+      return reply.status(201).send(toCaseDto(modCase));
+    },
+  );
+
+  const lockdown = new LockdownService(ctx);
+
+  app.get(
+    '/lockdown',
+    { schema: { tags: ['moderation'], summary: 'Channels locked by the bot', response: { 200: z.array(LockedChannel) } } },
+    async (request) =>
+      (await lockdown.locked(guildId(request))).map((r) => ({ channelId: r.channelId, endsAt: r.endsAt?.toISOString() ?? null, createdAt: r.createdAt.toISOString() })),
+  );
+
+  app.post(
+    '/lockdown',
+    {
+      schema: {
+        tags: ['moderation'],
+        summary: 'Lock channels: @everyone cannot write until unlocked or the duration ends',
+        body: LockBody,
+        response: { 200: LockAnswer },
+      },
+    },
+    async (request) => {
+      const id = guildId(request);
+      const { channelIds, durationSec, reason } = request.body as z.infer<typeof LockBody>;
+      const config = await ctx.getConfig(id);
+      const targets = channelIds ?? (config.lockdown.channelIds.length > 0 ? config.lockdown.channelIds : await lockdown.serverChannels(id));
+      return lockdown.lock(id, targets, {
+        reason: `Lockdown from the dashboard by ${ctx.currentUserId(request)}: ${reason ?? '—'}`.slice(0, 512),
+        until: durationSec ? new Date(Date.now() + durationSec * 1000) : null,
+        scope: channelIds?.length === 1 ? channelIds[0]! : 'server',
+      });
+    },
+  );
+
+  app.post(
+    '/unlock',
+    {
+      schema: {
+        tags: ['moderation'],
+        summary: 'Unlock channels; null — every channel the bot locked',
+        body: z.object({ channelIds: z.array(Snowflake).min(1).max(100).nullable() }),
+        response: { 200: z.object({ unlocked: z.array(Snowflake) }) },
+      },
+    },
+    async (request) => {
+      const { channelIds } = request.body as { channelIds: string[] | null };
+      const unlocked = await lockdown.unlock(guildId(request), channelIds, {
+        reason: `Unlock from the dashboard by ${ctx.currentUserId(request)}`,
+        scope: channelIds?.length === 1 ? channelIds[0] : undefined,
+      });
+      return { unlocked };
     },
   );
 

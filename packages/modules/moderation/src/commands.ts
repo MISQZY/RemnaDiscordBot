@@ -12,6 +12,8 @@ import {
 import { hierarchyError, type PunishAction } from './checks.js';
 import { type ModerationConfig } from './config.js';
 import { parseDuration } from './duration.js';
+import { historyLines } from './history.js';
+import { lockdown, unlock } from './lockdown-commands.js';
 import { ModerationService } from './service.js';
 import { modsettings, slowmode } from './settings.js';
 
@@ -256,26 +258,90 @@ export const caseCommand = defineCommand<ModerationConfig>({
   },
 });
 
+export const note = defineCommand<ModerationConfig>({
+  data: base('note', 'Add a note about a member to their history', PermissionFlagsBits.ModerateMembers)
+    .addUserOption(userOption)
+    .addStringOption((o) => o.setName('text').setDescription('Note').setRequired(true).setMaxLength(500)),
+  async execute(interaction, ctx) {
+    const user = interaction.options.getUser('user', true);
+    const config = await ctx.getConfig(interaction.guildId!);
+    const modCase = await new ModerationService(ctx).note(
+      { guildId: interaction.guildId!, targetId: user.id, moderatorId: interaction.user.id, reason: interaction.options.getString('text', true) },
+      config,
+    );
+    await interaction.reply(ephemeral(ctx.t('moderation.done.note', { user: user.username, number: modCase.number })));
+  },
+});
+
+export const history = defineCommand<ModerationConfig>({
+  data: base('history', 'All cases and notes of a member', PermissionFlagsBits.ModerateMembers).addUserOption(userOption),
+  async execute(interaction, ctx) {
+    const user = interaction.options.getUser('user', true);
+    const cases = await new ModerationService(ctx).history(interaction.guildId!, user.id);
+    await interaction.reply({ ...ephemeral(historyLines(ctx, user.username, cases)), allowedMentions: { parse: [] } });
+  },
+});
+
+/** What `/clear` may keep to: messages of bots, of people, with links, files or invites. */
+export const CLEAR_FILTERS = ['bots', 'humans', 'links', 'attachments', 'invites'] as const;
+type ClearFilter = (typeof CLEAR_FILTERS)[number];
+
+const LINK = /https?:\/\/\S+/i;
+const INVITE = /(discord\.gg|discord(?:app)?\.com\/invite)\/[\w-]+/i;
+
+export function matchesClear(
+  message: { author: { id: string; bot: boolean }; content: string; attachments: { size: number } },
+  { userId, filter, contains }: { userId?: string | null; filter?: ClearFilter | null; contains?: string | null },
+): boolean {
+  if (userId && message.author.id !== userId) return false;
+  if (contains && !message.content.toLowerCase().includes(contains.toLowerCase())) return false;
+  switch (filter) {
+    case 'bots':
+      return message.author.bot;
+    case 'humans':
+      return !message.author.bot;
+    case 'links':
+      return LINK.test(message.content);
+    case 'attachments':
+      return message.attachments.size > 0;
+    case 'invites':
+      return INVITE.test(message.content);
+    default:
+      return true;
+  }
+}
+
 export const clear = defineCommand<ModerationConfig>({
   data: base('clear', 'Delete recent messages', PermissionFlagsBits.ManageMessages)
     .addIntegerOption((o) =>
       o.setName('amount').setDescription('How many').setRequired(true).setMinValue(1).setMaxValue(100),
     )
-    .addUserOption((o) => o.setName('user').setDescription('Only from this member')),
+    .addUserOption((o) => o.setName('user').setDescription('Only from this member'))
+    .addStringOption((o) =>
+      o
+        .setName('filter')
+        .setDescription('Only these messages')
+        .addChoices(...CLEAR_FILTERS.map((value) => ({ name: value, value }))),
+    )
+    .addStringOption((o) => o.setName('contains').setDescription('Only messages with this text').setMaxLength(100)),
   cooldownMs: 5_000,
   async execute(interaction, ctx) {
     const channel = interaction.channel;
     if (!channel || channel.isDMBased() || !('bulkDelete' in channel)) return;
     const amount = interaction.options.getInteger('amount', true);
-    const user = interaction.options.getUser('user');
+    const options = {
+      userId: interaction.options.getUser('user')?.id,
+      filter: interaction.options.getString('filter') as ClearFilter | null,
+      contains: interaction.options.getString('contains'),
+    };
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const fetched = await channel.messages.fetch({ limit: 100 });
-    const targets = [...fetched.values()].filter((m) => !user || m.author.id === user.id).slice(0, amount);
+    const targets = [...fetched.values()].filter((m) => matchesClear(m, options)).slice(0, amount);
     // Discord bulk-deletes only messages younger than 14 days.
     const deleted = await channel.bulkDelete(targets, true);
     await interaction.editReply(ctx.t('moderation.done.clear', { count: deleted.size }));
   },
 });
 
-export const commands = [ban, unban, kick, mute, unmute, warn, warns, unwarn, caseCommand, clear, modsettings, slowmode];
+export const commands = [ban, unban, kick, mute, unmute, warn, warns, unwarn, note, history, caseCommand, clear, modsettings, slowmode, lockdown, unlock];

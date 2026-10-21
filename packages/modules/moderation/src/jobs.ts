@@ -3,6 +3,21 @@ import type { JobContext } from '@bot/core';
 import { DiscordAPIError, RESTJSONErrorCodes, Routes } from 'discord.js';
 import { z } from 'zod';
 import type { ModerationConfig } from './config.js';
+import { LockdownService } from './lockdown.js';
+
+const UnlockPayload = z.object({ channelIds: z.array(Snowflake) });
+
+/** A lockdown with a duration ran out. */
+export async function unlockJob(payload: unknown, ctx: JobContext<ModerationConfig>): Promise<void> {
+  const { channelIds } = UnlockPayload.parse(payload);
+  const unlocked = await new LockdownService(ctx).unlock(ctx.guildId, channelIds, { reason: 'Lockdown expired' });
+  const config = await ctx.getConfig(ctx.guildId);
+  if (!config.lockdown.announce) return;
+  const content = ctx.i18n.t(await ctx.guildLocales.get(ctx.guildId), 'moderation.lockdown.lifted');
+  for (const channelId of unlocked) {
+    await ctx.rest.post(Routes.channelMessages(channelId), { body: { content, allowed_mentions: { parse: [] } } }).catch(() => undefined);
+  }
+}
 
 const UnbanPayload = z.object({ userId: Snowflake });
 

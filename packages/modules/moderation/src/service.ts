@@ -28,6 +28,7 @@ const COLORS: Record<CaseType, number> = {
   mute: 0xf0a020,
   unmute: 0x3ba55d,
   warn: 0xf5d142,
+  note: 0x99aab5,
 };
 
 export const unbanKey = (guildId: string, userId: string) => `moderation:unban:${guildId}:${userId}`;
@@ -61,6 +62,21 @@ export class ModerationService {
       });
     }
     return this.finish(modCase, config);
+  }
+
+  /**
+   * A ban that deletes the member's recent messages and is lifted at once: the member is out and their spam gone, but
+   * they may join again. Recorded as a kick — that is what it amounts to.
+   */
+  async softban(input: ActionInput, config: ModerationConfig): Promise<ModCase> {
+    const { rest } = this.services;
+    await this.notify('kick', input, config);
+    await rest.put(Routes.guildBan(input.guildId, input.targetId), {
+      body: { delete_message_seconds: Math.min(input.deleteMessageSeconds ?? 0, 7 * 86_400) },
+      reason: this.auditReason(input),
+    });
+    await rest.delete(Routes.guildBan(input.guildId, input.targetId), { reason: this.auditReason(input) });
+    return this.finish(await this.record('kick', { ...input, durationSec: null }), config);
   }
 
   async unban(input: ActionInput, config: ModerationConfig): Promise<ModCase> {
@@ -120,6 +136,31 @@ export class ModerationService {
     };
     const escalated = await this[rule.action](auto, config);
     return { case: modCase, escalated };
+  }
+
+  /** A moderator's note: only history, the member is not told. */
+  async note(input: ActionInput, config: ModerationConfig): Promise<ModCase> {
+    return this.finish(await this.record('note', { ...input, durationSec: null }), config);
+  }
+
+  /**
+   * A punishment done in Discord itself (its menu, another bot) — seen in the server's audit log. Recorded as a case
+   * the same way, without acting or DMing again; lifting one also ends the active case.
+   */
+  async recordExternal(type: Exclude<CaseType, 'warn' | 'note'>, input: ActionInput, config: ModerationConfig): Promise<ModCase> {
+    if (type === 'unban') {
+      await this.services.scheduler.cancel(unbanKey(input.guildId, input.targetId));
+      await this.revokeActive(input, 'ban');
+    }
+    if (type === 'unmute') await this.revokeActive(input, 'mute');
+    // A new mute replaces the one in effect: Discord keeps only one timeout.
+    if (type === 'mute') await this.revokeActive(input, 'mute');
+    return this.finish(await this.record(type, input), config);
+  }
+
+  /** All of a member's cases, newest first — notes included. */
+  history(guildId: string, targetId: string, take = 15): Promise<ModCase[]> {
+    return this.services.db.modCase.findMany({ where: { guildId, targetId }, orderBy: { number: 'desc' }, take });
   }
 
   /** Revoke a punishment by case number. */
@@ -236,6 +277,8 @@ export class ModerationService {
         i18n.t(locale, `moderation.dm.${type}`, { guild: guild.name }),
         input.durationSec ? i18n.t(locale, 'moderation.dm.duration', { duration: formatDuration(input.durationSec, locale) }) : null,
         input.reason ? i18n.t(locale, 'moderation.dm.reason', { reason: input.reason }) : null,
+        config.dmNote.trim() || null,
+        config.appealUrl && type !== 'warn' ? i18n.t(locale, 'moderation.dm.appeal', { url: config.appealUrl }) : null,
       ]
         .filter(Boolean)
         .join('\n');

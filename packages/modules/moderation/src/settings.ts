@@ -69,6 +69,43 @@ export const modsettings = defineCommand<ModerationConfig>({
         .setDescription('After how many days warnings stop counting')
         .addIntegerOption((o) => o.setName('days').setDescription('Days; 0 — never').setRequired(true).setMinValue(0).setMaxValue(365)),
     )
+    .addSubcommand((s) =>
+      s
+        .setName('appeal')
+        .setDescription('Link to appeal a punishment, shown in the DM; empty — none')
+        .addStringOption((o) => o.setName('url').setDescription('https://…').setMaxLength(500)),
+    )
+    .addSubcommand((s) =>
+      s
+        .setName('dm-note')
+        .setDescription('Extra text of the punishment DM; empty — none')
+        .addStringOption((o) => o.setName('text').setDescription('Text').setMaxLength(500)),
+    )
+    .addSubcommand((s) =>
+      s
+        .setName('reports')
+        .setDescription('Where reports from the message menu go; empty — reports are off')
+        .addChannelOption((o) => o.setName('channel').setDescription('Channel').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement))
+        .addRoleOption((o) => o.setName('role').setDescription('Role to ping with each report')),
+    )
+    .addSubcommand((s) =>
+      s
+        .setName('native-cases')
+        .setDescription('Record cases for bans, kicks and timeouts done in Discord itself')
+        .addBooleanOption((o) => o.setName('enabled').setDescription('Record them').setRequired(true)),
+    )
+    .addSubcommand((s) =>
+      s
+        .setName('honeypot')
+        .setDescription('A channel where whoever writes is taken for a spam bot; empty — off')
+        .addChannelOption((o) => o.setName('channel').setDescription('Channel').addChannelTypes(ChannelType.GuildText))
+        .addStringOption((o) =>
+          o
+            .setName('action')
+            .setDescription('What to do with them')
+            .addChoices({ name: 'Softban', value: 'softban' }, { name: 'Ban', value: 'ban' }, { name: 'Kick', value: 'kick' }, { name: 'Mute', value: 'mute' }),
+        ),
+    )
     .addSubcommandGroup((g) =>
       g
         .setName('escalation')
@@ -114,6 +151,14 @@ export const modsettings = defineCommand<ModerationConfig>({
           inline: true,
         },
         { name: ctx.t('moderation.settings.escalation'), value: rules.join('\n') || onOff(false) },
+        { name: ctx.t('moderation.settings.appeal'), value: config.appealUrl ?? onOff(false), inline: true },
+        { name: ctx.t('moderation.settings.reports'), value: config.reportChannelId ? channelMention(config.reportChannelId) : onOff(false), inline: true },
+        { name: ctx.t('moderation.settings.nativeCases'), value: onOff(config.trackNativeActions), inline: true },
+        {
+          name: ctx.t('moderation.settings.honeypot'),
+          value: config.honeypot.channelId ? `${channelMention(config.honeypot.channelId)} · ${ctx.t(`moderation.honeypot.actions.${config.honeypot.action}`)}` : onOff(false),
+          inline: true,
+        },
       );
       await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
       return;
@@ -130,6 +175,64 @@ export const modsettings = defineCommand<ModerationConfig>({
       }
       if (!(await updateConfig(ctx, interaction, (c) => ({ ...c, logChannelId: channel?.id ?? null })))) return;
       await reply(interaction, channel ? ctx.t('moderation.settings.logSet', { channel: channelMention(channel.id) }) : ctx.t('moderation.settings.logOff'));
+      return;
+    }
+
+    if (sub === 'appeal') {
+      const raw = interaction.options.getString('url')?.trim() || null;
+      if (raw && !/^https?:\/\/\S+$/.test(raw)) return void (await reply(interaction, ctx.t('moderation.settings.badUrl')));
+      if (!(await updateConfig(ctx, interaction, (c) => ({ ...c, appealUrl: raw })))) return;
+      await reply(interaction, raw ? ctx.t('moderation.settings.appealSet', { url: raw }) : ctx.t('moderation.settings.appealOff'));
+      return;
+    }
+
+    if (sub === 'dm-note') {
+      const text = interaction.options.getString('text')?.trim() ?? '';
+      if (!(await updateConfig(ctx, interaction, (c) => ({ ...c, dmNote: text })))) return;
+      await reply(interaction, text ? ctx.t('moderation.settings.dmNoteSet') : ctx.t('moderation.settings.dmNoteOff'));
+      return;
+    }
+
+    if (sub === 'reports') {
+      const channel = interaction.options.getChannel('channel') as GuildBasedChannel | null;
+      const role = interaction.options.getRole('role');
+      if (channel) {
+        const me = channel.guild.members.me;
+        const perms = me ? channel.permissionsFor(me) : null;
+        if (!perms?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
+          return void (await reply(interaction, ctx.t('moderation.settings.noAccess', { channel: channelMention(channel.id) })));
+        }
+      }
+      if (!(await updateConfig(ctx, interaction, (c) => ({ ...c, reportChannelId: channel?.id ?? null, reportRoleId: channel ? (role?.id ?? null) : null })))) return;
+      await reply(interaction, channel ? ctx.t('moderation.settings.reportsSet', { channel: channelMention(channel.id) }) : ctx.t('moderation.settings.reportsOff'));
+      return;
+    }
+
+    if (sub === 'honeypot') {
+      const channel = interaction.options.getChannel('channel') as GuildBasedChannel | null;
+      const action = interaction.options.getString('action') as ModerationConfig['honeypot']['action'] | null;
+      if (channel) {
+        const me = channel.guild.members.me;
+        if (!me || !channel.permissionsFor(me).has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageMessages])) {
+          return void (await reply(interaction, ctx.t('moderation.settings.honeypotAccess', { channel: channelMention(channel.id) })));
+        }
+      }
+      const saved = await updateConfig(ctx, interaction, (c) => ({ ...c, honeypot: { ...c.honeypot, channelId: channel?.id ?? null, ...(action ? { action } : {}) } }));
+      if (!saved) return;
+      const config = await ctx.getConfig(interaction.guildId!);
+      await reply(
+        interaction,
+        channel
+          ? ctx.t('moderation.settings.honeypotSet', { channel: channelMention(channel.id), action: ctx.t(`moderation.honeypot.actions.${config.honeypot.action}`) })
+          : ctx.t('moderation.settings.honeypotOff'),
+      );
+      return;
+    }
+
+    if (sub === 'native-cases') {
+      const enabled = interaction.options.getBoolean('enabled', true);
+      if (!(await updateConfig(ctx, interaction, (c) => ({ ...c, trackNativeActions: enabled })))) return;
+      await reply(interaction, ctx.t('moderation.settings.nativeCasesSet', { state: onOff(enabled) }));
       return;
     }
 

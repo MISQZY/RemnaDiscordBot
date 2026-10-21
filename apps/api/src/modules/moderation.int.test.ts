@@ -13,6 +13,13 @@ const config: ModerationConfig = {
   requireReason: false,
   warnExpiryDays: 30,
   escalation: [{ warns: 2, action: 'mute', durationSec: 3600 }],
+  appealUrl: 'https://appeal.example',
+  dmNote: '',
+  trackNativeActions: true,
+  reportChannelId: null,
+  reportRoleId: null,
+  lockdown: { channelIds: [], announce: true },
+  honeypot: { channelId: null, action: 'softban', deleteHours: 24, muteSec: 86_400 },
 };
 
 describe('moderation', () => {
@@ -38,6 +45,7 @@ describe('moderation', () => {
     await t.database.db.modCase.deleteMany();
     await t.database.db.modCaseCounter.deleteMany();
     await t.database.db.scheduledAction.deleteMany();
+    await t.database.db.channelLockdown.deleteMany();
   });
 
   afterAll(async () => {
@@ -116,6 +124,52 @@ describe('moderation', () => {
     expect(t.rest.calls.some((c) => c.method === 'delete' && c.route === `/guilds/${GUILD_ID}/bans/${TARGET}`)).toBe(true);
     expect(await t.database.db.scheduledAction.count()).toBe(0);
     expect((await send('GET', '/cases/1')).json()).toMatchObject({ active: false, revokeReason: 'appeal' });
+  });
+
+  it('adds notes that do not count as punishments', async () => {
+    const created = await send('POST', '/notes', { targetId: TARGET, text: 'asked about rules' });
+    expect(created.statusCode).toBe(201);
+    expect(created.json()).toMatchObject({ number: 1, type: 'note', active: false, reason: 'asked about rules' });
+    expect((await send('GET', `/users/${TARGET}/warnings`)).json()).toHaveLength(0);
+  });
+
+  it('records a case for a ban done in Discord, without banning again', async () => {
+    const modCase = await service.recordExternal('ban', input({ reason: 'raid' }), config);
+    expect(modCase).toMatchObject({ type: 'ban', reason: 'raid' });
+    expect(t.rest.calls.some((c) => c.route === `/guilds/${GUILD_ID}/bans/${TARGET}`)).toBe(false);
+
+    await service.recordExternal('unban', input(), config);
+    expect((await send('GET', '/cases/1')).json()).toMatchObject({ active: false });
+  });
+
+  it('softbans: bans with message deletion, unbans at once and records a kick', async () => {
+    const modCase = await service.softban(input({ deleteMessageSeconds: 86_400 }), config);
+    expect(modCase).toMatchObject({ type: 'kick', durationSec: null });
+    const ban = `/guilds/${GUILD_ID}/bans/${TARGET}`;
+    expect(t.rest.calls.filter((c) => c.route === ban).map((c) => c.method)).toEqual(['put', 'delete']);
+    expect(t.rest.calls.find((c) => c.route === ban)).toMatchObject({ body: { delete_message_seconds: 86_400 } });
+  });
+
+  it('locks a channel, remembers its overwrite and puts it back on unlock', async () => {
+    const LOCKED = '800000000000000008';
+    t.rest.responses.set(`/channels/${LOCKED}`, { id: LOCKED, type: 0, permission_overwrites: [{ id: GUILD_ID, type: 0, allow: '2048', deny: '0' }] });
+
+    const locked = (await send('POST', '/lockdown', { channelIds: [LOCKED], durationSec: 600 })).json();
+    expect(locked).toEqual({ locked: [LOCKED], skipped: [], failed: [] });
+    const put = t.rest.calls.find((c) => c.method === 'put');
+    expect(put).toMatchObject({ route: `/channels/${LOCKED}/permissions/${GUILD_ID}`, body: { allow: '0' } });
+    expect((await send('GET', '/lockdown')).json()).toEqual([{ channelId: LOCKED, endsAt: expect.any(String), createdAt: expect.any(String) }]);
+    expect(await t.database.db.scheduledAction.count({ where: { type: 'moderation:unlock' } })).toBe(1);
+
+    // Locking again leaves it as it is.
+    expect((await send('POST', '/lockdown', { channelIds: [LOCKED] })).json().skipped).toEqual([LOCKED]);
+
+    t.rest.calls.length = 0;
+    expect((await send('POST', '/unlock', { channelIds: [LOCKED] })).json()).toEqual({ unlocked: [LOCKED] });
+    // Send Messages (2048) is allowed again; the overwrite existed before, so it stays.
+    expect(t.rest.calls.find((c) => c.method === 'put')).toMatchObject({ body: { allow: '2048', deny: '0' } });
+    expect(await t.database.db.channelLockdown.count()).toBe(0);
+    expect(await t.database.db.scheduledAction.count({ where: { type: 'moderation:unlock' } })).toBe(0);
   });
 
   it('revokes warnings and reports inactive cases', async () => {
