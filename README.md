@@ -47,7 +47,7 @@ Slash-команды бот синхронизирует с Discord сам пр�
 > **Server Members** (welcome, autoroles, audit-log) и **Message Content** (audit-log, custom-commands).
 > Иначе бот не подключится к Discord (ошибка «Used disallowed intents»).
 
-Для музыки нужен узел [Lavalink](https://lavalink.dev) 4.2+: `docker compose --profile music up -d lavalink` и `LAVALINK_NODES=lavalink://<LAVALINK_PASSWORD>@localhost:2333` в `.env` (в Docker — `@lavalink:2333`, `COMPOSE_PROFILES=app,music`). Поиск по умолчанию — SoundCloud; YouTube выключен (плагин в `docker/lavalink/application.yml`).
+Для музыки нужен узел [Lavalink](https://lavalink.dev) 4.2+: `docker compose --profile music up -d lavalink` и `LAVALINK_NODES=lavalink://<LAVALINK_PASSWORD>@localhost:2333` в `.env` (в Docker — `@lavalink:2333`, `COMPOSE_PROFILES=app,music`). Источники поиска — плагины в `docker/lavalink/application.yml`: YouTube и YouTube Music (youtube-plugin, включён, `YOUTUBE_ENABLED`), Spotify, Deezer и Яндекс Музыка (LavaSrc, каждый включается своей переменной вместе с ключами, см. `.env.example`; Spotify играет треки с YouTube Music); Bandcamp встроенный. Встроенный SoundCloud сейчас не играет: SoundCloud сменил формат потоков ([lavaplayer#189](https://github.com/lavalink-devs/lavaplayer/issues/189)).
 
 Для оповещений о стримах нужны `TWITCH_CLIENT_ID` и `TWITCH_CLIENT_SECRET` (приложение на dev.twitch.tv); YouTube работает без ключей.
 

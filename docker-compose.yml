@@ -117,6 +117,17 @@ services:
     environment:
       LAVALINK_SERVER_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
       _JAVA_OPTIONS: -Xmx${LAVALINK_MEMORY:-512M}
+      # Sources of the plugins (docker/lavalink/application.yml); only these, not the bot's whole .env.
+      YOUTUBE_ENABLED: ${YOUTUBE_ENABLED:-true}
+      SPOTIFY_ENABLED: ${SPOTIFY_ENABLED:-false}
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
+      SPOTIFY_COUNTRY: ${SPOTIFY_COUNTRY:-US}
+      DEEZER_ENABLED: ${DEEZER_ENABLED:-false}
+      DEEZER_ARL: ${DEEZER_ARL:-}
+      DEEZER_MASTER_KEY: ${DEEZER_MASTER_KEY:-}
+      YANDEX_MUSIC_ENABLED: ${YANDEX_MUSIC_ENABLED:-false}
+      YANDEX_MUSIC_TOKEN: ${YANDEX_MUSIC_TOKEN:-}
     volumes:
       - ./docker/lavalink/application.yml:/opt/Lavalink/application.yml:ro
       - lavalink-plugins:/opt/Lavalink/plugins
