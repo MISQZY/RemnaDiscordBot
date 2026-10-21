@@ -40,7 +40,7 @@ describe('/autoroles', () => {
 
     await autorolesCommand.execute(interaction as never, ctx);
 
-    expect(update).toHaveBeenCalledWith(GUILD, 'autoroles', { config: expect.objectContaining({ joinRoles: { humans: [ROLE], bots: [], delaySec: 0 } }) }, '9');
+    expect(update).toHaveBeenCalledWith(GUILD, 'autoroles', { config: expect.objectContaining({ joinRoles: { humans: [ROLE], bots: [], delaySec: 0, waitForScreening: false } }) }, '9');
     expect(replyFn).toHaveBeenCalledWith(expect.objectContaining({ content: 'autoroles.reply.joinAdded' }));
   });
 

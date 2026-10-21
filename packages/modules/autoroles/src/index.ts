@@ -1,7 +1,7 @@
 import { defineModule, EntityChecker } from '@bot/core';
 import { GatewayIntentBits } from 'discord.js';
 import { autorolesApi } from './api.js';
-import { infoPanelComponent, onMemberJoin, onMemberLeave, panelComponent } from './bot.js';
+import { infoPanelComponent, onMemberJoin, onMemberLeave, onMemberUpdate, panelComponent } from './bot.js';
 import { autorolesCommand } from './commands.js';
 import { AutorolesConfig, defaultAutorolesConfig } from './config.js';
 import { INFO_COMPONENT_PREFIX } from './info-panel.js';
@@ -29,6 +29,7 @@ export default defineModule({
     events: {
       guildMemberAdd: onMemberJoin,
       guildMemberRemove: onMemberLeave,
+      guildMemberUpdate: onMemberUpdate,
     },
     commands: [autorolesCommand],
     components: { [COMPONENT_PREFIX]: panelComponent, [INFO_COMPONENT_PREFIX]: infoPanelComponent },

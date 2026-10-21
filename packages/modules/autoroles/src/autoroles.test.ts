@@ -96,7 +96,7 @@ describe('join roles', () => {
 
   it('adds assignable join roles immediately', async () => {
     const m = member();
-    const { ctx: context } = ctx({ ...defaultAutorolesConfig, joinRoles: { humans: ['10', '11'], bots: [], delaySec: 0 } });
+    const { ctx: context } = ctx({ ...defaultAutorolesConfig, joinRoles: { humans: ['10', '11'], bots: [], delaySec: 0, waitForScreening: false } });
 
     await onMemberJoin(context, m);
 
@@ -105,7 +105,7 @@ describe('join roles', () => {
 
   it('schedules delayed join roles', async () => {
     const m = member();
-    const { ctx: context, schedule } = ctx({ ...defaultAutorolesConfig, joinRoles: { humans: ['10'], bots: [], delaySec: 60 } });
+    const { ctx: context, schedule } = ctx({ ...defaultAutorolesConfig, joinRoles: { humans: ['10'], bots: [], delaySec: 60, waitForScreening: false } });
 
     await onMemberJoin(context, m);
 

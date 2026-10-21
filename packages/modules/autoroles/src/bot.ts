@@ -18,6 +18,9 @@ function assignable(member: GuildMember, roleIds: readonly string[]): string[] {
 }
 
 export const joinRolesKey = (guildId: string, userId: string) => `autoroles:join:${guildId}:${userId}`;
+/** A member who joined before accepting the rules (Membership Screening); it may take days. */
+const pendingKey = (guildId: string, userId: string) => `autoroles:pending:${guildId}:${userId}`;
+const PENDING_TTL_SEC = 7 * 86_400;
 
 export async function onMemberJoin(ctx: BotModuleContext<AutorolesConfig>, member: GuildMember): Promise<void> {
   const config = await ctx.getConfig(member.guild.id);
@@ -33,6 +36,22 @@ export async function onMemberJoin(ctx: BotModuleContext<AutorolesConfig>, membe
     }
   }
 
+  if (config.joinRoles.waitForScreening && member.pending) {
+    // Granted from guildMemberUpdate once the rules are accepted.
+    await ctx.redis.set(pendingKey(member.guild.id, member.id), '1', 'EX', PENDING_TTL_SEC);
+    return;
+  }
+  await grantJoinRoles(ctx, member, config);
+}
+
+/** The rules were accepted: the join roles held back for it are granted now. */
+export async function onMemberUpdate(ctx: BotModuleContext<AutorolesConfig>, _old: GuildMember | PartialGuildMember, member: GuildMember): Promise<void> {
+  if (member.pending) return;
+  if (!(await ctx.redis.getdel(pendingKey(member.guild.id, member.id)))) return;
+  await grantJoinRoles(ctx, member, await ctx.getConfig(member.guild.id));
+}
+
+async function grantJoinRoles(ctx: BotModuleContext<AutorolesConfig>, member: GuildMember, config: AutorolesConfig): Promise<void> {
   const joinRoles = assignable(member, member.user.bot ? config.joinRoles.bots : config.joinRoles.humans);
   if (joinRoles.length === 0) return;
 

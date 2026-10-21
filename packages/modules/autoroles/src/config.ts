@@ -7,6 +7,8 @@ export const AutorolesConfig = z.object({
     bots: z.array(Snowflake).max(10),
     /** Grant delay — so members who join and leave right away (or skip the rules) do not get the role. */
     delaySec: z.number().int().min(0).max(3600),
+    /** With Membership Screening, grant once the member accepts the rules rather than on join. */
+    waitForScreening: z.boolean().default(false),
   }),
   persistence: z.object({
     enabled: z.boolean(),
@@ -18,7 +20,7 @@ export const AutorolesConfig = z.object({
 export type AutorolesConfig = z.infer<typeof AutorolesConfig>;
 
 export const defaultAutorolesConfig: AutorolesConfig = {
-  joinRoles: { humans: [], bots: [], delaySec: 0 },
+  joinRoles: { humans: [], bots: [], delaySec: 0, waitForScreening: false },
   persistence: { enabled: false, mode: 'all', roleIds: [] },
 };
 
