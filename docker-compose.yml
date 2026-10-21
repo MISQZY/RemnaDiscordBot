@@ -121,6 +121,7 @@ services:
       YOUTUBE_ENABLED: ${YOUTUBE_ENABLED:-true}
       YOUTUBE_OAUTH: ${YOUTUBE_OAUTH:-false}
       YOUTUBE_REFRESH_TOKEN: ${YOUTUBE_REFRESH_TOKEN:-}
+      YOUTUBE_CIPHER_URL: ${YOUTUBE_CIPHER_URL:-http://yt-cipher:8001}
       SPOTIFY_ENABLED: ${SPOTIFY_ENABLED:-false}
       SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
       SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
@@ -141,6 +142,16 @@ services:
       timeout: 5s
       start_period: 40s
       retries: 5
+
+  # Deciphers YouTube stream signatures for the youtube plugin (remoteCipher in docker/lavalink/application.yml): the
+  # plugin no longer does it itself. Reached by Lavalink only, inside this network, so it needs no password.
+  yt-cipher:
+    image: ghcr.io/kikkia/yt-cipher:master
+    profiles: [music]
+    restart: unless-stopped
+    environment:
+      # The one script variant that works reliably, as its README says.
+      OVERRIDE_PLAYER_VARIANT: IAS
 
 volumes:
   postgres-data:

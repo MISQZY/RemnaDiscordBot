@@ -64,6 +64,11 @@ plugins:
     oauth:
       enabled: ${YOUTUBE_OAUTH:false}
       refreshToken: "${YOUTUBE_REFRESH_TOKEN:}"
+    # Stream signatures are deciphered by yt-cipher ("Must find sig function" without it): the compose service, or
+    # another one by YOUTUBE_CIPHER_URL, e.g. the public https://cipher.kikkia.dev/.
+    remoteCipher:
+      url: "${YOUTUBE_CIPHER_URL:http://yt-cipher:8001}"
+      userAgent: "remna-discord-bot"
   lavasrc:
     # Spotify gives no audio: its tracks play from YouTube Music, found by ISRC and then by title.
     providers:
