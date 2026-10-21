@@ -191,6 +191,10 @@ model CustomCommand {
   pattern           String?
   /// MessageTemplate of the reply.
   response          Json
+  /// Slash command options: [{ name, description, type, required }].
+  options           Json     @default("[]")
+  /// Where the reply goes; `null` — the channel the command was used in.
+  responseChannelId String?
   ephemeral         Boolean  @default(false)
   /// { addRoleIds, removeRoleIds, deleteTrigger }
   actions           Json

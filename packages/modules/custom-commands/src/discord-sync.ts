@@ -6,25 +6,41 @@ import {
   InteractionContextType,
   RESTJSONErrorCodes,
   Routes,
+  type APIApplicationCommandOption,
   type REST,
   type RESTPostAPIChatInputApplicationCommandsJSONBody,
 } from 'discord.js';
-import type { CommandDto } from './config.js';
+import type { CommandDto, OptionType } from './config.js';
 
-/** Option name for `{args}` in a slash command. */
+const OPTION_TYPES: Record<OptionType, ApplicationCommandOptionType> = {
+  string: ApplicationCommandOptionType.String,
+  integer: ApplicationCommandOptionType.Integer,
+  number: ApplicationCommandOptionType.Number,
+  boolean: ApplicationCommandOptionType.Boolean,
+  user: ApplicationCommandOptionType.User,
+  channel: ApplicationCommandOptionType.Channel,
+  role: ApplicationCommandOptionType.Role,
+};
+
+/** Option name for `{args}` in a slash command without its own options. */
 export const ARGS_OPTION = 'text';
 
 const usesArgs = (command: Pick<CommandDto, 'response'>) => JSON.stringify(command.response).includes('{args}');
 
-export function slashCommandBody(command: Pick<CommandDto, 'name' | 'description' | 'response'>): RESTPostAPIChatInputApplicationCommandsJSONBody {
+export function slashCommandBody(command: Pick<CommandDto, 'name' | 'description' | 'response' | 'options'>): RESTPostAPIChatInputApplicationCommandsJSONBody {
   return {
     type: ApplicationCommandType.ChatInput,
     name: command.name,
     description: command.description || 'Custom command',
     contexts: [InteractionContextType.Guild],
-    options: usesArgs(command)
-      ? [{ type: ApplicationCommandOptionType.String, name: ARGS_OPTION, description: 'Text', required: false, max_length: 500 }]
-      : [],
+    options: command.options.length
+      ? // Discord takes the required options first.
+        [...command.options]
+          .sort((a, b) => Number(b.required) - Number(a.required))
+          .map((o) => ({ type: OPTION_TYPES[o.type], name: o.name, description: o.description, required: o.required, ...(o.type === 'string' ? { max_length: 1000 } : {}) }) as APIApplicationCommandOption)
+      : usesArgs(command)
+        ? [{ type: ApplicationCommandOptionType.String, name: ARGS_OPTION, description: 'Text', required: false, max_length: 500 }]
+        : [],
   };
 }
 
@@ -50,7 +66,7 @@ export class DiscordCommandSync {
   }
 
   /** Creates or updates the command; returns its Discord ID. */
-  async upsert(guildId: string, command: Pick<CommandDto, 'name' | 'description' | 'response' | 'discordCommandId'>): Promise<string> {
+  async upsert(guildId: string, command: Pick<CommandDto, 'name' | 'description' | 'response' | 'options' | 'discordCommandId'>): Promise<string> {
     const appId = await this.appId();
     const body = slashCommandBody(command);
     if (command.discordCommandId) {

@@ -36,6 +36,10 @@ export const locales: Record<Locale, Dictionary> = {
     unavailable: 'Эта команда больше недоступна.',
     notAllowed: 'Эту команду нельзя использовать здесь.',
     cooldown: 'Подождите немного перед повторным использованием.',
+    yes: 'да',
+    no: 'нет',
+    sentTo: 'Отправлено в {channel}.',
+    sendFailed: 'Не удалось отправить ответ: у бота нет доступа к каналу или канал удалён.',
     manage: {
       empty: 'Своих команд пока нет — создайте первую через `/cc add`.',
       footer: '{count} из {max}',
@@ -95,6 +99,10 @@ export const locales: Record<Locale, Dictionary> = {
     unavailable: 'This command is no longer available.',
     notAllowed: 'You cannot use this command here.',
     cooldown: 'Please wait before using this again.',
+    yes: 'yes',
+    no: 'no',
+    sentTo: 'Sent to {channel}.',
+    sendFailed: 'Could not send the reply: the bot has no access to the channel, or it was deleted.',
     manage: {
       empty: 'No custom commands yet — create one with `/cc add`.',
       footer: '{count} of {max}',

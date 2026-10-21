@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ApplicationCommandOptionType } from 'discord.js';
 import { isAllowed } from './bot.js';
 import { CommandInput } from './config.js';
 import { slashCommandBody } from './discord-sync.js';
@@ -50,12 +51,40 @@ describe('CommandInput', () => {
 
 describe('slashCommandBody', () => {
   it('adds a text option only when the response uses {args}', () => {
-    expect(slashCommandBody({ name: 'say', description: null, response: { content: '{args}' } }).options).toHaveLength(1);
-    expect(slashCommandBody({ name: 'rules', description: 'Rules', response: { content: 'Be nice' } })).toMatchObject({
+    expect(slashCommandBody({ name: 'say', description: null, response: { content: '{args}' }, options: [] }).options).toHaveLength(1);
+    expect(slashCommandBody({ name: 'rules', description: 'Rules', response: { content: 'Be nice' }, options: [] })).toMatchObject({
       name: 'rules',
       description: 'Rules',
       options: [],
     });
+  });
+
+  it('puts its own options instead of {args}, the required ones first', () => {
+    const body = slashCommandBody({
+      name: 'цитата',
+      description: null,
+      response: { content: '{args} «{цитата}» — {автор}' },
+      options: [
+        { name: 'автор', description: 'Кто сказал', type: 'user', required: false },
+        { name: 'цитата', description: 'Текст', type: 'string', required: true },
+      ],
+    });
+    expect(body.options?.map((o) => [o.name, o.type, o.required])).toEqual([
+      ['цитата', ApplicationCommandOptionType.String, true],
+      ['автор', ApplicationCommandOptionType.User, false],
+    ]);
+  });
+});
+
+describe('CommandInput options', () => {
+  const base = { name: 'quote', kind: 'slash', response: { content: '{q}' } } as const;
+  it('takes names in any script and refuses built-in placeholders and repeats', () => {
+    const option = (name: string) => ({ name, description: 'x', type: 'string', required: true });
+    expect(CommandInput.safeParse({ ...base, options: [option('цитата'), option('author_2')] }).success).toBe(true);
+    expect(CommandInput.safeParse({ ...base, options: [option('user')] }).success).toBe(false);
+    expect(CommandInput.safeParse({ ...base, options: [option('a'), option('a')] }).success).toBe(false);
+    expect(CommandInput.safeParse({ ...base, options: [option('Bad')] }).success).toBe(false);
+    expect(CommandInput.safeParse({ ...base, options: [option('с-дефисом')] }).success).toBe(false);
   });
 });
 

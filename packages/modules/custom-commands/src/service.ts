@@ -22,6 +22,8 @@ const data = (input: CommandInput) => ({
   matchMode: input.kind === 'trigger' ? input.matchMode : null,
   pattern: input.kind === 'trigger' ? input.pattern : null,
   response: input.response as Prisma.InputJsonValue,
+  options: (input.kind === 'slash' ? input.options : []) as Prisma.InputJsonValue,
+  responseChannelId: input.responseChannelId,
   ephemeral: input.ephemeral,
   actions: input.actions as Prisma.InputJsonValue,
   allowedChannelIds: input.allowedChannelIds,
@@ -77,6 +79,7 @@ export class CustomCommandService {
 
   private async validate(input: CommandInput, entities: GuildEntities): Promise<void> {
     const checker = new EntityChecker(entities)
+      .textChannel(input.responseChannelId, ['responseChannelId'])
       .channels(input.allowedChannelIds, ['allowedChannelIds'])
       .roles(input.allowedRoleIds, ['allowedRoleIds'])
       .roles(input.actions.addRoleIds, ['actions', 'addRoleIds'], { assignable: true })

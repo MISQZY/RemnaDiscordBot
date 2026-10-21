@@ -2,7 +2,7 @@ import type { BotModuleContext, FallbackCommand } from '@bot/core';
 import type { CustomCommand } from '@bot/db';
 import { changeMemberRoles, memberTemplateVars } from '@bot/discord';
 import { channelVars, renderMessage } from '@bot/templates';
-import { MessageFlags, type GuildMember, type Message } from 'discord.js';
+import { channelMention, MessageFlags, roleMention, userMention, type ChatInputCommandInteraction, type Guild, type GuildMember, type Message } from 'discord.js';
 import { LRUCache } from 'lru-cache';
 import { toDto, type CommandDto, type CustomCommandsConfig } from './config.js';
 import { ARGS_OPTION } from './discord-sync.js';
@@ -52,8 +52,29 @@ async function applyActions(ctx: Ctx, command: CommandDto, member: GuildMember):
   }
 }
 
-function render(command: CommandDto, member: GuildMember, channel: { id: string; name: string }, args: string) {
-  return renderMessage(command.response, { ...memberTemplateVars(member), ...channelVars(channel), args });
+function render(command: CommandDto, member: GuildMember, channel: { id: string; name: string }, args: string, options: Record<string, string> = {}) {
+  return renderMessage(command.response, { ...memberTemplateVars(member), ...channelVars(channel), args, ...options });
+}
+
+/** The values of the command's options as the reply shows them; an option left out is empty. */
+export function optionVars(command: Pick<CommandDto, 'options'>, interaction: ChatInputCommandInteraction, ctx: { tGuild(key: string): string }): Record<string, string> {
+  const vars: Record<string, string> = {};
+  for (const option of command.options) {
+    const value = interaction.options.get(option.name)?.value;
+    if (value === undefined || value === null) vars[option.name] = '';
+    else if (option.type === 'user') vars[option.name] = userMention(String(value));
+    else if (option.type === 'channel') vars[option.name] = channelMention(String(value));
+    else if (option.type === 'role') vars[option.name] = roleMention(String(value));
+    else if (option.type === 'boolean') vars[option.name] = ctx.tGuild(value ? 'custom-commands.yes' : 'custom-commands.no');
+    else vars[option.name] = String(value);
+  }
+  return vars;
+}
+
+/** The channel the reply goes to instead of the one the command was used in; `null` — it is gone or not a text one. */
+function responseChannel(guild: Guild, command: Pick<CommandDto, 'responseChannelId'>) {
+  const channel = command.responseChannelId ? guild.channels.cache.get(command.responseChannelId) : undefined;
+  return channel?.isTextBased() && channel.isSendable() ? channel : null;
 }
 
 const countUse = (ctx: Ctx, command: CommandDto) =>
@@ -83,8 +104,24 @@ export const customSlashCommand: FallbackCommand<CustomCommandsConfig> = {
     }
 
     const channel = { id: interaction.channelId, name: interaction.channel?.name ?? '' };
-    const message = render(command, member, channel, interaction.options.getString(ARGS_OPTION) ?? '');
-    await interaction.reply({ ...message, ...(command.ephemeral ? { flags: MessageFlags.Ephemeral } : {}) });
+    const args = command.options.length ? '' : (interaction.options.getString(ARGS_OPTION) ?? '');
+    const message = render(command, member, channel, args, optionVars(command, interaction, ctx));
+    if (command.responseChannelId && command.responseChannelId !== interaction.channelId) {
+      // The reply goes to its channel; whoever used the command learns where (or that it could not be sent).
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const target = responseChannel(interaction.guild, command);
+      try {
+        if (!target) throw new Error('Response channel is gone');
+        await target.send(message);
+      } catch (err) {
+        ctx.logger.warn({ err, commandId: command.id, channelId: command.responseChannelId }, 'Custom command reply not sent');
+        await interaction.editReply({ content: ctx.t('custom-commands.sendFailed') });
+        return;
+      }
+      await interaction.editReply({ content: ctx.t('custom-commands.sentTo', { channel: channelMention(target.id) }) });
+    } else {
+      await interaction.reply({ ...message, ...(command.ephemeral ? { flags: MessageFlags.Ephemeral } : {}) });
+    }
     await applyActions(ctx, command, member);
     await countUse(ctx, command);
   },
@@ -103,7 +140,12 @@ export async function onMessage(ctx: Ctx, message: Message): Promise<void> {
     if (!(await takeCooldown(ctx, command, message.author.id))) return;
 
     const channel = { id: message.channelId, name: 'name' in message.channel ? message.channel.name : '' };
-    await message.channel.send(render(command, message.member, channel, match.args));
+    const target = command.responseChannelId ? responseChannel(message.guild, command) : message.channel;
+    try {
+      await target?.send(render(command, message.member, channel, match.args));
+    } catch (err) {
+      ctx.logger.warn({ err, commandId: command.id, channelId: command.responseChannelId }, 'Custom command reply not sent');
+    }
     await applyActions(ctx, command, message.member);
     if (command.actions.deleteTrigger) await message.delete().catch(() => undefined);
     await countUse(ctx, command);

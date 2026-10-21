@@ -19,6 +19,24 @@ export type MatchMode = z.infer<typeof MatchMode>;
 
 const SLASH_NAME = /^[-_\p{Ll}\p{N}]{1,32}$/u;
 
+/** An option's name: Discord's rule, and a placeholder's (a letter first, no `-`). */
+const OPTION_NAME = /^\p{Ll}[\p{Ll}\p{N}_]{0,31}$/u;
+/** Placeholder roots the reply already has: an option cannot take them. */
+export const RESERVED_OPTION_NAMES = new Set(['user', 'member', 'guild', 'bot', 'channel', 'args']);
+export const MAX_OPTIONS = 10;
+
+export const OptionType = z.enum(['string', 'integer', 'number', 'boolean', 'user', 'channel', 'role']);
+export type OptionType = z.infer<typeof OptionType>;
+
+/** A slash command option: its value goes into the reply as `{name}`. */
+export const CommandOption = z.object({
+  name: z.string().regex(OPTION_NAME, 'Option names: a lowercase letter, then lowercase letters, digits or _ (up to 32)'),
+  description: z.string().min(1).max(100),
+  type: OptionType,
+  required: z.boolean(),
+});
+export type CommandOption = z.infer<typeof CommandOption>;
+
 export const CommandActions = z.object({
   addRoleIds: z.array(Snowflake).max(5),
   removeRoleIds: z.array(Snowflake).max(5),
@@ -35,6 +53,9 @@ export const CommandInput = z
     matchMode: MatchMode.nullable().default(null),
     pattern: z.string().min(1).max(200).nullable().default(null),
     response: MessageTemplate,
+    options: z.array(CommandOption).max(MAX_OPTIONS).default([]),
+    /** Another channel for the reply; `null` — where the command was used. */
+    responseChannelId: Snowflake.nullable().default(null),
     ephemeral: z.boolean().default(false),
     actions: CommandActions.default({ addRoleIds: [], removeRoleIds: [], deleteTrigger: false }),
     allowedChannelIds: z.array(Snowflake).max(25).default([]),
@@ -47,6 +68,12 @@ export const CommandInput = z
       if (!SLASH_NAME.test(command.name)) {
         ctx.addIssue({ code: 'custom', path: ['name'], message: 'Slash command names: 1–32 lowercase letters, digits, - or _' });
       }
+      const seen = new Set<string>();
+      command.options.forEach((option, i) => {
+        if (RESERVED_OPTION_NAMES.has(option.name)) ctx.addIssue({ code: 'custom', path: ['options', i, 'name'], message: `{${option.name}} is a built-in placeholder` });
+        else if (seen.has(option.name)) ctx.addIssue({ code: 'custom', path: ['options', i, 'name'], message: 'Option names must be unique' });
+        seen.add(option.name);
+      });
       return;
     }
     if (!command.matchMode || !command.pattern) {
@@ -66,6 +93,8 @@ export const CommandDto = z.object({
   matchMode: MatchMode.nullable(),
   pattern: z.string().nullable(),
   response: MessageTemplate,
+  options: z.array(CommandOption),
+  responseChannelId: Snowflake.nullable(),
   ephemeral: z.boolean(),
   actions: CommandActions,
   allowedChannelIds: z.array(Snowflake),
@@ -88,6 +117,8 @@ export function toDto(row: CustomCommand): CommandDto {
     matchMode: row.matchMode as MatchMode | null,
     pattern: row.pattern,
     response: MessageTemplate.parse(row.response),
+    options: z.array(CommandOption).parse(row.options),
+    responseChannelId: row.responseChannelId,
     ephemeral: row.ephemeral,
     actions: CommandActions.parse(row.actions),
     allowedChannelIds: z.array(Snowflake).parse(row.allowedChannelIds),
