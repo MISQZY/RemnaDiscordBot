@@ -138,7 +138,7 @@ model ModCase {
   id           String    @id @default(cuid())
   guildId      String
   number       Int
-  /// `ban` | `unban` | `kick` | `mute` | `unmute` | `warn`
+  /// `ban` | `unban` | `kick` | `mute` | `unmute` | `warn` | `note`
   type         String
   targetId     String
   moderatorId  String
@@ -154,6 +154,257 @@ model ModCase {
 
   @@unique([guildId, number])
   @@index([guildId, targetId, type])
+}
+
+/// A channel closed by a lockdown: the bits the bot changed in its @everyone overwrite, to put them back on unlock.
+model ChannelLockdown {
+  guildId      String
+  channelId    String
+  /// Permission bits (a decimal bitfield) the bot added to the overwrite's deny.
+  addedDeny    String
+  /// Permission bits the bot took out of the overwrite's allow.
+  removedAllow String
+  /// The channel had an @everyone overwrite before — otherwise unlocking may remove it.
+  hadOverwrite Boolean
+  endsAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@id([guildId, channelId])
+}
+
+/// The verification message of a guild: the button members press to get in (verification module).
+model VerificationPanel {
+  guildId   String   @id
+  channelId String
+  messageId String
+  updatedAt DateTime @updatedAt
+}
+
+/// A message with buttons or a menu that opens tickets, one per category (tickets module).
+model TicketPanel {
+  id         String   @id @default(cuid())
+  guildId    String
+  channelId  String
+  /// The Discord message; `null` — the panel is not published yet.
+  messageId  String?
+  /// `buttons` | `select`
+  kind       String
+  /// MessageTemplate — the text above the buttons.
+  message    Json
+  /// [{ id, label, emoji?, style, description?, questions: [{ id, label, placeholder?, required, long }], supportRoleIds }]
+  categories Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([guildId])
+}
+
+/// A ticket: a private thread or channel between a member and the support team (tickets module).
+model Ticket {
+  id             String    @id @default(cuid())
+  guildId        String
+  number         Int
+  /// The ticket's thread or channel.
+  channelId      String    @unique
+  ownerId        String
+  panelId        String?
+  /// The panel category's id and label at the time it was opened.
+  categoryId     String?
+  categoryLabel  String?
+  /// `open` | `closed`
+  status         String    @default("open")
+  claimedBy      String?
+  /// Answers to the category's questions: [{ question, answer }].
+  answers        Json      @default("[]")
+  createdAt      DateTime  @default(now())
+  lastActivityAt DateTime  @default(now())
+  closedAt       DateTime?
+  closedBy       String?
+  closeReason    String?
+
+  @@unique([guildId, number])
+  @@index([guildId, status])
+  @@index([status, lastActivityAt])
+}
+
+/// Last ticket number in a guild.
+model TicketCounter {
+  guildId String @id
+  last    Int
+}
+
+/// A message the bot posted from the dashboard; kept to edit or delete it later (messages module).
+model BotMessage {
+  id        String   @id @default(cuid())
+  guildId   String
+  channelId String
+  messageId String
+  /// MessageTemplate as it was last posted.
+  message   Json
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId])
+}
+
+/// A message the bot posts on schedule, once or repeatedly (messages module).
+model ScheduledMessage {
+  id          String    @id @default(cuid())
+  guildId     String
+  channelId   String
+  message     Json
+  nextRunAt   DateTime
+  /// Repeat every N minutes; 0 — once.
+  intervalMin Int       @default(0)
+  enabled     Boolean   @default(true)
+  lastRunAt   DateTime?
+  createdBy   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([guildId])
+}
+
+/// A message kept at the bottom of a channel: posted again after others write (messages module).
+model StickyMessage {
+  channelId     String   @id
+  guildId       String
+  message       Json
+  /// The bot's last copy of it, deleted when the next one is posted.
+  lastMessageId String?
+  enabled       Boolean  @default(true)
+  createdBy     String
+  updatedAt     DateTime @updatedAt
+
+  @@index([guildId])
+}
+
+/// A member's reminder from /remind (messages module).
+model Reminder {
+  id        String   @id @default(cuid())
+  guildId   String
+  channelId String
+  userId    String
+  text      String
+  /// Remind in DMs instead of the channel.
+  dm        Boolean  @default(false)
+  runAt     DateTime
+  createdAt DateTime @default(now())
+
+  @@index([guildId, userId])
+}
+
+/// A voice channel the bot made for a member who joined a creator channel; deleted once empty (temp-voice module).
+model TempVoiceChannel {
+  channelId String   @id
+  guildId   String
+  ownerId   String
+  /// The creator channel it came from.
+  creatorId String
+  createdAt DateTime @default(now())
+
+  @@index([guildId])
+}
+
+/// A giveaway: a message with a button to enter, winners drawn when it ends (giveaways module).
+model Giveaway {
+  id              String   @id @default(cuid())
+  guildId         String
+  channelId       String
+  messageId       String?
+  prize           String
+  description     String?
+  winners         Int
+  endsAt          DateTime
+  hostId          String
+  /// Roles an entrant must all have.
+  requiredRoleIds Json     @default("[]")
+  /// How long an entrant must be on the server.
+  minMemberDays   Int      @default(0)
+  /// `running` | `ended` | `cancelled`
+  status          String   @default("running")
+  /// Every winner drawn so far, rerolls included.
+  winnerIds       Json     @default("[]")
+  entries         Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  @@index([guildId, status])
+}
+
+model GiveawayEntry {
+  giveawayId String
+  userId     String
+  createdAt  DateTime @default(now())
+
+  @@id([giveawayId, userId])
+}
+
+/// Who invited a member, found by the invite whose use count grew (invites module).
+model MemberInvite {
+  guildId   String
+  userId    String
+  /// `null` — not found (vanity link, Discovery, a widget).
+  inviterId String?
+  /// Invite code; `vanity` for the server's own link.
+  code      String?
+  /// The account was younger than the server's threshold: not counted as an invite.
+  fake      Boolean   @default(false)
+  joinedAt  DateTime  @default(now())
+  leftAt    DateTime?
+
+  @@id([guildId, userId])
+  @@index([guildId, inviterId])
+}
+
+/// A member's suggestion, voted on in the suggestions channel and decided by reviewers (suggestions module).
+model Suggestion {
+  id         String   @id @default(cuid())
+  guildId    String
+  number     Int
+  authorId   String
+  content    String
+  channelId  String
+  messageId  String?
+  /// `pending` | `considered` | `approved` | `denied` | `implemented`
+  status     String   @default("pending")
+  reviewerId String?
+  response   String?
+  upvotes    Int      @default(0)
+  downvotes  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([guildId, number])
+  @@index([guildId, status])
+}
+
+model SuggestionVote {
+  suggestionId String
+  userId       String
+  /// 1 or -1.
+  value        Int
+
+  @@id([suggestionId, userId])
+}
+
+/// Last suggestion number in a guild.
+model SuggestionCounter {
+  guildId String @id
+  last    Int
+}
+
+/// A message that made it to the starboard, and its copy there (starboard module).
+model StarboardEntry {
+  messageId          String   @id
+  guildId            String
+  channelId          String
+  authorId           String
+  starboardMessageId String?
+  stars              Int
+  createdAt          DateTime @default(now())
+
+  @@index([guildId, stars])
 }
 
 /// Last case number in a guild — atomic increment via upsert.

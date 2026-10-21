@@ -2,20 +2,35 @@ import { PrismaClient } from '@prisma/client';
 
 export { Prisma, PrismaClient } from '@prisma/client';
 export type {
+  BotMessage,
+  ChannelLockdown,
   CustomCommand,
   DashboardAuditLog,
   DashboardUser,
+  Giveaway,
+  GiveawayEntry,
   Guild,
   GuildModuleConfig,
   InfoPanel,
+  MemberInvite,
   MemberLevel,
   MemberRoleBackup,
   ModCase,
   ModCaseCounter,
   NotificationSource,
   NotificationSubscription,
+  Reminder,
   RolePanel,
   ScheduledAction,
+  ScheduledMessage,
+  StarboardEntry,
+  StickyMessage,
+  Suggestion,
+  SuggestionVote,
+  TempVoiceChannel,
+  Ticket,
+  TicketPanel,
+  VerificationPanel,
 } from '@prisma/client';
 
 export interface CreatePrismaClientOptions {
