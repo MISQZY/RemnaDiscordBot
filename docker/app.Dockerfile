@@ -19,8 +19,11 @@ WORKDIR /repo/packages/db
 CMD ["pnpm", "db:deploy"]
 
 # Drop dev dependencies and sources: apps run from dist. Scripts are skipped — the Prisma client is already generated.
+# `pnpm prune` is not workspace-aware and unlinks the @bot/* packages from the apps; the offline install links them back.
 FROM build AS prune
-RUN CI=true pnpm prune --prod --ignore-scripts \
+RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
+  CI=true pnpm prune --prod --ignore-scripts \
+  && CI=true pnpm install --prod --frozen-lockfile --offline --ignore-scripts \
   && find packages apps -name node_modules -prune -o -type d -name src -print | xargs rm -rf
 
 FROM node:24-alpine AS runtime
