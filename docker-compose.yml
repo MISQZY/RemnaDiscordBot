@@ -119,6 +119,8 @@ services:
       _JAVA_OPTIONS: -Xmx${LAVALINK_MEMORY:-512M}
       # Sources of the plugins (docker/lavalink/application.yml); only these, not the bot's whole .env.
       YOUTUBE_ENABLED: ${YOUTUBE_ENABLED:-true}
+      YOUTUBE_OAUTH: ${YOUTUBE_OAUTH:-false}
+      YOUTUBE_REFRESH_TOKEN: ${YOUTUBE_REFRESH_TOKEN:-}
       SPOTIFY_ENABLED: ${SPOTIFY_ENABLED:-false}
       SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
       SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}

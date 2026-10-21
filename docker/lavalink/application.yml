@@ -54,7 +54,14 @@ plugins:
   youtube:
     enabled: ${YOUTUBE_ENABLED:true}
     allowSearch: true
-    clients: ["MUSIC", "ANDROID_VR", "WEB", "WEBEMBEDDED"]
+    # Tried in order. YouTube asks servers to sign in ("This video requires login"): TV plays only with OAuth,
+    # TVHTML5_SIMPLY without it.
+    clients: ["MUSIC", "TV", "TVHTML5_SIMPLY", "ANDROID_VR", "WEB", "WEBEMBEDDED"]
+    # Sign-in with a Google account (a spare one: YouTube may ban it). On with YOUTUBE_OAUTH=true and no token, the log
+    # shows a code for google.com/device and then the refresh token to put into YOUTUBE_REFRESH_TOKEN.
+    oauth:
+      enabled: ${YOUTUBE_OAUTH:false}
+      refreshToken: "${YOUTUBE_REFRESH_TOKEN:}"
   lavasrc:
     # Spotify gives no audio: its tracks play from YouTube Music, found by ISRC and then by title.
     providers:
