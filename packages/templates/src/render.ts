@@ -11,7 +11,8 @@ export interface RenderedMessage {
   allowedMentions: { parse: ('users' | 'roles' | 'everyone')[] };
 }
 
-const PLACEHOLDER = /\{([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*)\}/gi;
+/** `{key}` or `{key.sub}`: keys of letters (any script), digits and `_`, starting with a letter. */
+const PLACEHOLDER = /\{(\p{L}[\p{L}\p{N}_]*(?:\.\p{L}[\p{L}\p{N}_]*)*)\}/gu;
 
 const LIMITS = {
   content: 2000,

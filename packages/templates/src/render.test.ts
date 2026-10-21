@@ -20,6 +20,10 @@ describe('renderText', () => {
     expect(renderText('{bot.name} {bot.mention} {bot.avatar}', vars)).toBe('Oracle <@3> https://cdn.test/oracle.png');
   });
 
+  it('substitutes keys in any script', () => {
+    expect(renderText('«{цитата}» — {автор}', { цитата: 'Знание — сила', автор: '<@1>' })).toBe('«Знание — сила» — <@1>');
+  });
+
   it('does not evaluate expressions', () => {
     expect(renderText('{constructor} {__proto__} {1+1}', vars)).toBe('{constructor} {__proto__} {1+1}');
   });
