@@ -5,8 +5,8 @@ import { z } from 'zod';
 import { ScheduledDto, ScheduledInput, SendInput, SentMessage, StickyDto, StickyInput, type MessagesConfig } from './config.js';
 import { MessageService } from './service.js';
 
-const IdParams = z.object({ guildId: z.string(), id: z.string() });
-const ChannelParams = z.object({ guildId: z.string(), channelId: Snowflake });
+const IdParams = z.object({ guildId: Snowflake, id: z.string() });
+const ChannelParams = z.object({ guildId: Snowflake, channelId: Snowflake });
 
 export function messagesApi(app: FastifyInstance, ctx: ApiModuleContext<MessagesConfig>): void {
   const service = new MessageService(ctx);

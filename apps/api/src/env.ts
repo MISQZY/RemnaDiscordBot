@@ -12,6 +12,14 @@ const ApiEnv = z.object({
     .enum(['true', 'false'])
     .default('true')
     .transform((v) => v === 'true'),
+  /**
+   * Proxies in front of the API whose X-Forwarded-For is trusted, counted from the API: 1 — the one reverse proxy
+   * (Caddy, or RemnaWeb calling it directly). The client's IP is the address that proxy saw; whatever a client wrote
+   * into the header itself is ignored, so it cannot dodge the per-IP limits. 0 — no proxy, the socket's address.
+   */
+  API_TRUSTED_PROXIES: z.coerce.number().int().min(0).max(5).default(1),
+  /** Swagger UI at /docs: on outside production unless set. */
+  API_DOCS: z.enum(['true', 'false']).optional(),
   /** Global request limit per minute per user/IP; 0 — unlimited (load tests). */
   API_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().nonnegative().default(120),
   /** Internal port for Prometheus `/metrics`; not published outside the Docker network. */

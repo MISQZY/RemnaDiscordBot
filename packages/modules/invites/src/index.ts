@@ -1,3 +1,4 @@
+import { Snowflake } from '@bot/contracts';
 import { defineModule, EntityChecker } from '@bot/core';
 import { UserDirectory, UserInfo } from '@bot/discord';
 import { GatewayIntentBits } from 'discord.js';
@@ -66,7 +67,7 @@ export default defineModule({
 
     app.get(
       '/members/:userId',
-      { schema: { tags: ['invites'], summary: "A member's invite counts", params: z.object({ guildId: z.string(), userId: z.string() }), response: { 200: InviteCounts } } },
+      { schema: { tags: ['invites'], summary: "A member's invite counts", params: z.object({ guildId: Snowflake, userId: Snowflake }), response: { 200: InviteCounts } } },
       async (request) => countsOf(ctx, guildId(request), (request.params as { userId: string }).userId, await ctx.getConfig(guildId(request))),
     );
   },

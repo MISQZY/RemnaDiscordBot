@@ -21,7 +21,9 @@ export function requireGuildAccess(userGuilds: UserGuildService): preHandlerAsyn
     const { guildId } = request.params as { guildId?: string };
     if (!guildId) throw ApiError.notFound();
 
-    const guild = await userGuilds.find(session, guildId);
+    // While Discord refuses, reads may go by the user's last known guilds; changes wait for a fresh answer, which may
+    // have taken the permission away.
+    const guild = await userGuilds.find(session, guildId, { stale: request.method === 'GET' || request.method === 'HEAD' });
     if (!guild?.canManage) throw ApiError.forbidden('You cannot manage this guild');
     if (!guild.botPresent) throw ApiError.botNotInGuild();
     request.guild = guild;

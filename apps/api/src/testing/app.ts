@@ -84,6 +84,7 @@ export async function createTestApp({ modules = [], rateLimitPerMinute = 0 }: Te
       docs: true,
       rateLimitPerMinute,
       botProfileEdits: true,
+      trustedProxies: 1,
     },
   };
 
@@ -136,7 +137,8 @@ export async function seedGuildSnapshot(t: TestApp, guildId = GUILD_ID): Promise
 export async function login(t: TestApp): Promise<string> {
   const start = await t.app.inject('/v1/auth/login');
   const state = new URL(start.headers.location!).searchParams.get('state');
-  const callback = await t.app.inject(`/v1/auth/callback?code=valid-code&state=${state}`);
+  const stateCookie = start.cookies.filter((c) => c.name === 'oauth_state').map((c) => `${c.name}=${c.value}`).join('; ');
+  const callback = await t.app.inject({ url: `/v1/auth/callback?code=valid-code&state=${state}`, headers: { cookie: stateCookie } });
   const cookie = callback.cookies.find((c) => c.name === 'sid');
   if (!cookie) throw new Error(`Login failed: ${callback.statusCode} ${callback.body}`);
   return `sid=${cookie.value}`;

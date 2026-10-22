@@ -27,12 +27,17 @@ export interface AuthRouteDeps extends ApiDeps {
   sessions: SessionStore;
 }
 
-/** Reads and deletes a single-use value, so that it cannot be used twice. */
-async function take(redis: ApiDeps['redis'], key: string): Promise<string | null> {
-  const value = await redis.get(key);
-  if (value !== null) await redis.del(key);
-  return value;
+/** Reads and deletes a single-use value in one step, so that two racing requests cannot both use it. */
+function take(redis: ApiDeps['redis'], key: string): Promise<string | null> {
+  return redis.getdel(key);
 }
+
+/**
+ * The browser that started a login of the API's own web: the callback signs in only that browser. Without it, a
+ * link to the callback with someone's code would sign the victim into the attacker's account (login CSRF).
+ */
+const STATE_COOKIE = 'oauth_state';
+const STATE_COOKIE_PATH = '/v1/auth';
 
 export function authRoutes({ db, redis, oauth, sessions, options }: AuthRouteDeps): FastifyPluginAsyncZod {
   const redirectUri = `${options.publicUrl}/v1/auth/callback`;
@@ -65,6 +70,17 @@ export function authRoutes({ db, redis, oauth, sessions, options }: AuthRouteDep
         }
         const state = randomBytes(24).toString('base64url');
         await redis.set(RedisKeys.oauthState(state), JSON.stringify(flow), 'EX', STATE_TTL_SEC);
+        // External clients bind the flow to their own browser (RemnaWeb's nonce cookie); the API's web does it here.
+        if ('redirect' in flow) {
+          reply.setCookie(STATE_COOKIE, state, {
+            signed: true,
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: options.secureCookies,
+            path: STATE_COOKIE_PATH,
+            maxAge: STATE_TTL_SEC,
+          });
+        }
         return reply.redirect(oauth.authorizeUrl(state, redirectUri));
       },
     );
@@ -91,6 +107,12 @@ export function authRoutes({ db, redis, oauth, sessions, options }: AuthRouteDep
         const flow = JSON.parse(raw) as LoginFlow;
         const client = 'client' in flow ? options.linkClients.find((c) => c.id === flow.client) : undefined;
         if ('client' in flow && !client) throw ApiError.badRequest('Unknown client');
+        if ('redirect' in flow) {
+          const cookie = request.cookies[STATE_COOKIE];
+          const started = cookie ? request.unsignCookie(cookie) : null;
+          reply.clearCookie(STATE_COOKIE, { path: STATE_COOKIE_PATH });
+          if (!started?.valid || started.value !== state) throw ApiError.badRequest('Login was started in another browser');
+        }
 
         if (error || !code) {
           // The client shows the failure on its own site.

@@ -8,13 +8,15 @@ import type { DiscordOAuth, DiscordPartialGuild, DiscordTokens } from './discord
 import type { Session, SessionStore } from './sessions.js';
 
 const GUILDS_CACHE_SEC = 60;
-const LAST_GUILDS_SEC = 60 * 60;
+/** How long the last list stands in while Discord refuses: short, as it may still grant a revoked permission. */
+const LAST_GUILDS_SEC = 10 * 60;
 const REFRESH_MARGIN_MS = 60_000;
 
 /**
  * The user's guilds with permissions and bot presence. Every guild route checks access through them, and a page of
  * the dashboard sends several at once: Discord is asked once for them all (per process), as its guild list allows
- * few requests per token, and the list it gave last stands in while it refuses.
+ * few requests per token, and the list it gave last stands in while it refuses — for reading only: a change waits
+ * for Discord to confirm the user still manages the guild.
  */
 export class UserGuildService {
   private readonly fetching = new Map<string, Promise<DiscordPartialGuild[]>>();
@@ -54,26 +56,20 @@ export class UserGuildService {
   }
 
   async list(session: Session): Promise<UserGuild[]> {
-    const guilds = await this.discordGuilds(session);
-    const result = await Promise.all(
-      guilds.map(async (guild) => ({
-        id: guild.id,
-        name: guild.name,
-        icon: guild.icon,
-        owner: guild.owner,
-        canManage: canManageGuild(guild),
-        botPresent: await this.snapshots.isPresent(guild.id),
-      })),
-    );
+    const guilds = await this.discordGuilds(session, { stale: true });
+    const present = await this.snapshots.presentMany(guilds.map((guild) => guild.id));
+    const result = guilds.map((guild, i) => toUserGuild(guild, present[i]!));
     // Manageable guilds first, then by name.
     return result.sort((a, b) => Number(b.canManage) - Number(a.canManage) || a.name.localeCompare(b.name));
   }
 
-  async find(session: Session, guildId: string): Promise<UserGuild | undefined> {
-    return (await this.list(session)).find((guild) => guild.id === guildId);
+  /** The guild among the user's, checked for the bot only; `stale` — the last list will do while Discord refuses. */
+  async find(session: Session, guildId: string, { stale = false } = {}): Promise<UserGuild | undefined> {
+    const guild = (await this.discordGuilds(session, { stale })).find((g) => g.id === guildId);
+    return guild && toUserGuild(guild, await this.snapshots.isPresent(guildId));
   }
 
-  private async discordGuilds(session: Session): Promise<DiscordPartialGuild[]> {
+  private async discordGuilds(session: Session, { stale }: { stale: boolean }): Promise<DiscordPartialGuild[]> {
     const cached = await this.redis.get(RedisKeys.userGuilds(session.userId));
     if (cached) return JSON.parse(cached) as DiscordPartialGuild[];
 
@@ -82,25 +78,29 @@ export class UserGuildService {
       pending = this.fetchGuilds(session).finally(() => this.fetching.delete(session.userId));
       this.fetching.set(session.userId, pending);
     }
-    return pending;
-  }
-
-  private async fetchGuilds(session: Session): Promise<DiscordPartialGuild[]> {
     try {
-      const guilds = await this.oauth.getGuilds(await this.accessToken(session));
-      const json = JSON.stringify(guilds);
-      await this.redis
-        .multi()
-        .set(RedisKeys.userGuilds(session.userId), json, 'EX', GUILDS_CACHE_SEC)
-        .set(RedisKeys.userGuildsLast(session.userId), json, 'EX', LAST_GUILDS_SEC)
-        .exec();
-      return guilds;
+      return await pending;
     } catch (err) {
-      // Discord refuses for now: the list it gave last will do; a revoked token still ends the request.
+      // Discord refuses for now: the list it gave last will do for reading; a revoked token still ends the request.
       const refused = err instanceof ApiError && (err.code === 'RATE_LIMITED' || err.code === 'DISCORD_UNAVAILABLE');
-      const last = refused ? await this.redis.get(RedisKeys.userGuildsLast(session.userId)) : null;
+      const last = stale && refused ? await this.redis.get(RedisKeys.userGuildsLast(session.userId)) : null;
       if (last) return JSON.parse(last) as DiscordPartialGuild[];
       throw err;
     }
   }
+
+  private async fetchGuilds(session: Session): Promise<DiscordPartialGuild[]> {
+    const guilds = await this.oauth.getGuilds(await this.accessToken(session));
+    const json = JSON.stringify(guilds);
+    await this.redis
+      .multi()
+      .set(RedisKeys.userGuilds(session.userId), json, 'EX', GUILDS_CACHE_SEC)
+      .set(RedisKeys.userGuildsLast(session.userId), json, 'EX', LAST_GUILDS_SEC)
+      .exec();
+    return guilds;
+  }
+}
+
+function toUserGuild(guild: DiscordPartialGuild, botPresent: boolean): UserGuild {
+  return { id: guild.id, name: guild.name, icon: guild.icon, owner: guild.owner, canManage: canManageGuild(guild), botPresent };
 }

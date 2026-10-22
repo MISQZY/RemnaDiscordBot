@@ -29,4 +29,6 @@ export interface ApiOptions {
   rateLimitPerMinute: number;
   /** Servers may change the bot's profile on them. */
   botProfileEdits: boolean;
+  /** Reverse proxies whose X-Forwarded-For is trusted (Fastify's `trustProxy` as a hop count); 0 — none. */
+  trustedProxies: number;
 }

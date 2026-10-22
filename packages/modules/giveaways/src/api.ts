@@ -1,10 +1,11 @@
+import { Snowflake } from '@bot/contracts';
 import { EntityChecker, HttpError, type ApiModuleContext } from '@bot/core';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { GiveawayDto, GiveawayInput, type GiveawaysConfig } from './config.js';
 import { GiveawayService, toGiveawayDto } from './service.js';
 
-const IdParams = z.object({ guildId: z.string(), id: z.string() });
+const IdParams = z.object({ guildId: Snowflake, id: z.string() });
 
 export function giveawaysApi(app: FastifyInstance, ctx: ApiModuleContext<GiveawaysConfig>): void {
   const service = new GiveawayService(ctx);

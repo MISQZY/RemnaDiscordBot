@@ -1,3 +1,4 @@
+import { Snowflake } from '@bot/contracts';
 import { defineModule, EntityChecker } from '@bot/core';
 import { UserDirectory, UserInfo } from '@bot/discord';
 import { z } from 'zod';
@@ -58,7 +59,7 @@ export default defineModule({
         schema: {
           tags: ['suggestions'],
           summary: 'Decide on a suggestion',
-          params: z.object({ guildId: z.string(), number: z.coerce.number().int().min(1) }),
+          params: z.object({ guildId: Snowflake, number: z.coerce.number().int().min(1) }),
           body: z.object({ status: SuggestionStatus, response: z.string().max(1000).nullable().default(null) }),
           response: { 200: SuggestionDto },
         },

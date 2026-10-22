@@ -1,3 +1,4 @@
+import { Snowflake } from '@bot/contracts';
 import { EntityChecker, HttpError, type ApiModuleContext } from '@bot/core';
 import { DiscordAPIError, Routes, type APIAutoModerationRule } from 'discord.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -6,7 +7,7 @@ import type { AutomodConfig } from './config.js';
 import { fromDiscord, NativeRule, NativeRuleInput, toDiscord } from './native.js';
 import { endRaid, raidKey } from './raid.js';
 
-const RuleParams = z.object({ guildId: z.string(), ruleId: z.string() });
+const RuleParams = z.object({ guildId: Snowflake, ruleId: Snowflake });
 
 /** Discord's refusal (missing Manage Server, a bad regex, too many rules) as a 400 with its message. */
 async function discord<T>(call: () => Promise<T>): Promise<T> {

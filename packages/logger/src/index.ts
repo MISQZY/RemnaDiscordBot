@@ -19,6 +19,8 @@ export function createLogger({
     level,
     base: { service, ...bindings },
     timestamp: pino.stdTimeFunctions.isoTime,
+    // discord.js puts the body of a failed request on its error: a bot avatar or banner as a data URI (megabytes), files.
+    redact: { paths: ['err.requestBody', 'error.requestBody'], censor: '[redacted]' },
   };
 
   if (!pretty) return pino(options);

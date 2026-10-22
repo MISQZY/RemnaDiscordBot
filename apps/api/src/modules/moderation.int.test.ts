@@ -150,7 +150,7 @@ describe('moderation', () => {
   });
 
   it('locks a channel, remembers its overwrite and puts it back on unlock', async () => {
-    const LOCKED = '800000000000000008';
+    const LOCKED = CHANNEL_ID;
     t.rest.responses.set(`/channels/${LOCKED}`, { id: LOCKED, type: 0, permission_overwrites: [{ id: GUILD_ID, type: 0, allow: '2048', deny: '0' }] });
 
     const locked = (await send('POST', '/lockdown', { channelIds: [LOCKED], durationSec: 600 })).json();
@@ -169,6 +169,12 @@ describe('moderation', () => {
     expect(t.rest.calls.find((c) => c.method === 'put')).toMatchObject({ body: { allow: '2048', deny: '0' } });
     expect(await t.database.db.channelLockdown.count()).toBe(0);
     expect(await t.database.db.scheduledAction.count({ where: { type: 'moderation:unlock' } })).toBe(0);
+  });
+
+  it('locks only channels of its own server', async () => {
+    const elsewhere = await send('POST', '/lockdown', { channelIds: ['800000000000000008'] });
+    expect(elsewhere.statusCode).toBe(400);
+    expect(t.rest.calls.some((c) => c.method === 'put')).toBe(false);
   });
 
   it('revokes warnings and reports inactive cases', async () => {

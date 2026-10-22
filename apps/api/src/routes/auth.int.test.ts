@@ -2,6 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TEST_USER } from '../testing/fake-oauth.js';
 import { TEST_CLIENT, createTestApp, login, type TestApp } from '../testing/app.js';
 
+/** The signed state cookie /v1/auth/login gave the browser, as a request header. */
+const stateCookie = (start: { cookies: { name: string; value: string }[] }) =>
+  start.cookies.filter((c) => c.name === 'oauth_state').map((c) => `${c.name}=${c.value}`).join('; ');
+
 describe('auth routes', () => {
   let t: TestApp;
 
@@ -27,7 +31,7 @@ describe('auth routes', () => {
     const start = await t.app.inject('/v1/auth/login?redirect=/guilds');
     const state = new URL(start.headers.location!).searchParams.get('state');
 
-    const callback = await t.app.inject(`/v1/auth/callback?code=valid-code&state=${state}`);
+    const callback = await t.app.inject({ url: `/v1/auth/callback?code=valid-code&state=${state}`, headers: { cookie: stateCookie(start) } });
 
     expect(callback.statusCode).toBe(302);
     expect(callback.headers.location).toBe('http://web.test/guilds');
@@ -40,11 +44,21 @@ describe('auth routes', () => {
   it('rejects reused and unknown states', async () => {
     const start = await t.app.inject('/v1/auth/login');
     const state = new URL(start.headers.location!).searchParams.get('state');
-    await t.app.inject(`/v1/auth/callback?code=valid-code&state=${state}`);
+    const headers = { cookie: stateCookie(start) };
+    await t.app.inject({ url: `/v1/auth/callback?code=valid-code&state=${state}`, headers });
 
-    const reused = await t.app.inject(`/v1/auth/callback?code=valid-code&state=${state}`);
+    const reused = await t.app.inject({ url: `/v1/auth/callback?code=valid-code&state=${state}`, headers });
     expect(reused.statusCode).toBe(400);
     expect(reused.json()).toMatchObject({ error: { code: 'VALIDATION_FAILED' } });
+  });
+
+  it('signs in only the browser that started the login', async () => {
+    const start = await t.app.inject('/v1/auth/login?redirect=/guilds');
+    const state = new URL(start.headers.location!).searchParams.get('state');
+
+    const elsewhere = await t.app.inject(`/v1/auth/callback?code=valid-code&state=${state}`);
+    expect(elsewhere.statusCode).toBe(400);
+    expect(elsewhere.cookies.find((c) => c.name === 'sid')).toBeUndefined();
   });
 
   it('ignores redirects to other origins', async () => {

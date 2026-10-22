@@ -8,7 +8,7 @@ import type { UserGuildService } from '../auth/user-guilds.js';
 import type { ApiDeps } from '../deps.js';
 import { ApiError } from '../errors.js';
 import { requireGuildAccess } from '../plugins/guild-access.js';
-import { GUILD_WRITE_LIMIT } from '../plugins/rate-limit.js';
+import { guildWriteLimit } from '../plugins/rate-limit.js';
 import { requireSession } from '../plugins/session.js';
 
 const GuildParams = z.object({ guildId: Snowflake });
@@ -127,6 +127,7 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
 
     await app.register(async (guildScope) => {
       guildScope.addHook('preHandler', requireGuildAccess(userGuilds));
+      if (deps.options.rateLimitPerMinute > 0) guildScope.addHook('preHandler', guildWriteLimit(deps.redis));
       const scope = guildScope.withTypeProvider<ZodTypeProvider>();
 
       scope.get(
@@ -166,7 +167,6 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
             body: ModuleConfigReplace,
             response: { 200: ModuleState },
           },
-          config: { rateLimit: GUILD_WRITE_LIMIT },
         },
         (request, reply) =>
           applyUpdate(request, reply, request.params, () => ({ enabled: request.body.enabled, config: request.body.config }), 'module.update'),
@@ -182,7 +182,6 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
             body: ModuleConfigPatch,
             response: { 200: ModuleState },
           },
-          config: { rateLimit: GUILD_WRITE_LIMIT },
         },
         (request, reply) =>
           applyUpdate(
@@ -201,7 +200,6 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
         '/v1/guilds/:guildId/modules/:moduleId/reset',
         {
           schema: { tags: ['modules'], summary: 'Reset config to defaults', params: ModuleParams, response: { 200: ModuleState } },
-          config: { rateLimit: GUILD_WRITE_LIMIT },
         },
         async (request, reply) => {
           const defaults = await config.defaults(request.params.guildId, request.params.moduleId);

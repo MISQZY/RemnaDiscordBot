@@ -8,6 +8,9 @@ const module = defineModule({
   configSchema: z.object({ xpPerMessage: z.number().int() }),
   defaultConfig: { xpPerMessage: 10 },
   configVersion: 1,
+  api: (app) => {
+    app.post('/send', async () => ({ ok: true }));
+  },
 });
 
 describe('rate limiting', () => {
@@ -39,6 +42,14 @@ describe('rate limiting', () => {
     expect(limited.statusCode).toBe(429);
     expect(limited.headers['retry-after']).toBeDefined();
     expect(limited.json()).toMatchObject({ error: { code: 'RATE_LIMITED' } });
+  });
+
+  it("limits the writes of modules' own routes too", async () => {
+    const cookie = await login(t);
+    const send = () => t.app.inject({ method: 'POST', url: `/v1/guilds/${GUILD_ID}/modules/leveling/send`, headers: { cookie } });
+
+    // The window is shared with config writes: the test above has used it up.
+    expect((await send()).statusCode).toBe(429);
   });
 
   it('applies the global limit per client but not to health checks', async () => {

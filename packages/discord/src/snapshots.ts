@@ -52,6 +52,15 @@ export class GuildSnapshotReader {
     return (await this.redis.exists(RedisKeys.guildMeta(guildId))) === 1;
   }
 
+  /** `isPresent` for many guilds in one round trip, in their order. */
+  async presentMany(guildIds: readonly string[]): Promise<boolean[]> {
+    if (guildIds.length === 0) return [];
+    const pipeline = this.redis.pipeline();
+    for (const id of guildIds) pipeline.exists(RedisKeys.guildMeta(id));
+    const results = (await pipeline.exec()) ?? [];
+    return guildIds.map((_, i) => results[i]?.[1] === 1);
+  }
+
   getMeta(guildId: string): Promise<GuildMeta | null> {
     return this.read(RedisKeys.guildMeta(guildId), GuildMeta);
   }

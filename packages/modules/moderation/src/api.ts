@@ -1,4 +1,4 @@
-import { HttpError, type ApiModuleContext } from '@bot/core';
+import { EntityChecker, HttpError, type ApiModuleContext } from '@bot/core';
 import { UserDirectory, UserInfo } from '@bot/discord';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -16,9 +16,9 @@ const LockBody = z.object({
 });
 const LockAnswer = z.object({ locked: z.array(Snowflake), skipped: z.array(Snowflake), failed: z.array(Snowflake) });
 
-const CaseParams = z.object({ guildId: z.string(), number: z.coerce.number().int().min(1) });
+const CaseParams = z.object({ guildId: Snowflake, number: z.coerce.number().int().min(1) });
 const CasesQuery = z.object({
-  targetId: z.string().optional(),
+  targetId: Snowflake.optional(),
   type: CaseType.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   /** Case number to continue from (exclusive) — cases go from newest to oldest. */
@@ -35,6 +35,13 @@ export function moderationApi(app: FastifyInstance, ctx: ApiModuleContext<Modera
   const service = new ModerationService(ctx);
   const users = new UserDirectory(ctx.redis, ctx.rest);
   const guildId = (request: FastifyRequest) => (request.params as { guildId: string }).guildId;
+
+  /** Lockdown goes through Discord as the bot: only channels of this guild, never ones of another it is on. */
+  async function ownChannels(id: string, channelIds: readonly string[] | null): Promise<void> {
+    if (!channelIds) return;
+    const { issues } = new EntityChecker(await ctx.guildEntities(id)).channels(channelIds, ['channelIds']);
+    if (issues.length > 0) throw HttpError.badRequest('Unknown channels', issues);
+  }
 
   async function findCase(request: FastifyRequest) {
     const { number } = CaseParams.parse(request.params);
@@ -145,6 +152,7 @@ export function moderationApi(app: FastifyInstance, ctx: ApiModuleContext<Modera
     async (request) => {
       const id = guildId(request);
       const { channelIds, durationSec, reason } = request.body as z.infer<typeof LockBody>;
+      await ownChannels(id, channelIds);
       const config = await ctx.getConfig(id);
       const targets = channelIds ?? (config.lockdown.channelIds.length > 0 ? config.lockdown.channelIds : await lockdown.serverChannels(id));
       return lockdown.lock(id, targets, {
@@ -167,6 +175,7 @@ export function moderationApi(app: FastifyInstance, ctx: ApiModuleContext<Modera
     },
     async (request) => {
       const { channelIds } = request.body as { channelIds: string[] | null };
+      await ownChannels(guildId(request), channelIds);
       const unlocked = await lockdown.unlock(guildId(request), channelIds, {
         reason: `Unlock from the dashboard by ${ctx.currentUserId(request)}`,
         scope: channelIds?.length === 1 ? channelIds[0] : undefined,
@@ -181,7 +190,7 @@ export function moderationApi(app: FastifyInstance, ctx: ApiModuleContext<Modera
       schema: {
         tags: ['moderation'],
         summary: "Member's active warnings",
-        params: z.object({ guildId: z.string(), userId: z.string() }),
+        params: z.object({ guildId: Snowflake, userId: Snowflake }),
         response: { 200: z.array(ModCaseDto) },
       },
     },

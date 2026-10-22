@@ -26,6 +26,8 @@ import { buildServer } from './server.js';
 
 const env = loadApiEnv();
 const logger = createLogger({ service: 'api', level: env.LOG_LEVEL });
+/** The full API map is for development: production serves it only when asked to. */
+const docs = env.API_DOCS ? env.API_DOCS === 'true' : env.NODE_ENV !== 'production';
 
 collectDefaultMetrics();
 
@@ -71,13 +73,14 @@ const app = await buildServer({
     publicUrl: env.API_PUBLIC_URL,
     webOrigin: env.WEB_ORIGIN ?? env.API_PUBLIC_URL,
     // Until the web app exists, login lands on the API Swagger UI.
-    defaultRedirect: env.WEB_ORIGIN ? '/' : '/docs',
+    defaultRedirect: env.WEB_ORIGIN || !docs ? '/' : '/docs',
     clientId: env.DISCORD_CLIENT_ID,
     sessionSecret: env.SESSION_SECRET,
     secureCookies: env.API_PUBLIC_URL.startsWith('https://'),
     linkClients: env.LINK_CLIENTS,
-    docs: true,
+    docs,
     rateLimitPerMinute: env.API_RATE_LIMIT_PER_MINUTE,
+    trustedProxies: env.API_TRUSTED_PROXIES,
     botProfileEdits: env.BOT_PROFILE_EDITS,
   },
 });

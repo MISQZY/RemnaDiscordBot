@@ -1,3 +1,4 @@
+import { Snowflake } from '@bot/contracts';
 import { HttpError, type ApiModuleContext, type ModuleServices } from '@bot/core';
 import { UserDirectory } from '@bot/discord';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -11,7 +12,7 @@ const LeaderboardQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(25),
 });
 const LeaderboardPage = z.object({ items: z.array(LeaderboardEntry), total: z.number().int() });
-const MemberParams = z.object({ guildId: z.string(), userId: z.string() });
+const MemberParams = z.object({ guildId: Snowflake, userId: Snowflake });
 
 const guildId = (request: FastifyRequest) => (request.params as { guildId: string }).guildId;
 

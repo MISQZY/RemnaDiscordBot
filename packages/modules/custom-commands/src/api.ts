@@ -1,10 +1,11 @@
+import { Snowflake } from '@bot/contracts';
 import type { ApiModuleContext } from '@bot/core';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { CommandDto, CommandInput, type CustomCommandsConfig } from './config.js';
 import { CustomCommandService } from './service.js';
 
-const CommandParams = z.object({ guildId: z.string(), commandId: z.string() });
+const CommandParams = z.object({ guildId: Snowflake, commandId: z.string() });
 
 export function customCommandsApi(app: FastifyInstance, ctx: ApiModuleContext<CustomCommandsConfig>): void {
   const service = new CustomCommandService(ctx);

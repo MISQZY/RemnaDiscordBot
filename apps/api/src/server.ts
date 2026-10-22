@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
-import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyBaseLogger, type FastifyInstance, type FastifyRequest } from 'fastify';
 import { jsonSchemaTransform, serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 import { SessionStore } from './auth/sessions.js';
 import { TokenCipher } from './auth/token-cipher.js';
@@ -20,12 +20,19 @@ import { moduleRoutes } from './routes/modules.js';
 import { statusRoutes } from './routes/status.js';
 import { healthRoutes } from './routes/health.js';
 
+/** Fastify's request log line, without the query: OAuth codes and states travel in it (`/v1/auth/callback`). */
+function logRequest(request: FastifyRequest) {
+  return { method: request.method, url: request.url.split('?')[0], host: request.host, remoteAddress: request.ip };
+}
+
 export async function buildServer(deps: ApiDeps): Promise<FastifyInstance> {
   const app = Fastify({
     // pino 10 matches Fastify's logger interface but not its type generics.
-    loggerInstance: deps.logger as unknown as FastifyBaseLogger,
+    loggerInstance: deps.logger.child({}, { serializers: { req: logRequest } }) as unknown as FastifyBaseLogger,
     genReqId: () => `req_${randomUUID()}`,
-    trustProxy: true,
+    // The nearest `trustedProxies` hops, not `true`: with `true` the leftmost X-Forwarded-For entry wins, and the client
+    // writes that one.
+    trustProxy: (_address: string, hop: number) => hop < deps.options.trustedProxies,
   });
 
   app.setValidatorCompiler(validatorCompiler);

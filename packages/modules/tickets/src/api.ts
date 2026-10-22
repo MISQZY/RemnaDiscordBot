@@ -1,3 +1,4 @@
+import { Snowflake } from '@bot/contracts';
 import { EntityChecker, HttpError, type ApiModuleContext } from '@bot/core';
 import { UserDirectory, UserInfo } from '@bot/discord';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -6,8 +7,8 @@ import { TicketDto, TicketPanel, TicketPanelInput, type TicketsConfig } from './
 import { PanelService, toPanel } from './panel.js';
 import { TicketService, toTicketDto } from './service.js';
 
-const PanelParams = z.object({ guildId: z.string(), panelId: z.string() });
-const TicketParams = z.object({ guildId: z.string(), number: z.coerce.number().int().min(1) });
+const PanelParams = z.object({ guildId: Snowflake, panelId: z.string() });
+const TicketParams = z.object({ guildId: Snowflake, number: z.coerce.number().int().min(1) });
 const TicketsQuery = z.object({
   status: z.enum(['open', 'closed']).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(25),

@@ -1,6 +1,6 @@
 import type { ApiModuleContext } from '@bot/core';
 import { renderMessage, toRestMessage, userVars, guildVars } from '@bot/templates';
-import { Routes, type REST } from 'discord.js';
+import { DiscordAPIError, Routes, type REST } from 'discord.js';
 import type { APIGuild, APIGuildMember, APIDMChannel } from 'discord.js';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -59,7 +59,8 @@ export function welcomeApi(app: FastifyInstance, ctx: ApiModuleContext<WelcomeCo
         return await sendTestMessage(ctx.rest, await ctx.getConfig(guildId), { guildId, userId: ctx.currentUserId(request), kind });
       } catch (err) {
         request.log.warn({ err, guildId, kind }, 'Welcome test message failed');
-        return { sent: false, reason: err instanceof Error ? err.message : 'Discord request failed' };
+        // Discord's own refusals (no access to the channel, a bad embed) help to fix the message; anything else stays in the log.
+        return { sent: false, reason: err instanceof DiscordAPIError && err.status < 500 ? err.message : 'Discord request failed' };
       }
     },
   );

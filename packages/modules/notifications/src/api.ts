@@ -1,3 +1,4 @@
+import { Snowflake } from '@bot/contracts';
 import type { ApiModuleContext } from '@bot/core';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -5,7 +6,7 @@ import { Provider, SubscriptionCreate, SubscriptionDto, SubscriptionUpdate, type
 import type { Provider as FeedProvider, ProviderId } from './providers.js';
 import { SubscriptionService } from './service.js';
 
-const SubscriptionParams = z.object({ guildId: z.string(), subscriptionId: z.string() });
+const SubscriptionParams = z.object({ guildId: Snowflake, subscriptionId: z.string() });
 const LookupQuery = z.object({ provider: Provider, query: z.string().min(1).max(200) });
 const SourceInfo = z.object({ externalId: z.string(), name: z.string(), url: z.string() });
 

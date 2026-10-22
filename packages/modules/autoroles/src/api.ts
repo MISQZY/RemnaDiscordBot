@@ -1,3 +1,4 @@
+import { Snowflake } from '@bot/contracts';
 import { EntityChecker, HttpError, type ApiModuleContext } from '@bot/core';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -7,7 +8,7 @@ import { InfoPanelService } from './info-panel-service.js';
 import { toPanel } from './panel.js';
 import { PanelService } from './panel-service.js';
 
-const PanelParams = z.object({ guildId: z.string(), panelId: z.string() });
+const PanelParams = z.object({ guildId: Snowflake, panelId: z.string() });
 
 export function autorolesApi(app: FastifyInstance, ctx: ApiModuleContext<AutorolesConfig>): void {
   const panels = new PanelService(ctx.db, ctx.rest);
