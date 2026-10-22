@@ -51,8 +51,10 @@ async function applyActions(ctx: Ctx, command: CommandDto, member: GuildMember):
   }
 }
 
+/** `{args}` and text options are what the member wrote: inert to mentions; user and role options ping as picked. */
 function render(command: CommandDto, member: GuildMember, channel: { id: string; name: string }, args: string, options: Record<string, string> = {}) {
-  return renderMessage(command.response, { ...memberTemplateVars(member), ...channelVars(channel), args, ...options });
+  const mentionKeys = command.options.filter((o) => o.type === 'user' || o.type === 'role').map((o) => o.name);
+  return renderMessage(command.response, { ...memberTemplateVars(member), ...channelVars(channel), args, ...options }, { mentionKeys });
 }
 
 /** The values of the command's options as the reply shows them; an option left out is empty. */

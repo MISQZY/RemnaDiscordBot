@@ -80,3 +80,23 @@ describe('renderMessage', () => {
     expect(render(true)).toMatchObject({ content: '@everyone @here @heresy', allowedMentions: { parse: ['users', 'everyone'] } });
   });
 });
+
+describe('mentions in values', () => {
+  const template = { content: '{user.mention} says: {args}', allowedMentions: { users: true, roles: true, everyone: true } };
+
+  it("keeps what members wrote from pinging, the bot's own mentions still ping", () => {
+    const { content } = renderMessage(template, { 'user.mention': '<@1>', args: 'hi <@2> <@&3> @everyone @here' });
+    expect(content).toBe('<@1> says: hi <@​2> <@​&3> @​everyone @​here');
+  });
+
+  it('lets resolved option mentions ping when asked to', () => {
+    const { content } = renderMessage({ content: '{who}' }, { who: '<@5>' }, { mentionKeys: ['who'] });
+    expect(content).toBe('<@5>');
+  });
+
+  it("does not touch the template's own text", () => {
+    expect(renderMessage({ content: '@everyone <@&3> {x}', allowedMentions: { users: true, roles: true, everyone: true } }, { x: 'ok' }).content).toBe(
+      '@everyone <@&3> ok',
+    );
+  });
+});

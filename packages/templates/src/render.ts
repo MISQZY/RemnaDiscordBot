@@ -27,12 +27,24 @@ const LIMITS = {
 };
 
 /** Substitutes values; unknown placeholders stay as they are. No code is executed. */
-export function renderText(text: string, vars: TemplateVars): string {
+export function renderText(text: string, vars: TemplateVars, value: (key: string, value: string) => string = (_, v) => v): string {
   return text.replace(PLACEHOLDER, (match, key: string) => {
     // Own keys only: `{constructor}` must not reach prototype properties.
-    const value = Object.hasOwn(vars, key) ? vars[key] : undefined;
-    return value === undefined || value === null ? match : String(value);
+    const raw = Object.hasOwn(vars, key) ? vars[key] : undefined;
+    return raw === undefined || raw === null ? match : value(key, String(raw));
   });
+}
+
+/** Keys whose values are mentions the bot built itself (`user`, `user.mention`, `bot.mention`, welcome's `inviter`): they may ping. */
+const MENTION_KEY = /^(?:user|inviter)$|(?:^|\.)mention$/;
+
+/**
+ * A value that must not ping: what members wrote (command arguments, names, video titles) may hold `<@id>`, `<@&id>`,
+ * `@everyone` or `@here`, and the template's allowed mentions are meant for the template's own text. A zero-width
+ * space after the @ keeps them shown as text.
+ */
+export function inertMentions(text: string): string {
+  return text.replace(/<@/g, `<@${ZERO_WIDTH_SPACE}`).replace(/@(everyone|here)/g, `@${ZERO_WIDTH_SPACE}$1`);
 }
 
 function truncate(text: string, max: number): string {
@@ -78,13 +90,18 @@ function embedLength(embed: APIEmbed): number {
 /**
  * Renders a template within Discord limits: long fields are truncated,
  * embeds beyond the 6000 character total are dropped. `@everyone` and roles only when explicit.
+ *
+ * Only the template's own text and the bot's mention values ping: the other values are made inert
+ * (`inertMentions`). `mentionKeys` — more keys whose values are mentions the bot resolved (a command's user or role
+ * options).
  */
-export function renderMessage(template: MessageTemplate, vars: TemplateVars): RenderedMessage {
+export function renderMessage(template: MessageTemplate, vars: TemplateVars, { mentionKeys = [] }: { mentionKeys?: readonly string[] } = {}): RenderedMessage {
   const mentions = template.allowedMentions ?? { users: true, roles: false, everyone: false };
   const everyone = mentions.everyone;
   const here = mentions.here ?? mentions.everyone;
+  const value = (key: string, text: string) => (MENTION_KEY.test(key) || mentionKeys.includes(key) ? text : inertMentions(text));
   const content = template.content
-    ? truncate(defuseMentions(renderText(template.content, vars), { everyone, here }), LIMITS.content)
+    ? truncate(defuseMentions(renderText(template.content, vars, value), { everyone, here }), LIMITS.content)
     : undefined;
 
   const embeds: APIEmbed[] = [];
