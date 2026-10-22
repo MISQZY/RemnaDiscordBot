@@ -16,4 +16,5 @@ export * from './metrics.js';
 export * from './module.js';
 export * from './redis-keys.js';
 export * from './registry.js';
+export * from './safe-regex.js';
 export * from './validation.js';

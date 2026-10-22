@@ -5,7 +5,7 @@ import { isExempt, isSpared } from './bot.js';
 import { AutomodConfig, defaultAutomodConfig } from './config.js';
 import { badLinks, bannedWord, capsPercent, emojiCount, inviteCodes, staticViolation } from './filters.js';
 import { fromDiscord, NativeRuleInput, toDiscord } from './native.js';
-import { regexProblem, wordsRegex } from './patterns.js';
+import { regexProblem, wordsPattern } from './patterns.js';
 import { countJoin } from './raid.js';
 
 const filters = defaultAutomodConfig.filters;
@@ -31,18 +31,28 @@ describe('message filters', () => {
   });
 
   it('matches banned words as whole words with wildcards', () => {
-    const regex = wordsRegex(['spam*', 'бот'])!;
-    expect(regex.test('this is SPAMMY')).toBe(true);
-    expect(regex.test('работа')).toBe(false);
-    expect(regex.test('это бот!')).toBe(true);
-    expect(wordsRegex([' '])).toBeNull();
+    const words = { ...filters.words, words: ['spam*', 'бот'] };
+    expect(bannedWord('this is SPAMMY', words)).toBe('SPAMMY');
+    expect(bannedWord('работа', words)).toBeNull();
+    expect(bannedWord('это бот!', words)).toBe('бот');
+    expect(bannedWord('бот', words)).toBe('бот');
+    expect(wordsPattern([' '])).toBeNull();
     expect(bannedWord('buy cheap pills', { ...filters.words, patterns: ['che+ap'] })).toBe('cheap');
   });
 
-  it('refuses regexes prone to catastrophic backtracking', () => {
-    expect(regexProblem('(a+)+$')).toMatch(/Nested/);
+  it('refuses regexes RE2 cannot run', () => {
+    expect(regexProblem('(?<=a)b')).toMatch(/lookarounds/);
+    expect(regexProblem('(a)\\1')).toMatch(/Invalid/);
     expect(regexProblem('[')).toMatch(/Invalid/);
     expect(regexProblem('free\\s+nitro')).toBeNull();
+  });
+
+  it('runs backtracking-prone patterns and wildcards in linear time', () => {
+    const text = `${'a'.repeat(3999)}!`;
+    const started = Date.now();
+    expect(bannedWord(text, { ...filters.words, patterns: ['((a)+)+$', '(a|a)+$'] })).toBeNull();
+    expect(bannedWord(text, { ...filters.words, words: ['*a*a*a*a*a*b'] })).toBeNull();
+    expect(Date.now() - started).toBeLessThan(1000);
   });
 
   it('reports the first stateless filter a message breaks', () => {

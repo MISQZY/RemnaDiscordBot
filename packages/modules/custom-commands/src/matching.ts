@@ -1,27 +1,16 @@
-/** Length of the text searched for triggers — bounds the cost of regexes. */
+import { safeMatch, safeRegex, safeRegexProblem } from '@bot/core';
+
+/** Length of the text searched for triggers. */
 const MAX_INPUT = 2000;
 
-/** Nested quantifiers like `(a+)+`, `(\w*)*` — a classic source of catastrophic backtracking. */
-const NESTED_QUANTIFIER = /\((?:[^()\\]|\\.)*[+*](?:[^()\\]|\\.)*\)[+*{]/;
-
 /** The regex's problem, or `null` when it can be saved. */
-export function regexProblem(pattern: string): string | null {
-  try {
-    new RegExp(pattern, 'iu');
-  } catch {
-    return 'Invalid regular expression';
-  }
-  if (NESTED_QUANTIFIER.test(pattern)) return 'Nested quantifiers like (a+)+ are not allowed';
-  return null;
-}
+export const regexProblem = safeRegexProblem;
 
 export interface TriggerLike {
   id: string;
   matchMode: string | null;
   pattern: string | null;
 }
-
-const compiled = new Map<string, RegExp>();
 
 /** Whether the trigger matched; `args` is the text after the match (`startsWith`) or the first group (`regex`). */
 export function matchTrigger(trigger: TriggerLike, content: string): { args: string } | null {
@@ -42,14 +31,9 @@ export function matchTrigger(trigger: TriggerLike, content: string): { args: str
     case 'contains':
       return lower.includes(needle) ? { args: '' } : null;
     case 'regex': {
-      const key = `${trigger.id}:${pattern}`;
-      let regex = compiled.get(key);
-      if (!regex) {
-        regex = new RegExp(pattern, 'iu');
-        compiled.set(key, regex);
-      }
-      const match = regex.exec(text);
-      return match ? { args: match[1] ?? '' } : null;
+      const regex = safeRegex(pattern);
+      const match = regex && safeMatch(regex, text);
+      return match ? { args: match.groups[0] ?? '' } : null;
     }
     default:
       return null;

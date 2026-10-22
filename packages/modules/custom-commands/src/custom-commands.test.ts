@@ -25,11 +25,18 @@ describe('matchTrigger', () => {
 });
 
 describe('regexProblem', () => {
-  it('rejects invalid patterns and nested quantifiers', () => {
-    expect(regexProblem('[a-')).toBe('Invalid regular expression');
-    expect(regexProblem('(a+)+$')).toMatch(/Nested quantifiers/);
-    expect(regexProblem('(\\w*)*')).toMatch(/Nested quantifiers/);
+  it('rejects invalid patterns and syntax RE2 cannot run', () => {
+    expect(regexProblem('[a-')).toMatch(/Invalid regular expression/);
+    expect(regexProblem('(?=a)a')).toMatch(/lookarounds/);
+    expect(regexProblem('(a)\\1')).toMatch(/backreferences/);
     expect(regexProblem('hello (\\w+)')).toBeNull();
+  });
+
+  it('runs backtracking-prone patterns in linear time', () => {
+    const started = Date.now();
+    expect(matchTrigger(trigger('regex', '((a)+)+$'), `${'a'.repeat(1999)}!`)).toBeNull();
+    expect(matchTrigger(trigger('regex', '(\\w|\\d)+$'), `${'a'.repeat(1999)}!`)).toBeNull();
+    expect(Date.now() - started).toBeLessThan(1000);
   });
 });
 
@@ -44,7 +51,7 @@ describe('CommandInput', () => {
 
   it('requires a pattern for triggers and validates regex', () => {
     expect(CommandInput.safeParse({ ...base, kind: 'trigger', name: 'hi' }).success).toBe(false);
-    expect(CommandInput.safeParse({ ...base, kind: 'trigger', name: 'hi', matchMode: 'regex', pattern: '(a+)+' }).success).toBe(false);
+    expect(CommandInput.safeParse({ ...base, kind: 'trigger', name: 'hi', matchMode: 'regex', pattern: '(?<=a)b' }).success).toBe(false);
     expect(CommandInput.safeParse({ ...base, kind: 'trigger', name: 'hi', matchMode: 'contains', pattern: 'hi' }).success).toBe(true);
   });
 });

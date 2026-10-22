@@ -1,5 +1,6 @@
+import { safeMatch, safeRegex } from '@bot/core';
 import type { AutomodConfig } from './config.js';
-import { cached, wordsRegex } from './patterns.js';
+import { wordsPattern } from './patterns.js';
 
 // Checks of a single message against the filters that need nothing but the message itself.
 // Plain functions of text: easy to test without discord.js.
@@ -48,12 +49,14 @@ export function emojiCount(text: string): number {
 
 /** The banned word or pattern found in the text, or `null`. */
 export function bannedWord(text: string, filter: AutomodConfig['filters']['words']): string | null {
-  const words = cached(`w:${filter.words.join('\u0000')}`, () => wordsRegex(filter.words));
-  const found = words?.exec(text);
-  if (found) return found[0];
+  const source = wordsPattern(filter.words);
+  const words = source ? safeRegex(source) : null;
+  const found = words && safeMatch(words, text);
+  if (found) return found.groups[0] ?? found.match;
   for (const pattern of filter.patterns) {
-    const match = cached(`p:${pattern}`, () => new RegExp(pattern, 'iu'))?.exec(text.slice(0, 2000));
-    if (match) return match[0];
+    const regex = safeRegex(pattern);
+    const match = regex && safeMatch(regex, text);
+    if (match) return match.match;
   }
   return null;
 }
