@@ -23,6 +23,8 @@ export const RedisKeys = {
   user: (userId: string) => `user:${userId}:profile`,
   /** Lock of a worker interval task for one period. */
   intervalLock: (moduleId: string, name: string) => `lock:interval:${moduleId}:${name}`,
+  /** Lease of a running interval task, renewed while it runs — no second run starts before it ends. */
+  intervalRun: (moduleId: string, name: string) => `lock:interval-run:${moduleId}:${name}`,
 } as const;
 
 export const RedisChannels = {

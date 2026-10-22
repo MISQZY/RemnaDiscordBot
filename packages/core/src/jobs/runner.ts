@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { ScheduledAction } from '@bot/db';
 import type { CoreServices, ModuleServices } from '../context.js';
 import { metrics } from '../metrics.js';
@@ -100,33 +101,57 @@ export class JobRunner {
   }
 }
 
+/** How long a running interval task holds its lease without renewing it — a crashed worker frees it after this. */
+const RUN_LEASE_MS = 60_000;
+
+/** Deletes or extends a lock only while it still holds our token. */
+const RELEASE_LOCK = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+const EXTEND_LOCK = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('pexpire', KEYS[1], ARGV[2]) else return 0 end";
+
 /**
- * Modules' interval tasks. A Redis lock for the period guarantees
- * that with several workers a task runs once per period.
+ * Modules' interval tasks. A Redis lock for the period makes a task run once per period with several
+ * workers; a lease renewed while the task runs keeps a slow run (longer than its period) from overlapping
+ * with the next one, in this worker or another.
  */
 export class IntervalRunner {
   private readonly timers: NodeJS.Timeout[] = [];
+  private readonly running = new Set<string>();
 
   constructor(
     private readonly services: CoreServices,
     private readonly registry: ModuleRegistry,
   ) {}
 
-  /** Runs the task unless someone already ran it in this period. */
+  /** Runs the task unless it is still running or someone already ran it in this period. */
   async runOnce(moduleId: string, name: string): Promise<boolean> {
     const module = this.registry.get(moduleId);
     const task = module?.intervals?.[name];
     if (!module || !task) throw new Error(`Unknown interval ${moduleId}:${name}`);
 
-    const lock = await this.services.redis.set(RedisKeys.intervalLock(moduleId, name), '1', 'PX', task.everyMs, 'NX');
-    if (!lock) return false;
+    const id = `${moduleId}:${name}`;
+    if (this.running.has(id)) return false;
+    this.running.add(id);
     try {
-      await task.run(moduleServices(this.services, module));
-    } catch (err) {
-      metrics.handlerErrors.inc({ module: moduleId, handler: `interval:${name}` });
-      this.services.logger.error({ err, moduleId, interval: name }, 'Interval task failed');
+      const { redis } = this.services;
+      const runKey = RedisKeys.intervalRun(moduleId, name);
+      const token = randomUUID();
+      if (!(await redis.set(runKey, token, 'PX', RUN_LEASE_MS, 'NX'))) return false;
+      const renew = setInterval(() => void redis.eval(EXTEND_LOCK, 1, runKey, token, RUN_LEASE_MS).catch(() => undefined), RUN_LEASE_MS / 3);
+      renew.unref();
+      try {
+        if (!(await redis.set(RedisKeys.intervalLock(moduleId, name), '1', 'PX', task.everyMs, 'NX'))) return false;
+        await task.run(moduleServices(this.services, module));
+      } catch (err) {
+        metrics.handlerErrors.inc({ module: moduleId, handler: `interval:${name}` });
+        this.services.logger.error({ err, moduleId, interval: name }, 'Interval task failed');
+      } finally {
+        clearInterval(renew);
+        await redis.eval(RELEASE_LOCK, 1, runKey, token).catch(() => undefined);
+      }
+      return true;
+    } finally {
+      this.running.delete(id);
     }
-    return true;
   }
 
   start(): void {

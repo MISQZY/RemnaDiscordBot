@@ -25,6 +25,8 @@ describe('scheduler and job runner', () => {
     throw new Error('Discord is down');
   });
   const flush = vi.fn(async () => {});
+  let finishSlow = () => {};
+  const slow = vi.fn(() => new Promise<void>((resolve) => (finishSlow = resolve)));
 
   const module = defineModule({
     id: 'moderation',
@@ -35,7 +37,7 @@ describe('scheduler and job runner', () => {
       unban: async (payload, ctx) => void handled.push({ payload, guildId: ctx.guildId, moduleId: ctx.moduleId }),
       broken: failing,
     },
-    intervals: { flush: { everyMs: 60_000, run: flush } },
+    intervals: { flush: { everyMs: 60_000, run: flush }, poll: { everyMs: 1, run: slow } },
   });
   const registry = new ModuleRegistry([module]);
 
@@ -146,6 +148,24 @@ describe('scheduler and job runner', () => {
     expect(await a.runOnce('moderation', 'flush')).toBe(true);
     expect(await b.runOnce('moderation', 'flush')).toBe(false);
     expect(flush).toHaveBeenCalledOnce();
+  });
+
+  it('does not start a task again while a run longer than its period goes on', async () => {
+    const a = new IntervalRunner(services, registry);
+    const b = new IntervalRunner(services, registry);
+
+    const first = a.runOnce('moderation', 'poll');
+    await vi.waitFor(() => expect(slow).toHaveBeenCalledOnce());
+    await new Promise((resolve) => setTimeout(resolve, 5)); // the 1 ms period is over
+    expect(await a.runOnce('moderation', 'poll')).toBe(false);
+    expect(await b.runOnce('moderation', 'poll')).toBe(false);
+
+    finishSlow();
+    expect(await first).toBe(true);
+    const next = b.runOnce('moderation', 'poll');
+    await vi.waitFor(() => expect(slow).toHaveBeenCalledTimes(2));
+    finishSlow();
+    expect(await next).toBe(true);
   });
 
   it('caps retry delay at one hour', () => {
