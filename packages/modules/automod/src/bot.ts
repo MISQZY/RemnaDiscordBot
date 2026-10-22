@@ -63,9 +63,9 @@ async function isDuplicate(ctx: Ctx, message: Message<true>, filter: AutomodConf
   const text = message.content.trim().toLowerCase();
   if (text.length < 3) return false;
   const key = keys.duplicate(message.guildId, message.author.id, createHash('sha1').update(text).digest('base64url').slice(0, 16));
-  const count = await ctx.redis.incr(key);
-  if (count === 1) await ctx.redis.expire(key, filter.seconds);
-  return count >= filter.count;
+  // The window's TTL comes with the key in one step: a crash between INCR and EXPIRE would leave it forever.
+  const results = await ctx.redis.multi().set(key, 0, 'EX', filter.seconds, 'NX').incr(key).exec();
+  return Number(results?.[1]?.[1] ?? 0) >= filter.count;
 }
 
 /** The first filter the message breaks. */

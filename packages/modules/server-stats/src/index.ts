@@ -3,7 +3,7 @@ import { defineModule, HttpError } from '@bot/core';
 import { z } from 'zod';
 import { defaultServerStatsConfig, ServerStatsConfig } from './config.js';
 import { locales } from './locales.js';
-import { counterName, createCounterChannel, readStats, updateAll, updateCounters } from './service.js';
+import { counterName, createCounterChannel, readStats, RENAME_EVERY_SEC, updateAll, updateCounters } from './service.js';
 
 export { ServerStatsConfig, STAT_PLACEHOLDERS } from './config.js';
 
@@ -24,7 +24,8 @@ export default defineModule({
     const ids = new Set(guild.channels.map((c) => c.id));
     return config.counters.flatMap((c, i) => (ids.has(c.channelId) ? [] : [{ path: ['counters', i, 'channelId'], message: `Channel ${c.channelId} not found` }]));
   },
-  intervals: { counters: { everyMs: 60_000, run: updateAll } },
+  // A counter is renamed at most every RENAME_EVERY_SEC anyway: checking more often only spends calls.
+  intervals: { counters: { everyMs: RENAME_EVERY_SEC * 1000, run: updateAll } },
   api: (app, ctx) => {
     const guildId = (request: { params: unknown }) => (request.params as { guildId: string }).guildId;
 

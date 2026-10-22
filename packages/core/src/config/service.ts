@@ -44,9 +44,14 @@ export class UnknownModuleError extends Error {
  */
 export class ConfigService {
   private readonly local: LRUCache<string, ResolvedConfig>;
+  /** Loads under way: a burst of events of one guild waits for one read of Redis or the database, not one each. */
+  private readonly loading = new Map<string, Promise<ResolvedConfig>>();
+  /** Moves on every invalidation: a load that started before one must not put the old config back in the cache. */
+  private generation = 0;
 
   constructor(private readonly options: ConfigServiceOptions) {
-    this.local = new LRUCache({ max: options.localMax ?? 50_000, ttl: options.localTtlMs ?? 5 * 60_000 });
+    // Guilds × modules that see events: a cluster of four busy shards needs tens of thousands.
+    this.local = new LRUCache({ max: options.localMax ?? 100_000, ttl: options.localTtlMs ?? 5 * 60_000 });
   }
 
   async get<T = unknown>(guildId: string, moduleId: string): Promise<ResolvedConfig<T>> {
@@ -54,9 +59,15 @@ export class ConfigService {
     const cached = this.local.get(key);
     if (cached) return cached as ResolvedConfig<T>;
 
-    const module = this.requireModule(moduleId);
-    const resolved = await this.resolve(module, guildId, await this.load(guildId, moduleId));
-    this.local.set(key, resolved);
+    const generation = this.generation;
+    let pending = this.loading.get(key);
+    if (!pending) {
+      const module = this.requireModule(moduleId);
+      pending = (async () => this.resolve(module, guildId, await this.load(guildId, moduleId)))().finally(() => this.loading.delete(key));
+      this.loading.set(key, pending);
+    }
+    const resolved = await pending;
+    if (generation === this.generation) this.local.set(key, resolved);
     return resolved as ResolvedConfig<T>;
   }
 
@@ -97,6 +108,8 @@ export class ConfigService {
 
   /** Drops the local cache — called on a pub/sub message. */
   invalidate({ guildId, moduleId }: ConfigInvalidation): void {
+    this.generation++;
+    for (const key of this.loading.keys()) if (key === `${guildId}:${moduleId}` || (!moduleId && key.startsWith(`${guildId}:`))) this.loading.delete(key);
     if (moduleId) {
       this.local.delete(`${guildId}:${moduleId}`);
       return;

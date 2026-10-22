@@ -1,4 +1,5 @@
 import { SUPPORTED_LOCALES, type Locale } from '@bot/contracts';
+import { eachLimit } from '@bot/core';
 import type { PrismaClient } from '@bot/db';
 import type { GuildSnapshotWriter } from '@bot/discord';
 import type { Logger } from '@bot/logger';
@@ -71,14 +72,15 @@ export class GuildLifecycle {
 
   /** On cluster startup: guilds may have been added while the bot was offline. */
   async syncAll(guilds: Guild[]): Promise<void> {
-    for (const guild of guilds) {
+    // A few at a time: one by one, a cluster of thousands of guilds takes minutes to be ready for the dashboard.
+    await eachLimit(guilds, 10, async (guild) => {
       await this.db.guild.upsert({
         where: { id: guild.id },
         create: { id: guild.id, locale: initialLocale(guild) },
         update: { leftAt: null },
       });
       await this.snapshots.writeGuild(guild);
-    }
+    });
     this.logger.info({ guilds: guilds.length }, 'Guilds synced');
   }
 

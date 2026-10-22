@@ -13,14 +13,16 @@ export interface CachedMessage {
   createdAt: number;
 }
 
-const TTL_SEC = 3 * 24 * 60 * 60;
+/** A day: on a busy server three days of every message ran to hundreds of MB of Redis. */
+const TTL_SEC = 24 * 60 * 60;
 const key = (messageId: string) => `audit:msg:${messageId}`;
 
 export class MessageCache {
   constructor(private readonly redis: Redis) {}
 
   async set(messageId: string, message: CachedMessage): Promise<void> {
-    await this.redis.set(key(messageId), JSON.stringify({ ...message, content: message.content.slice(0, 4000) }), 'EX', TTL_SEC);
+    const kept = { ...message, content: message.content.slice(0, 4000), attachments: message.attachments.slice(0, 10) };
+    await this.redis.set(key(messageId), JSON.stringify(kept), 'EX', TTL_SEC);
   }
 
   async get(messageId: string): Promise<CachedMessage | null> {

@@ -1,4 +1,4 @@
-import type { BotModuleContext } from '@bot/core';
+import { eachLimit, type BotModuleContext } from '@bot/core';
 import { assignableRoleIds, changeMemberRoles } from '@bot/discord';
 import type { Client, Guild, GuildMember, Invite, PartialGuildMember } from 'discord.js';
 import type { InvitesConfig } from './config.js';
@@ -23,10 +23,11 @@ export async function snapshot(ctx: Ctx, guild: Guild): Promise<void> {
   if (invites) await saveUses(ctx, guild.id, invites);
 }
 
+/** After a restart: the invite uses of every server with the module on, a few servers at a time (REST calls). */
 export async function onReady(ctx: Ctx, client: Client<true>): Promise<void> {
-  for (const guild of client.guilds.cache.values()) {
+  await eachLimit([...client.guilds.cache.values()], 5, async (guild) => {
     if (await ctx.config.isEnabled(guild.id, 'invites')) await snapshot(ctx, guild).catch((err: unknown) => ctx.logger.warn({ err, guildId: guild.id }, 'Invites not read'));
-  }
+  });
 }
 
 export async function onInviteCreate(ctx: Ctx, invite: Invite): Promise<void> {

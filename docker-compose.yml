@@ -21,7 +21,9 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    # A memory cap: without it Audit Log's message cache grows Redis until the host runs out. Over the cap the keys
+    # nearest to expiry go first (cached messages, rate-limit windows), never keys without a TTL (configs, snapshots).
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "${REDIS_MAXMEMORY:-512mb}", "--maxmemory-policy", "volatile-ttl"]
     ports:
       - "127.0.0.1:6379:6379"
     volumes:

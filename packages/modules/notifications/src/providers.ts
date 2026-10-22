@@ -1,4 +1,4 @@
-import { HttpError } from '@bot/core';
+import { eachLimit, HttpError } from '@bot/core';
 
 export type Fetch = typeof fetch;
 export type ProviderId = 'youtube' | 'twitch';
@@ -55,6 +55,9 @@ export function parseYoutubeFeed(xml: string): { channelName: string; items: Fee
 }
 
 const YOUTUBE_CHANNEL_ID = /^UC[\w-]{22}$/;
+/** Feeds fetched at once, and how long one may take: a hanging feed must not hold up the rest. */
+const FEED_CONCURRENCY = 5;
+const FEED_TIMEOUT_MS = 10_000;
 
 export class YoutubeProvider implements Provider {
   readonly id = 'youtube' as const;
@@ -67,16 +70,21 @@ export class YoutubeProvider implements Provider {
     return { externalId: channelId, name: channelName || channelId, url: `https://www.youtube.com/channel/${channelId}` };
   }
 
+  /** The channels' feeds, a few at a time; a channel whose feed fails is left out of this check, not the others. */
   async latest(externalIds: string[]): Promise<Map<string, FeedItem[]>> {
     const result = new Map<string, FeedItem[]>();
-    for (const id of externalIds) {
-      result.set(id, parseYoutubeFeed(await this.feed(id)).items);
-    }
+    await eachLimit(externalIds, FEED_CONCURRENCY, async (id) => {
+      try {
+        result.set(id, parseYoutubeFeed(await this.feed(id)).items);
+      } catch {
+        // Checked again next time; its last seen video stays as it was.
+      }
+    });
     return result;
   }
 
   private async feed(channelId: string): Promise<string> {
-    const response = await this.fetchImpl(`https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`);
+    const response = await this.fetchImpl(`https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`, { signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
     if (response.status === 404) throw HttpError.badRequest('YouTube channel not found');
     if (!response.ok) throw new Error(`YouTube feed responded with ${response.status}`);
     return response.text();
@@ -87,7 +95,7 @@ export class YoutubeProvider implements Provider {
     const fromUrl = /channel\/(UC[\w-]{22})/.exec(query)?.[1];
     if (fromUrl) return fromUrl;
     const handle = /@([\w.-]+)/.exec(query)?.[1] ?? query.replace(/^.*youtube\.com\//, '');
-    const response = await this.fetchImpl(`https://www.youtube.com/@${encodeURIComponent(handle)}`);
+    const response = await this.fetchImpl(`https://www.youtube.com/@${encodeURIComponent(handle)}`, { signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
     const html = response.ok ? await response.text() : '';
     const channelId = /"(?:channelId|externalId)":"(UC[\w-]{22})"/.exec(html)?.[1];
     if (!channelId) throw HttpError.badRequest('YouTube channel not found');
@@ -156,6 +164,7 @@ export class TwitchProvider implements Provider {
   private async helix<T>(path: string): Promise<T> {
     const response = await this.fetchImpl(`https://api.twitch.tv/helix${path}`, {
       headers: { 'client-id': this.clientId, authorization: `Bearer ${await this.appToken()}` },
+      signal: AbortSignal.timeout(FEED_TIMEOUT_MS),
     });
     if (response.status === 401) this.token = undefined;
     if (!response.ok) throw new Error(`Twitch API responded with ${response.status}`);
@@ -165,7 +174,7 @@ export class TwitchProvider implements Provider {
   private async appToken(): Promise<string> {
     if (this.token && this.token.expiresAt > Date.now()) return this.token.value;
     const body = new URLSearchParams({ client_id: this.clientId, client_secret: this.clientSecret, grant_type: 'client_credentials' });
-    const response = await this.fetchImpl('https://id.twitch.tv/oauth2/token', { method: 'POST', body });
+    const response = await this.fetchImpl('https://id.twitch.tv/oauth2/token', { method: 'POST', body, signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
     if (!response.ok) throw new Error(`Twitch token request failed with ${response.status}`);
     const { access_token, expires_in } = (await response.json()) as { access_token: string; expires_in: number };
     this.token = { value: access_token, expiresAt: Date.now() + (expires_in - 60) * 1000 };

@@ -35,14 +35,21 @@ const client = new Client({
   partials: registry.partials(),
   shards: info.SHARD_LIST,
   shardCount: info.TOTAL_SHARDS,
-  // Messages and presences are not cached: the data modules need lives in Redis.
+  // Messages, presences and reactions are not cached: the data modules need lives in Redis. Users are capped and swept:
+  // every author and reacting member would otherwise stay in memory for as long as the process runs.
   makeCache: Options.cacheWithLimits({
     ...Options.DefaultMakeCacheSettings,
     MessageManager: 0,
     PresenceManager: 0,
+    ReactionManager: 0,
+    ReactionUserManager: 0,
     GuildMemberManager: { maxSize: 200, keepOverLimit: (member) => member.id === member.client.user.id },
+    UserManager: { maxSize: 10_000, keepOverLimit: (user) => user.id === user.client.user.id },
   }),
-  sweepers: Options.DefaultSweeperSettings,
+  sweepers: {
+    ...Options.DefaultSweeperSettings,
+    users: { interval: 3600, filter: () => (user) => user.id !== user.client.user.id },
+  },
   allowedMentions: { parse: ['users'] },
 });
 client.cluster = new ClusterClient(client);

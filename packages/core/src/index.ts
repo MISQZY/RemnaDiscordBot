@@ -2,6 +2,7 @@ export * from './bot/dispatcher.js';
 export * from './bot/guild-id.js';
 export * from './bus.js';
 export * from './command-locales.js';
+export * from './concurrency.js';
 export * from './config/pubsub.js';
 export * from './config/service.js';
 export * from './config/shared-cache.js';
