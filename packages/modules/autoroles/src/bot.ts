@@ -1,5 +1,5 @@
 import { defineComponent, type BotModuleContext } from '@bot/core';
-import { changeMemberRoles, memberTemplateVars } from '@bot/discord';
+import { assignableRoleIds, changeMemberRoles, memberTemplateVars } from '@bot/discord';
 import { channelVars, renderMessage } from '@bot/templates';
 import { MessageFlags, roleMention, type GuildMember, type PartialGuildMember } from 'discord.js';
 import type { AutorolesConfig } from './config.js';
@@ -9,13 +9,8 @@ import { persistedRoles } from './persistence.js';
 
 const REASON = 'Autoroles';
 
-/** Only roles the bot can assign (below its role and not managed by an integration). */
-function assignable(member: GuildMember, roleIds: readonly string[]): string[] {
-  return roleIds.filter((id) => {
-    const role = member.guild.roles.cache.get(id);
-    return role !== undefined && role.editable && !role.managed && role.id !== member.guild.id;
-  });
-}
+/** Only roles the bot may hand out (below its role, not managed, no moderator permissions). */
+const assignable = (member: GuildMember, roleIds: readonly string[]) => assignableRoleIds(member.guild, roleIds);
 
 export const joinRolesKey = (guildId: string, userId: string) => `autoroles:join:${guildId}:${userId}`;
 /** A member who joined before accepting the rules (Membership Screening); it may take days. */

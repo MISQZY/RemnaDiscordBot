@@ -29,8 +29,10 @@ export const GuildRole = z.object({
   color: z.number().int(),
   position: z.number().int(),
   managed: z.boolean(),
-  /** The role is below the bot's role — the bot can assign it. */
+  /** The bot may assign the role: below the bot's role, not managed, not @everyone and not `elevated`. */
   manageable: z.boolean(),
+  /** The role carries moderator permissions — the bot never hands it out. Missing in snapshots written before it. */
+  elevated: z.boolean().optional(),
 });
 export type GuildRole = z.infer<typeof GuildRole>;
 

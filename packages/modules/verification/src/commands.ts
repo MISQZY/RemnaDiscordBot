@@ -1,4 +1,5 @@
 import { defineCommand } from '@bot/core';
+import { isElevatedRole, memberOutranksRole } from '@bot/discord';
 import { ChannelType, InteractionContextType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { VerificationConfig } from './config.js';
 import { publishPanel, verifyMember } from './service.js';
@@ -47,6 +48,13 @@ export const verificationCommand = defineCommand<VerificationConfig>({
     if (interaction.options.getSubcommand() === 'roles') {
       const verified = interaction.options.getRole('verified');
       const unverified = interaction.options.getRole('unverified');
+      for (const role of [verified, unverified]) {
+        if (!role || !interaction.inCachedGuild()) continue;
+        const picked = interaction.guild.roles.cache.get(role.id);
+        if (!picked) continue;
+        if (isElevatedRole(picked)) return void (await reply(ctx.t('core.roleElevated', { role: picked.name })));
+        if (!memberOutranksRole(interaction.member, picked)) return void (await reply(ctx.t('core.roleAboveYou', { role: picked.name })));
+      }
       config.roleId = verified?.id ?? null;
       config.unverifiedRoleId = unverified?.id ?? null;
       await ctx.config.update(guildId, ctx.moduleId, { config: VerificationConfig.parse(config) }, interaction.user.id);

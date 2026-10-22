@@ -1,4 +1,5 @@
 import { defineCommand, type InteractionContext } from '@bot/core';
+import { isElevatedRole, memberOutranksRole } from '@bot/discord';
 import {
   channelMention,
   ChannelType,
@@ -34,10 +35,12 @@ async function updateConfig(ctx: Ctx, interaction: ChatInputCommandInteraction, 
   return true;
 }
 
-/** Why the bot cannot grant the role, or `null`. */
-function roleProblem(ctx: Ctx, role: Role): string | null {
+/** Why the bot cannot grant the role, or why the invoker may not pick it; `null` — fine. */
+function roleProblem(ctx: Ctx, interaction: ChatInputCommandInteraction, role: Role): string | null {
   if (role.id === role.guild.id || role.managed) return ctx.t('leveling.settings.roleNotAssignable', { role: role.name });
+  if (isElevatedRole(role)) return ctx.t('core.roleElevated', { role: role.name });
   if (!role.editable) return ctx.t('leveling.settings.roleTooHigh', { role: role.name });
+  if (!interaction.inCachedGuild() || !memberOutranksRole(interaction.member, role)) return ctx.t('core.roleAboveYou', { role: role.name });
   return null;
 }
 
@@ -231,7 +234,7 @@ export const levels = defineCommand<LevelingConfig>({
         return;
       }
       const role = interaction.options.getRole('role', true) as Role;
-      const problem = roleProblem(ctx, role);
+      const problem = roleProblem(ctx, interaction, role);
       if (problem) return void (await reply(interaction, problem));
       const saved = await updateConfig(ctx, interaction, (c) => ({
         ...c,

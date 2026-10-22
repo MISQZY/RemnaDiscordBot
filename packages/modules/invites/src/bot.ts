@@ -1,5 +1,5 @@
 import type { BotModuleContext } from '@bot/core';
-import { changeMemberRoles } from '@bot/discord';
+import { assignableRoleIds, changeMemberRoles } from '@bot/discord';
 import type { Client, Guild, GuildMember, Invite, PartialGuildMember } from 'discord.js';
 import type { InvitesConfig } from './config.js';
 import { countsOf, earnedRoles, readUses, saveUses, usedInvite, usesKey } from './service.js';
@@ -75,10 +75,7 @@ export async function onMemberJoin(ctx: Ctx, member: GuildMember): Promise<void>
 
   if (inviterId && counts && config.rewards.length > 0) {
     const inviter = await guild.members.fetch(inviterId).catch(() => null);
-    const roles = earnedRoles(config.rewards, counts.total).filter((id) => {
-      const role = guild.roles.cache.get(id);
-      return role?.editable && !inviter?.roles.cache.has(id);
-    });
+    const roles = assignableRoleIds(guild, earnedRoles(config.rewards, counts.total)).filter((id) => !inviter?.roles.cache.has(id));
     if (inviter && roles.length > 0) await changeMemberRoles(inviter, { add: roles }, 'Invites: reward');
   }
 }

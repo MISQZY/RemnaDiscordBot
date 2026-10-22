@@ -1,4 +1,5 @@
 import { defineCommand, type InteractionContext } from '@bot/core';
+import { isElevatedRole, memberOutranksRole } from '@bot/discord';
 import {
   ChannelType,
   EmbedBuilder,
@@ -27,11 +28,13 @@ const panelOption = (o: SlashCommandStringOption) =>
 const reply = (interaction: ChatInputCommandInteraction, content: string) =>
   interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
 
-/** Why the bot cannot assign the role, or `null`. */
-function roleProblem(ctx: Ctx, role: Role): string | null {
+/** Why the bot cannot assign the role, or why the invoker may not pick it; `null` — fine. */
+function roleProblem(ctx: Ctx, interaction: ChatInputCommandInteraction, role: Role): string | null {
   if (role.id === role.guild.id) return ctx.t('autoroles.reply.everyone');
   if (role.managed) return ctx.t('autoroles.reply.managedRole', { role: role.name });
+  if (isElevatedRole(role)) return ctx.t('core.roleElevated', { role: role.name });
   if (!role.editable) return ctx.t('autoroles.reply.higherRole', { role: role.name });
+  if (!interaction.inCachedGuild() || !memberOutranksRole(interaction.member, role)) return ctx.t('core.roleAboveYou', { role: role.name });
   return null;
 }
 
@@ -180,7 +183,7 @@ export const autorolesCommand = defineCommand<AutorolesConfig>({
       }
       const role = interaction.options.getRole('role', true) as Role;
       if (sub === 'add') {
-        const problem = roleProblem(ctx, role);
+        const problem = roleProblem(ctx, interaction, role);
         if (problem) return void (await reply(interaction, problem));
         await updateConfig(ctx, interaction, (c) => ({ ...c, joinRoles: { ...c.joinRoles, humans: [...new Set([...c.joinRoles.humans, role.id])].slice(0, 10) } }));
         await reply(interaction, ctx.t('autoroles.reply.joinAdded', { role: role.name }));
@@ -201,7 +204,7 @@ export const autorolesCommand = defineCommand<AutorolesConfig>({
     // Panels
     if (sub === 'create') {
       const role = interaction.options.getRole('role', true) as Role;
-      const problem = roleProblem(ctx, role);
+      const problem = roleProblem(ctx, interaction, role);
       if (problem) return void (await reply(interaction, problem));
       const input = PanelInput.parse({
         channelId: interaction.options.getChannel('channel', true).id,
@@ -224,7 +227,7 @@ export const autorolesCommand = defineCommand<AutorolesConfig>({
     switch (sub) {
       case 'add-role': {
         const role = interaction.options.getRole('role', true) as Role;
-        const problem = roleProblem(ctx, role);
+        const problem = roleProblem(ctx, interaction, role);
         if (problem) return void (await reply(interaction, problem));
         if (panel.items.some((i) => i.roleId === role.id)) return void (await reply(interaction, ctx.t('autoroles.reply.alreadyInPanel')));
         if (panel.items.length >= 25) return void (await reply(interaction, ctx.t('autoroles.reply.panelFull')));

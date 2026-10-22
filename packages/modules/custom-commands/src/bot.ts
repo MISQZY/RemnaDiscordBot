@@ -1,6 +1,6 @@
 import type { BotModuleContext, FallbackCommand } from '@bot/core';
 import type { CustomCommand } from '@bot/db';
-import { changeMemberRoles, memberTemplateVars } from '@bot/discord';
+import { assignableRoleIds, changeMemberRoles, memberTemplateVars } from '@bot/discord';
 import { channelVars, renderMessage } from '@bot/templates';
 import { channelMention, MessageFlags, roleMention, userMention, type ChatInputCommandInteraction, type Guild, type GuildMember, type Message } from 'discord.js';
 import { LRUCache } from 'lru-cache';
@@ -42,9 +42,8 @@ async function takeCooldown(ctx: Ctx, command: CommandDto, userId: string): Prom
 }
 
 async function applyActions(ctx: Ctx, command: CommandDto, member: GuildMember): Promise<void> {
-  const editable = (id: string) => member.guild.roles.cache.get(id)?.editable ?? false;
-  const add = command.actions.addRoleIds.filter(editable);
-  const remove = command.actions.removeRoleIds.filter(editable);
+  const add = assignableRoleIds(member.guild, command.actions.addRoleIds);
+  const remove = assignableRoleIds(member.guild, command.actions.removeRoleIds);
   try {
     await changeMemberRoles(member, { add, remove }, `Custom command: ${command.name}`);
   } catch (err) {

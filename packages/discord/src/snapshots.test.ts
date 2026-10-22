@@ -1,4 +1,4 @@
-import type { Guild } from 'discord.js';
+import { PermissionFlagsBits, type Guild } from 'discord.js';
 import type { Redis } from 'ioredis';
 import { describe, expect, it } from 'vitest';
 import { GuildSnapshotReader, GuildSnapshotWriter } from './snapshots.js';
@@ -26,6 +26,8 @@ function fakeRedis(): Redis {
   return redis as unknown as Redis;
 }
 
+const perms = (bitfield: bigint) => ({ bitfield });
+
 function manager<T>(items: T[]) {
   return { cache: { map: <R>(fn: (item: T) => R) => items.map(fn) } };
 }
@@ -40,9 +42,10 @@ function fakeGuild(): Guild {
     shardId: 0,
     channels: manager([{ id: '444444444444444444', name: 'general', type: 0, parentId: null, position: 1 }]),
     roles: manager([
-      { id: GUILD, name: '@everyone', color: 0, position: 0, managed: false, editable: true, guild },
-      { id: BOT_ROLE, name: 'Bot', color: 0, position: 2, managed: true, editable: false, guild },
-      { id: '555555555555555555', name: 'Member', color: 0xff0000, position: 1, managed: false, editable: true, guild },
+      { id: GUILD, name: '@everyone', color: 0, position: 0, managed: false, editable: true, permissions: perms(0n), guild },
+      { id: BOT_ROLE, name: 'Bot', color: 0, position: 3, managed: true, editable: false, permissions: perms(PermissionFlagsBits.Administrator), guild },
+      { id: '555555555555555555', name: 'Member', color: 0xff0000, position: 1, managed: false, editable: true, permissions: perms(PermissionFlagsBits.SendMessages), guild },
+      { id: '777777777777777777', name: 'Mod', color: 0, position: 2, managed: false, editable: true, permissions: perms(PermissionFlagsBits.BanMembers), guild },
     ]),
     emojis: manager([{ id: '666666666666666666', name: 'wave', animated: null }]),
   });
@@ -62,10 +65,11 @@ describe('guild snapshots', () => {
     expect(await reader.getChannels(GUILD)).toEqual([
       { id: '444444444444444444', name: 'general', type: 0, parentId: null, position: 1 },
     ]);
-    expect((await reader.getRoles(GUILD))?.map((r) => [r.name, r.manageable])).toEqual([
-      ['@everyone', false],
-      ['Bot', false],
-      ['Member', true],
+    expect((await reader.getRoles(GUILD))?.map((r) => [r.name, r.manageable, r.elevated])).toEqual([
+      ['@everyone', false, false],
+      ['Bot', false, true],
+      ['Member', true, false],
+      ['Mod', false, true],
     ]);
     expect(await reader.getEmojis(GUILD)).toEqual([{ id: '666666666666666666', name: 'wave', animated: false }]);
   });

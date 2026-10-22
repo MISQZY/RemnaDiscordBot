@@ -1,6 +1,7 @@
 import type { GuildChannel, GuildEmoji, GuildMeta, GuildRole } from '@bot/contracts';
 import type { GuildEntities } from '@bot/core';
 import type { Guild, GuildBasedChannel, GuildEmoji as DiscordEmoji, Role } from 'discord.js';
+import { canAssignRole, isElevatedRole } from './role-safety.js';
 
 export function toGuildMeta(guild: Guild): GuildMeta {
   return {
@@ -30,7 +31,8 @@ export function toGuildRole(role: Role): GuildRole {
     color: role.color,
     position: role.position,
     managed: role.managed,
-    manageable: role.editable && !role.managed && role.id !== role.guild.id,
+    manageable: canAssignRole(role),
+    elevated: isElevatedRole(role),
   };
 }
 

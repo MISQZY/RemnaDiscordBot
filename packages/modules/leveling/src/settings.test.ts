@@ -18,14 +18,20 @@ interface Options {
   role?: object | null;
   channel?: object | null;
   config?: LevelingConfig;
+  /** The server owner's id; the invoker is `9`. */
+  owner?: string;
+  /** What the invoker's top role compared to the picked one gives: above it when positive. */
+  topRoleRank?: number;
 }
 
-function setup({ sub, group = null, ints = {}, numbers = {}, strings = {}, role = null, channel = null, config = defaultLevelingConfig }: Options) {
+function setup({ sub, group = null, ints = {}, numbers = {}, strings = {}, role = null, channel = null, config = defaultLevelingConfig, owner = '9', topRoleRank = 1 }: Options) {
   const update = vi.fn(async () => ({}));
   const reply = vi.fn(async () => {});
   const interaction = {
     guildId: GUILD,
     user: { id: '9' },
+    inCachedGuild: () => true,
+    member: { id: '9', guild: { ownerId: owner }, roles: { highest: { comparePositionTo: () => topRoleRank } } },
     options: {
       getSubcommandGroup: () => group,
       getSubcommand: () => sub,
@@ -48,7 +54,7 @@ function setup({ sub, group = null, ints = {}, numbers = {}, strings = {}, role 
 }
 
 const saved = (update: ReturnType<typeof vi.fn>) => (update.mock.calls[0] as unknown as [string, string, { config: LevelingConfig }])[2].config;
-const role = (patch: object = {}) => ({ id: ROLE, name: 'Regular', managed: false, editable: true, guild: { id: GUILD }, ...patch });
+const role = (patch: object = {}) => ({ id: ROLE, name: 'Regular', managed: false, editable: true, permissions: { bitfield: 0n }, guild: { id: GUILD }, ...patch });
 
 describe('/levels', () => {
   it('has localized subcommands', () => {
@@ -70,6 +76,24 @@ describe('/levels', () => {
     await levels.execute(interaction as never, ctx);
     expect(update).not.toHaveBeenCalled();
     expect(reply).toHaveBeenCalledWith(expect.objectContaining({ content: 'leveling.settings.roleTooHigh' }));
+  });
+
+  it('refuses roles with moderator permissions, even from the owner', async () => {
+    const { interaction, ctx, update, reply } = setup({ sub: 'add', group: 'rewards', ints: { level: 3 }, role: role({ permissions: { bitfield: 1n << 3n } }) });
+    await levels.execute(interaction as never, ctx);
+    expect(update).not.toHaveBeenCalled();
+    expect(reply).toHaveBeenCalledWith(expect.objectContaining({ content: 'core.roleElevated' }));
+  });
+
+  it('refuses roles not below the invoker unless they own the server', async () => {
+    const above = setup({ sub: 'add', group: 'rewards', ints: { level: 3 }, role: role(), owner: '1', topRoleRank: 0 });
+    await levels.execute(above.interaction as never, above.ctx);
+    expect(above.update).not.toHaveBeenCalled();
+    expect(above.reply).toHaveBeenCalledWith(expect.objectContaining({ content: 'core.roleAboveYou' }));
+
+    const owner = setup({ sub: 'add', group: 'rewards', ints: { level: 3 }, role: role(), topRoleRank: 0 });
+    await levels.execute(owner.interaction as never, owner.ctx);
+    expect(owner.update).toHaveBeenCalled();
   });
 
   it('sets a channel multiplier, replacing the previous one', async () => {

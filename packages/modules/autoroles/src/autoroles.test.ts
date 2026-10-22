@@ -78,11 +78,13 @@ describe('persistedRoles', () => {
 
 describe('join roles', () => {
   function member(bot = false) {
-    const roles = new Map(['10', '11'].map((id) => [id, { id, editable: id === '10', managed: false }]));
+    const guild = { id: '1' } as { id: string; roles?: unknown };
+    const roles = new Map(['10', '11'].map((id) => [id, { id, editable: id === '10', managed: false, permissions: { bitfield: 0n }, guild }]));
+    guild.roles = { cache: roles };
     return {
       id: '5',
       user: { bot },
-      guild: { id: '1', roles: { cache: roles } },
+      guild,
       roles: { add: vi.fn(async () => {}) },
     } as unknown as GuildMember & { roles: { add: ReturnType<typeof vi.fn> } };
   }

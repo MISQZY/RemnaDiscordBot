@@ -38,11 +38,15 @@ export class EntityChecker {
     return this;
   }
 
-  /** A role the bot can assign: exists, is below the bot's role and is not managed by an integration. */
+  /**
+   * A role the bot can assign: exists, is below the bot's role, is not managed by an integration and carries no
+   * moderator permissions — whoever may configure the bot could otherwise hand those out to themselves.
+   */
   assignableRole(id: string | null | undefined, path: ConfigIssue['path']): this {
     if (!id) return this;
     const role = this.roleById.get(id);
     if (!role) this.issues.push({ path, message: `Role ${id} not found` });
+    else if (role.elevated) this.issues.push({ path, message: `Role ${role.name} has moderator permissions — the bot does not hand it out` });
     else if (!role.manageable) this.issues.push({ path, message: `The bot cannot assign role ${role.name}` });
     return this;
   }

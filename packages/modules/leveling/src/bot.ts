@@ -1,5 +1,5 @@
 import type { BotModuleContext } from '@bot/core';
-import { changeMemberRoles, memberTemplateVars } from '@bot/discord';
+import { assignableRoleIds, changeMemberRoles, memberTemplateVars } from '@bot/discord';
 import { renderMessage } from '@bot/templates';
 import type { GuildMember, Message } from 'discord.js';
 import type { LevelingConfig } from './config.js';
@@ -13,9 +13,8 @@ const cooldownKey = (guildId: string, userId: string) => `leveling:cd:${guildId}
 export async function syncRewards(member: GuildMember, level: number, config: LevelingConfig, logger: Ctx['logger']): Promise<void> {
   if (config.rewards.length === 0) return;
   const { add, remove } = rewardChanges(level, config);
-  const manageable = (id: string) => member.guild.roles.cache.get(id)?.editable ?? false;
-  const toAdd = add.filter((id) => manageable(id) && !member.roles.cache.has(id));
-  const toRemove = remove.filter((id) => manageable(id) && member.roles.cache.has(id));
+  const toAdd = assignableRoleIds(member.guild, add).filter((id) => !member.roles.cache.has(id));
+  const toRemove = assignableRoleIds(member.guild, remove).filter((id) => member.roles.cache.has(id));
   try {
     await changeMemberRoles(member, { add: toAdd, remove: toRemove }, 'Leveling: level reward');
   } catch (err) {

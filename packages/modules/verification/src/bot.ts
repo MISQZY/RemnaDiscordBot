@@ -1,4 +1,5 @@
 import { defineComponent, type BotModuleContext, type InteractionContext } from '@bot/core';
+import { assignableRoleIds } from '@bot/discord';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, type ButtonInteraction, type GuildMember, type PartialGuildMember } from 'discord.js';
 import type { VerificationConfig } from './config.js';
 import { isVerified, kickKey, makeChallenge, PREFIX, verifyMember } from './service.js';
@@ -13,7 +14,7 @@ const FAIL_LOCK_SEC = 600;
 export async function onMemberJoin(ctx: Ctx, member: GuildMember): Promise<void> {
   if (member.user.bot) return;
   const config = await ctx.getConfig(member.guild.id);
-  if (config.unverifiedRoleId) {
+  if (config.unverifiedRoleId && assignableRoleIds(member.guild, [config.unverifiedRoleId]).length > 0) {
     await member.roles.add(config.unverifiedRoleId, 'Verification: not verified yet').catch((err: unknown) => ctx.logger.warn({ err, guildId: member.guild.id }, 'Unverified role not given'));
   }
   if (config.kickAfterMin > 0) {
@@ -62,6 +63,10 @@ export const verificationComponent = defineComponent<VerificationConfig>({
     const ephemeral = (content: string) => ({ content, flags: MessageFlags.Ephemeral as const });
 
     if (!config.roleId && !config.unverifiedRoleId) return void (await interaction.reply(ephemeral(ctx.t('verification.notSetUp'))));
+    // A role with moderator permissions set before such roles were refused is never handed out.
+    if (config.roleId && assignableRoleIds(interaction.guild, [config.roleId]).length === 0) {
+      return void (await interaction.reply(ephemeral(ctx.t('verification.notSetUp'))));
+    }
     if (isVerified(new Set(member.roles.cache.keys()), config)) return void (await interaction.reply(ephemeral(ctx.t('verification.already'))));
 
     if (action === 'start') {

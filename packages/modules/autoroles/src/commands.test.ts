@@ -9,10 +9,12 @@ const ROLE = '200000000000000002';
 function setup({ editable = true, subcommand = 'add', group = 'join' as string | null } = {}) {
   const update = vi.fn(async () => ({}));
   const replyFn = vi.fn(async () => {});
-  const role = { id: ROLE, name: 'Member', managed: false, editable, guild: { id: GUILD } };
+  const role = { id: ROLE, name: 'Member', managed: false, editable, permissions: { bitfield: 0n }, guild: { id: GUILD } };
   const interaction = {
     guildId: GUILD,
     user: { id: '9' },
+    inCachedGuild: () => true,
+    member: { id: '9', guild: { ownerId: '9' } },
     options: {
       getSubcommandGroup: () => group,
       getSubcommand: () => subcommand,
