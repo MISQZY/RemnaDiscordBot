@@ -19,10 +19,15 @@ export function retryDelayMs(attempts: number): number {
   return Math.min(10_000 * 2 ** Math.max(attempts - 1, 0), 60 * 60_000);
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+class JobTimeout extends Error {}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, controller: AbortController): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`Job timed out after ${ms}ms`)), ms);
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new JobTimeout(`Job timed out after ${ms}ms`));
+    }, ms);
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
@@ -37,11 +42,15 @@ export function moduleServices(services: CoreServices, module: AnyModule): Modul
   };
 }
 
-/** Runs modules' scheduled jobs from `ScheduledAction`. */
+/**
+ * Runs modules' scheduled jobs from `ScheduledAction`: up to `batchSize` at once, as a pool — a slow job holds its
+ * own slot, not the next batch.
+ */
 export class JobRunner {
   private timer: NodeJS.Timeout | undefined;
   private running: Promise<unknown> = Promise.resolve();
   private stopped = false;
+  private readonly inFlight = new Set<Promise<void>>();
   private readonly options: Required<JobRunnerOptions>;
 
   constructor(
@@ -52,18 +61,30 @@ export class JobRunner {
     this.options = { batchSize: 20, lockMs: 60_000, maxAttempts: 5, timeoutMs: 30_000, ...options };
   }
 
-  /** One pass: claim due jobs and run them. Returns the number of jobs. */
+  /** One pass: claim due jobs for the free slots and run them to the end. Returns the number of jobs. */
   async tick(): Promise<number> {
+    const started = await this.fill();
+    await Promise.all(started);
+    return started.length;
+  }
+
+  /** Claims due jobs for the free slots and starts them; the polling loop does not wait for them. */
+  private async fill(): Promise<Promise<void>[]> {
     const { batchSize, lockMs, maxAttempts } = this.options;
-    const actions = await this.services.scheduler.claimDue({ limit: batchSize, lockMs, maxAttempts });
-    await Promise.all(actions.map((action) => this.run(action)));
-    return actions.length;
+    const free = batchSize - this.inFlight.size;
+    if (free <= 0) return [];
+    const actions = await this.services.scheduler.claimDue({ limit: free, lockMs, maxAttempts });
+    return actions.map((action) => {
+      const run = this.run(action).finally(() => this.inFlight.delete(run));
+      this.inFlight.add(run);
+      return run;
+    });
   }
 
   start(pollMs: number): void {
     const loop = async () => {
       if (this.stopped) return;
-      this.running = this.tick().catch((err: unknown) => this.services.logger.error({ err }, 'Job tick failed'));
+      this.running = this.fill().catch((err: unknown) => this.services.logger.error({ err }, 'Job tick failed'));
       await this.running;
       if (!this.stopped) this.timer = setTimeout(() => void loop(), pollMs);
     };
@@ -74,6 +95,7 @@ export class JobRunner {
     this.stopped = true;
     clearTimeout(this.timer);
     await this.running;
+    await Promise.all(this.inFlight);
   }
 
   private async run(action: ScheduledAction): Promise<void> {
@@ -86,15 +108,27 @@ export class JobRunner {
       return;
     }
 
+    const controller = new AbortController();
+    const ctx = { ...moduleServices(this.services, entry.module), guildId: action.guildId, signal: controller.signal };
+    const work = Promise.resolve().then(() => entry.item(action.payload, ctx));
     try {
-      const ctx = { ...moduleServices(this.services, entry.module), guildId: action.guildId };
-      await withTimeout(Promise.resolve(entry.item(action.payload, ctx)), this.options.timeoutMs);
+      await withTimeout(work, this.options.timeoutMs, controller);
       await scheduler.complete(action.id);
       metrics.jobs.inc({ job: action.type, status: 'ok' });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const giveUp = action.attempts >= this.options.maxAttempts;
-      await scheduler.fail(action.id, message, giveUp ? null : new Date(Date.now() + retryDelayMs(action.attempts)));
+      let retryAt = new Date(Date.now() + retryDelayMs(action.attempts));
+      if (err instanceof JobTimeout) {
+        // A timeout only stops waiting: a job that ignores `signal` goes on. It is not retried while it might still
+        // run (not before its lock would have run out), and finishing late completes it — no second run of a draw.
+        retryAt = new Date(Math.max(retryAt.getTime(), Date.now() + this.options.lockMs));
+        void work.then(
+          () => scheduler.complete(action.id),
+          () => undefined,
+        );
+      }
+      await scheduler.fail(action.id, message, giveUp ? null : retryAt);
       metrics.jobs.inc({ job: action.type, status: giveUp ? 'given_up' : 'retry' });
       logger.warn({ err, actionId: action.id, type: action.type, attempts: action.attempts, giveUp }, 'Job failed');
     }

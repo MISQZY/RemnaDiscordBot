@@ -49,6 +49,8 @@ export interface ApiModuleContext<TConfig> extends ModuleServices<TConfig> {
 /** Context of a module's scheduled job in the worker. */
 export interface JobContext<TConfig> extends ModuleServices<TConfig> {
   guildId: string;
+  /** Aborted when the job runs out of time: a long job should stop instead of going on next to its retry. */
+  signal: AbortSignal;
 }
 
 /** Context a module handler receives in the bot. */

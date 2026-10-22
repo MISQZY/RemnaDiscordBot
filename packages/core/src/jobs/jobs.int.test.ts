@@ -26,6 +26,7 @@ describe('scheduler and job runner', () => {
   });
   const flush = vi.fn(async () => {});
   let finishSlow = () => {};
+  let finishHang = () => {};
   const slow = vi.fn(() => new Promise<void>((resolve) => (finishSlow = resolve)));
 
   const module = defineModule({
@@ -36,6 +37,7 @@ describe('scheduler and job runner', () => {
     jobs: {
       unban: async (payload, ctx) => void handled.push({ payload, guildId: ctx.guildId, moduleId: ctx.moduleId }),
       broken: failing,
+      hang: () => new Promise<void>((resolve) => (finishHang = resolve)),
     },
     intervals: { flush: { everyMs: 60_000, run: flush }, poll: { everyMs: 1, run: slow } },
   });
@@ -166,6 +168,19 @@ describe('scheduler and job runner', () => {
     await vi.waitFor(() => expect(slow).toHaveBeenCalledTimes(2));
     finishSlow();
     expect(await next).toBe(true);
+  });
+
+  it('does not retry a timed-out job while it may still run, and counts it done when it finishes late', async () => {
+    const runner = new JobRunner(services, registry, { timeoutMs: 20, lockMs: 60_000 });
+    const action = await services.scheduler.schedule({ guildId: GUILD, moduleId: 'moderation', job: 'hang', payload: {}, runAt: past() });
+
+    expect(await runner.tick()).toBe(1);
+    const failed = await database.db.scheduledAction.findUniqueOrThrow({ where: { id: action.id } });
+    expect(failed.doneAt).toBeNull();
+    expect(failed.runAt.getTime()).toBeGreaterThan(Date.now() + 50_000);
+
+    finishHang();
+    await vi.waitFor(async () => expect((await database.db.scheduledAction.findUniqueOrThrow({ where: { id: action.id } })).doneAt).not.toBeNull());
   });
 
   it('caps retry delay at one hour', () => {

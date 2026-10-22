@@ -79,7 +79,8 @@ model ScheduledAction {
   lastError   String?
   createdAt   DateTime  @default(now())
 
-  @@index([runAt, doneAt])
+  /// Due jobs: `doneAt IS NULL` first, then by `runAt` — the order the workers take them in, every couple of seconds.
+  @@index([doneAt, runAt])
   @@index([guildId])
 }
 
