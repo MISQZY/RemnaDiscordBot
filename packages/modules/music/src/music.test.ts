@@ -9,7 +9,7 @@ import music from './index.js';
 import { nextRepeatMode } from './messages.js';
 import { MusicService } from './service.js';
 import { ControlMessage } from './state.js';
-import { requesterOf, trackView } from './tracks.js';
+import { playableQuery, requesterOf, trackView } from './tracks.js';
 
 const GUILD = '111111111111111111';
 const USER = '222222222222222222';
@@ -189,5 +189,25 @@ describe('music module', () => {
       { channels: [], roles: [] } as never,
     );
     expect(issues.map((i) => i.path[0])).toEqual(['djRoleIds', 'allowedVoiceChannelIds']);
+  });
+});
+
+describe('playableQuery', () => {
+  it('lets search text and public links through', () => {
+    expect(playableQuery('never gonna give you up')).toBe(true);
+    expect(playableQuery('https://soundcloud.com/artist/track')).toBe(true);
+    expect(playableQuery('https://cdn.example.com/song.mp3')).toBe(true);
+    expect(playableQuery('http://93.184.216.34/a.mp3')).toBe(true);
+  });
+
+  it('refuses links into the stack or a private network', () => {
+    for (const url of [
+      'http://api:3000/v1/guilds', 'http://redis:6379', 'http://localhost/x', 'http://127.0.0.1:2333/version',
+      'http://2130706433/', 'http://169.254.169.254/latest/meta-data/', 'http://10.0.0.5/a.mp3', 'http://192.168.1.1/',
+      'http://172.20.0.3/', 'http://[::1]/', 'http://[fd00::1]/', 'http://printer.local/', 'file:///etc/passwd',
+      'ftp://example.com/a.mp3', 'https://user:pass@example.com/a.mp3',
+    ]) {
+      expect(playableQuery(url), url).toBe(false);
+    }
   });
 });

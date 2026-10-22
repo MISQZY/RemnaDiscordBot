@@ -31,7 +31,7 @@ import {
   type ControlAction,
   type PlayerState,
 } from './state.js';
-import { trackView, type Requester } from './tracks.js';
+import { playableQuery, trackView, type Requester } from './tracks.js';
 
 type Ctx = BotModuleContext<MusicConfig>;
 
@@ -41,7 +41,8 @@ export type EnqueueResult =
   | { kind: 'empty' }
   | { kind: 'tooLong'; track: Track }
   | { kind: 'queueFull' }
-  | { kind: 'failed'; message: string };
+  | { kind: 'failed'; message: string }
+  | { kind: 'badLink' };
 
 /** What a restart keeps of a player: where it played and the tracks with their encoded data. */
 interface ResumeSnapshot {
@@ -146,6 +147,7 @@ export class MusicService {
     query: string,
     config: MusicConfig,
   ): Promise<EnqueueResult> {
+    if (!playableQuery(query)) return { kind: 'badLink' };
     const player = this.manager.createPlayer({
       guildId: member.guild.id,
       voiceChannelId: voice.id,

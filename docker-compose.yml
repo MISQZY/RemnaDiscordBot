@@ -60,6 +60,8 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-bot}:${POSTGRES_PASSWORD:-bot}@postgres:5432/${POSTGRES_DB:-bot}
       REDIS_URL: redis://redis:6379
+    # The bot alone reaches the audio node (network `music`).
+    networks: [default, music]
     depends_on:
       redis:
         condition: service_healthy
@@ -114,6 +116,9 @@ services:
     image: ghcr.io/lavalink-devs/lavalink:4.2.2-alpine
     profiles: [music]
     restart: unless-stopped
+    # Its http source fetches links members give: kept off the stack's network, so none of them reaches the API,
+    # Postgres or Redis (the bot also refuses links to internal hosts, see music's playableQuery).
+    networks: [music]
     environment:
       LAVALINK_SERVER_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
       _JAVA_OPTIONS: -Xmx${LAVALINK_MEMORY:-512M}
@@ -149,9 +154,15 @@ services:
     image: ghcr.io/kikkia/yt-cipher:master
     profiles: [music]
     restart: unless-stopped
+    networks: [music]
     environment:
       # The one script variant that works reliably, as its README says.
       OVERRIDE_PLAYER_VARIANT: IAS
+
+networks:
+  default:
+  # The audio node and its helper: the internet and the bot, nothing else of the stack.
+  music:
 
 volumes:
   postgres-data:

@@ -165,6 +165,9 @@ export const play = defineCommand<MusicConfig>({
       case 'queueFull':
         await edit(ctx.t('music.errors.queueFull', { max: s.config.maxQueueSize }));
         return;
+      case 'badLink':
+        await edit(ctx.t('music.errors.badLink'));
+        return;
       case 'failed':
         await edit(ctx.t('music.errors.loadFailed'));
         return;
