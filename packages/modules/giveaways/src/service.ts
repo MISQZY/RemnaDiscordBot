@@ -1,9 +1,10 @@
 import { randomInt } from 'node:crypto';
 import { HttpError, type CoreServices } from '@bot/core';
-import type { Giveaway, Prisma } from '@bot/db';
-import { ButtonStyle, ComponentType, DiscordAPIError, RESTJSONErrorCodes, Routes, type APIEmbed } from 'discord.js';
+import { Prisma, type Giveaway } from '@bot/db';
+import { ButtonStyle, ComponentType, DiscordAPIError, RESTJSONErrorCodes, Routes, type APIEmbed, type APIGuildMember } from 'discord.js';
 import { z } from 'zod';
 import type { GiveawayDto, GiveawayInput, GiveawaysConfig } from './config.js';
+import { entryProblem } from './eligibility.js';
 
 type Services = Pick<CoreServices, 'db' | 'rest' | 'scheduler' | 'logger' | 'i18n' | 'guildLocales'>;
 type Translate = (key: string, vars?: Record<string, string | number>) => string;
@@ -38,6 +39,26 @@ export function draw(entrants: readonly string[], count: number, excluded: Reado
   const pool = entrants.filter((id) => !excluded.has(id));
   const winners: string[] = [];
   while (winners.length < count && pool.length > 0) winners.push(pool.splice(random(pool.length), 1)[0]!);
+  return winners;
+}
+
+/**
+ * Like `draw`, but every pick is checked first: an entrant who left the server or lost a required role since entering
+ * is passed over. At most `maxChecks` picks are checked, so a giveaway of thousands never turns into thousands of calls.
+ */
+export async function drawEligible(
+  entrants: readonly string[],
+  count: number,
+  excluded: ReadonlySet<string>,
+  eligible: (userId: string) => Promise<boolean>,
+  { random = randomInt, maxChecks = 50 }: { random?: (max: number) => number; maxChecks?: number } = {},
+): Promise<string[]> {
+  const pool = entrants.filter((id) => !excluded.has(id));
+  const winners: string[] = [];
+  for (let checks = 0; winners.length < count && pool.length > 0 && checks < maxChecks; checks++) {
+    const id = pool.splice(random(pool.length), 1)[0]!;
+    if (await eligible(id)) winners.push(id);
+  }
   return winners;
 }
 
@@ -112,18 +133,42 @@ export class GiveawayService {
     return db.giveaway.update({ where: { id: row.id }, data: { messageId: posted.id } });
   }
 
-  /** Enters or leaves; returns whether the member is in now. */
+  /**
+   * Enters or leaves; returns whether the member is in now. The counter moves only with a row actually added or
+   * removed, so double clicks cannot push it off the number of entries.
+   */
   async toggleEntry(giveaway: Giveaway, userId: string): Promise<boolean> {
     const { db } = this.services;
-    const key = { giveawayId_userId: { giveawayId: giveaway.id, userId } };
-    if (await db.giveawayEntry.findUnique({ where: key })) {
-      await db.giveawayEntry.delete({ where: key });
-      await db.giveaway.update({ where: { id: giveaway.id }, data: { entries: { decrement: 1 } } });
+    const left = await db.giveawayEntry.deleteMany({ where: { giveawayId: giveaway.id, userId } });
+    if (left.count > 0) {
+      await db.giveaway.update({ where: { id: giveaway.id }, data: { entries: { decrement: left.count } } });
       return false;
     }
-    await db.giveawayEntry.create({ data: { giveawayId: giveaway.id, userId } });
-    await db.giveaway.update({ where: { id: giveaway.id }, data: { entries: { increment: 1 } } });
+    try {
+      await db.$transaction([
+        db.giveawayEntry.create({ data: { giveawayId: giveaway.id, userId } }),
+        db.giveaway.update({ where: { id: giveaway.id }, data: { entries: { increment: 1 } } }),
+      ]);
+    } catch (err) {
+      // A click at the same moment entered already.
+      if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002')) throw err;
+    }
     return true;
+  }
+
+  /** Whether an entrant still may win: on the server, with the required roles and long enough. */
+  private eligibility(giveaway: Giveaway): (userId: string) => Promise<boolean> {
+    const requirements = { requiredRoleIds: Ids.parse(giveaway.requiredRoleIds), minMemberDays: giveaway.minMemberDays };
+    return async (userId) => {
+      try {
+        const member = (await this.services.rest.get(Routes.guildMember(giveaway.guildId, userId))) as APIGuildMember;
+        const joinedTimestamp = member.joined_at ? Date.parse(member.joined_at) : null;
+        return entryProblem({ joinedTimestamp, roles: { cache: new Set(member.roles) } }, requirements) === null;
+      } catch (err) {
+        // Left the server: no prize. Anything else (Discord down) does not cost the entrant the win.
+        return !(err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownMember);
+      }
+    };
   }
 
   /** Puts the current state on the message. */
@@ -143,13 +188,18 @@ export class GiveawayService {
     if (giveaway.status === 'cancelled') throw HttpError.badRequest('The giveaway was cancelled');
     if (!reroll && giveaway.status === 'ended') throw HttpError.badRequest('The giveaway has ended already');
     if (reroll && giveaway.status !== 'ended') throw HttpError.badRequest('Only an ended giveaway can be rerolled');
+    // The end job and /giveaway end may come at once: only the one that moves it out of `running` draws.
+    if (!reroll) {
+      const claimed = await db.giveaway.updateMany({ where: { id: giveaway.id, status: 'running' }, data: { status: 'ended', endsAt: new Date() } });
+      if (claimed.count === 0) throw HttpError.badRequest('The giveaway has ended already');
+    }
 
     const entrants = (await db.giveawayEntry.findMany({ where: { giveawayId: giveaway.id }, select: { userId: true } })).map((e) => e.userId);
     const previous = Ids.parse(giveaway.winnerIds);
-    const winners = draw(entrants, reroll ?? giveaway.winners, new Set(previous));
+    const winners = await drawEligible(entrants, reroll ?? giveaway.winners, new Set(previous), this.eligibility(giveaway));
     const updated = await db.giveaway.update({
       where: { id: giveaway.id },
-      data: { status: 'ended', winnerIds: [...previous, ...winners] as Prisma.InputJsonValue, ...(reroll ? {} : { endsAt: new Date() }) },
+      data: { winnerIds: [...previous, ...winners] as Prisma.InputJsonValue },
     });
     await scheduler.cancel(endKey(giveaway.id));
     await this.refresh(updated, config);

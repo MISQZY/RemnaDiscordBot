@@ -43,6 +43,7 @@ export const locales: Record<Locale, Dictionary> = {
       none: 'В этом канале нет закреплённого внизу сообщения.',
       removed: 'Сообщение в {channel} больше не держится внизу.',
       set: 'Сообщение будет внизу {channel}.',
+      noAccess: 'Чтобы закрепить сообщение в {channel}, нужно право управлять сообщениями и писать в этом канале.',
     },
   },
   en: {
@@ -86,6 +87,7 @@ export const locales: Record<Locale, Dictionary> = {
       none: 'This channel has no sticky message.',
       removed: 'The message in {channel} is no longer kept at the bottom.',
       set: 'The message will stay at the bottom of {channel}.',
+      noAccess: 'To keep a message in {channel}, you need to manage messages and write in that channel.',
     },
   },
 };

@@ -1,7 +1,7 @@
 import type { Locale } from '@bot/contracts';
 import { HttpError, type CoreServices } from '@bot/core';
 import type { ModCase } from '@bot/db';
-import { DiscordAPIError, RESTJSONErrorCodes, Routes, type APIEmbed, type APIGuild } from 'discord.js';
+import { DiscordAPIError, PermissionFlagsBits, RESTJSONErrorCodes, Routes, type APIEmbed, type APIGuild, type PermissionsBitField } from 'discord.js';
 import { SYSTEM_MODERATOR, isActive, toCaseDto, type CaseType, type ModerationConfig } from './config.js';
 import { formatDuration, MAX_TIMEOUT_SEC } from './duration.js';
 
@@ -39,6 +39,12 @@ const isDiscordError = (err: unknown, ...codes: number[]) => err instanceof Disc
  * Moderation actions via Discord REST — work the same in the bot, the API and the worker.
  * Role hierarchy checks are done by the caller (the bot); the REST context has none.
  */
+/** Whether someone with these permissions could take an escalated action themselves (`warn`'s `mayEscalate`). */
+export function escalationAllowed(permissions: Readonly<PermissionsBitField> | null): (action: 'mute' | 'kick' | 'ban') => boolean {
+  const needed = { mute: PermissionFlagsBits.ModerateMembers, kick: PermissionFlagsBits.KickMembers, ban: PermissionFlagsBits.BanMembers } as const;
+  return (action) => permissions?.has(needed[action]) ?? false;
+}
+
 export class ModerationService {
   constructor(private readonly services: Pick<CoreServices, 'db' | 'rest' | 'scheduler' | 'i18n' | 'logger' | 'bus'>) {}
 
@@ -116,15 +122,23 @@ export class ModerationService {
     return this.finish(await this.record('unmute', input), config);
   }
 
-  /** A warning and auto-escalation by the number of active warnings. */
-  async warn(input: ActionInput, config: ModerationConfig): Promise<{ case: ModCase; escalated: ModCase | null }> {
+  /**
+   * A warning and auto-escalation by the number of active warnings. `mayEscalate` — whether whoever warns could take
+   * the escalated action themselves: someone with Timeout Members alone must not get a member banned by warning them
+   * a few times. Left out (automod, the dashboard of a server manager), every rule applies.
+   */
+  async warn(
+    input: ActionInput,
+    config: ModerationConfig,
+    { mayEscalate = () => true }: { mayEscalate?: (action: 'mute' | 'kick' | 'ban') => boolean } = {},
+  ): Promise<{ case: ModCase; escalated: ModCase | null }> {
     await this.notify('warn', input, config);
     const durationSec = config.warnExpiryDays > 0 ? config.warnExpiryDays * 86_400 : null;
     const modCase = await this.finish(await this.record('warn', { ...input, durationSec }), config);
 
     const count = (await this.activeWarnings(input.guildId, input.targetId)).length;
     const rule = config.escalation.find((r) => r.warns === count);
-    if (!rule) return { case: modCase, escalated: null };
+    if (!rule || !mayEscalate(rule.action)) return { case: modCase, escalated: null };
 
     const locale = await this.locale(input.guildId);
     const auto: ActionInput = {

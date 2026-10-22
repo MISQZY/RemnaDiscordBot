@@ -23,7 +23,19 @@ type Reply = { key: string; vars?: Record<string, string | number> };
 
 /** customId prefix: `tv:<action>:<channelId>`. */
 export const PREFIX = 'tv';
-const OWNER_ALLOW = { ManageChannels: true, MoveMembers: true, Connect: true, Speak: true, ViewChannel: true } as const;
+/** The owner runs the channel, but moves nobody: disconnecting goes through the bot's kick, which spares moderators. */
+const OWNER_ALLOW = { ManageChannels: true, Connect: true, Speak: true, ViewChannel: true } as const;
+
+/** Permissions of someone a channel owner may not kick out. */
+const MODERATOR = PermissionFlagsBits.Administrator | PermissionFlagsBits.ManageChannels | PermissionFlagsBits.ModerateMembers | PermissionFlagsBits.MoveMembers;
+
+/**
+ * People in the voice channel, by voice states: `channel.members` resolves them through the member cache, which keeps
+ * only some members of a big server, and would call a channel with people in it empty.
+ */
+export function occupants(channel: Pick<VoiceBasedChannel, 'id' | 'guild'>): number {
+  return channel.guild.voiceStates.cache.filter((state) => state.channelId === channel.id).size;
+}
 
 export function channelName(creator: Pick<Creator, 'nameTemplate'>, member: { displayName: string; username: string }, count: number): string {
   return renderText(creator.nameTemplate, { 'user.displayName': member.displayName, 'user.name': member.username, count }).slice(0, 100) || member.displayName;
@@ -76,7 +88,7 @@ export async function onVoiceState(ctx: Ctx, oldState: VoiceState, newState: Voi
   if (oldState.channelId === newState.channelId) return;
   const config = await ctx.getConfig(newState.guild.id);
 
-  if (oldState.channel && oldState.channel.members.size === 0) {
+  if (oldState.channel && occupants(oldState.channel) === 0) {
     const temp = await ctx.db.tempVoiceChannel.findUnique({ where: { channelId: oldState.channel.id } });
     if (temp) await removeChannel(ctx, oldState.channel);
   }
@@ -90,7 +102,7 @@ export async function onReady(ctx: Ctx, client: Client<true>, guildIds: readonly
   for (const row of rows) {
     const channel = client.guilds.cache.get(row.guildId)?.channels.cache.get(row.channelId);
     if (!channel?.isVoiceBased()) await ctx.db.tempVoiceChannel.deleteMany({ where: { channelId: row.channelId } });
-    else if (channel.members.size === 0) await removeChannel(ctx, channel);
+    else if (occupants(channel) === 0) await removeChannel(ctx, channel);
   }
 }
 
@@ -145,9 +157,10 @@ export async function applyAction(
     }
     case 'kick': {
       if (!value || value === row.ownerId) return { key: 'badTarget' };
+      const target = await channel.guild.members.fetch(value).catch(() => null);
+      if (target?.permissions.any(MODERATOR)) return { key: 'badTarget' };
       await channel.permissionOverwrites.edit(value, { Connect: false });
-      const target = channel.members.get(value);
-      if (target) await target.voice.disconnect().catch(() => undefined);
+      if (target?.voice.channelId === channel.id) await target.voice.disconnect().catch(() => undefined);
       return { key: 'kicked', vars: { user: `<@${value}>` } };
     }
     case 'transfer': {

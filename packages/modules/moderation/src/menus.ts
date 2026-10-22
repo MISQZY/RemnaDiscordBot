@@ -19,7 +19,7 @@ import { hierarchyError } from './checks.js';
 import type { ModerationConfig } from './config.js';
 import { parseDuration } from './duration.js';
 import { historyLines } from './history.js';
-import { ModerationService } from './service.js';
+import { escalationAllowed, ModerationService } from './service.js';
 
 type Ctx = InteractionContext<ModerationConfig>;
 
@@ -133,7 +133,7 @@ async function submitPunishment(interaction: ModalSubmitInteraction, ctx: Ctx, a
   }
 
   await interaction.deferReply();
-  const { case: modCase, escalated } = await service.warn(input, config);
+  const { case: modCase, escalated } = await service.warn(input, config, { mayEscalate: escalationAllowed(interaction.memberPermissions) });
   await interaction.editReply({ content: ctx.tGuild('moderation.done.warn', { user: target.user.username, number: modCase.number }), allowedMentions: { parse: [] } });
   if (escalated) {
     await interaction.followUp({

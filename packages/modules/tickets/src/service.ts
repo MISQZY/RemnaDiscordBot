@@ -188,7 +188,22 @@ export class TicketService {
 
   /** Closes the ticket: transcript to the log (and the member), the thread locked or the channel deleted. */
   async close(ticket: Ticket, config: TicketsConfig, { by, reason }: { by: string; reason: string | null }): Promise<Ticket> {
-    const { db, rest, redis, logger } = this.services;
+    const { db } = this.services;
+    // Two closes at once (a double click, the button and auto-close) would both send the transcript: the one that moves
+    // the ticket out of `open` goes on. Should closing fail, the ticket opens again so it can be closed once more.
+    const claimed = await db.ticket.updateMany({ where: { id: ticket.id, status: 'open' }, data: { status: 'closed', closedAt: new Date(), closedBy: by, closeReason: reason } });
+    if (claimed.count === 0) return (await db.ticket.findUnique({ where: { id: ticket.id } })) ?? ticket;
+    try {
+      await this.finishClose(ticket, config, { by, reason });
+    } catch (err) {
+      await db.ticket.update({ where: { id: ticket.id }, data: { status: 'open', closedAt: null, closedBy: null, closeReason: null } });
+      throw err;
+    }
+    return db.ticket.findUniqueOrThrow({ where: { id: ticket.id } });
+  }
+
+  private async finishClose(ticket: Ticket, config: TicketsConfig, { by, reason }: { by: string; reason: string | null }): Promise<void> {
+    const { rest, redis, logger } = this.services;
     const t = await this.translator(ticket.guildId);
     const guild = (await rest.get(Routes.guild(ticket.guildId)).catch(() => ({ name: ticket.guildId }))) as { name: string };
     const transcript = await this.transcript(ticket, guild.name);
@@ -223,7 +238,6 @@ export class TicketService {
     }
 
     await redis.del(channelKey(ticket.channelId));
-    return db.ticket.update({ where: { id: ticket.id }, data: { status: 'closed', closedAt: new Date(), closedBy: by, closeReason: reason } });
   }
 
   /** Adds or removes a member: a thread member, or the member's overwrite on the channel. */

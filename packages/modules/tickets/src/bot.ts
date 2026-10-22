@@ -54,16 +54,31 @@ async function openTicket(
   const config = await ctx.getConfig(interaction.guildId);
   const service = new TicketService(ctx);
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const ticket = await service.open({
-    guildId: interaction.guildId,
-    owner: { id: interaction.user.id, vars: memberTemplateVars(interaction.member) },
-    config,
-    panelId,
-    category,
-    answers,
-  });
-  await interaction.editReply(ctx.t('tickets.opened', { channel: `<#${ticket.channelId}>` }));
+  // The limit was checked before the form, but a double click or two forms open at once would both pass it: one
+  // opening per member at a time (across clusters), and the limit checked again inside it.
+  const lock = `tickets:opening:${interaction.guildId}:${interaction.user.id}`;
+  if (!(await ctx.redis.set(lock, '1', 'PX', OPENING_LOCK_MS, 'NX'))) return void (await interaction.editReply(ctx.t('tickets.limit', { channel: '—' })));
+  try {
+    if ((await service.openCount(interaction.guildId, interaction.user.id)) >= config.maxOpenPerUser) {
+      const existing = await service.findOpenByOwner(interaction.guildId, interaction.user.id);
+      return void (await interaction.editReply(ctx.t('tickets.limit', { channel: existing ? `<#${existing.channelId}>` : '—' })));
+    }
+    const ticket = await service.open({
+      guildId: interaction.guildId,
+      owner: { id: interaction.user.id, vars: memberTemplateVars(interaction.member) },
+      config,
+      panelId,
+      category,
+      answers,
+    });
+    await interaction.editReply(ctx.t('tickets.opened', { channel: `<#${ticket.channelId}>` }));
+  } finally {
+    await ctx.redis.del(lock);
+  }
 }
+
+/** Longer than opening takes (a channel, its overwrites, the first message). */
+const OPENING_LOCK_MS = 30_000;
 
 async function startOpen(interaction: MessageComponentInteraction<'cached'>, ctx: Ctx, panelId: string, categoryId: string | undefined): Promise<void> {
   const config = await ctx.getConfig(interaction.guildId);
@@ -102,8 +117,9 @@ export const ticketComponent = defineComponent<TicketsConfig>({
 
     if (interaction.isModalSubmit()) {
       if (action === 'form' && a && b) {
+        // Ids in a custom_id come back from the client: the panel must be this server's.
         const row = await ctx.db.ticketPanel.findUnique({ where: { id: a } });
-        const category = row ? toPanel(row).categories.find((c) => c.id === b) : undefined;
+        const category = row && row.guildId === interaction.guildId ? toPanel(row).categories.find((c) => c.id === b) : undefined;
         if (!category) return void (await interaction.reply(ephemeral(ctx.t('tickets.panelMissing'))));
         const answers = category.questions.map((q) => ({ question: q.label, answer: interaction.fields.getTextInputValue(q.id).trim() }));
         return openTicket(interaction, ctx, a, category, answers);
@@ -111,7 +127,7 @@ export const ticketComponent = defineComponent<TicketsConfig>({
       if (action === 'closeform' && a) {
         const ticket = await ctx.db.ticket.findUnique({ where: { id: a } });
         const config = await ctx.getConfig(interaction.guildId);
-        if (!ticket || ticket.status !== 'open') return void (await interaction.reply(ephemeral(ctx.t('tickets.alreadyClosed'))));
+        if (!ticket || ticket.guildId !== interaction.guildId || ticket.status !== 'open') return void (await interaction.reply(ephemeral(ctx.t('tickets.alreadyClosed'))));
         if (!(await mayClose(ctx, interaction.member, ticket, config))) return void (await interaction.reply(ephemeral(ctx.t('tickets.noAccess'))));
         await interaction.reply(ephemeral(ctx.t('tickets.closing')));
         await new TicketService(ctx).close(ticket, config, { by: interaction.user.id, reason: interaction.fields.getTextInputValue('reason').trim() || null });
@@ -125,7 +141,7 @@ export const ticketComponent = defineComponent<TicketsConfig>({
     }
     if (!a) return;
     const ticket = await ctx.db.ticket.findUnique({ where: { id: a } });
-    if (!ticket || ticket.status !== 'open') return void (await interaction.reply(ephemeral(ctx.t('tickets.alreadyClosed'))));
+    if (!ticket || ticket.guildId !== interaction.guildId || ticket.status !== 'open') return void (await interaction.reply(ephemeral(ctx.t('tickets.alreadyClosed'))));
     const config = await ctx.getConfig(interaction.guildId);
 
     if (action === 'close') {

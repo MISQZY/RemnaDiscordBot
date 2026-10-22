@@ -92,6 +92,13 @@ export const stickyCommand = defineCommand<MessagesConfig>({
     const guildId = interaction.guildId!;
     const channelId = interaction.options.getChannel('channel')?.id ?? interaction.channelId;
     const service = new MessageService(ctx);
+    // The bot posts there as itself: only someone who may manage messages in that channel, and write there, sets it.
+    const channel = interaction.guild?.channels.cache.get(channelId);
+    const member = interaction.inCachedGuild() ? interaction.member : null;
+    const perms = channel && member ? channel.permissionsFor(member) : null;
+    if (!perms?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages])) {
+      return void (await interaction.reply({ content: ctx.t('messages.sticky.noAccess', { channel: `<#${channelId}>` }), flags: MessageFlags.Ephemeral }));
+    }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     if (interaction.options.getSubcommand() === 'remove') {
       const exists = await ctx.db.stickyMessage.findUnique({ where: { channelId } });
@@ -99,7 +106,11 @@ export const stickyCommand = defineCommand<MessagesConfig>({
       await service.deleteSticky(guildId, channelId);
       return void (await interaction.editReply(ctx.t('messages.sticky.removed', { channel: `<#${channelId}>` })));
     }
-    await service.saveSticky(guildId, channelId, { message: { content: interaction.options.getString('text', true) }, enabled: true }, interaction.user.id);
+    await service.saveSticky(guildId, channelId, {
+        // Reposted again and again: its mentions never ping.
+        message: { content: interaction.options.getString('text', true), allowedMentions: { users: false, roles: false, everyone: false } },
+        enabled: true,
+      }, interaction.user.id);
     await interaction.editReply(ctx.t('messages.sticky.set', { channel: `<#${channelId}>` }));
   },
 });

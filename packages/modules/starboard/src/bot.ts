@@ -1,5 +1,5 @@
 import type { BotModuleContext } from '@bot/core';
-import type { APIEmbed, Message, MessageReaction, PartialMessage, PartialMessageReaction } from 'discord.js';
+import { ChannelType, PermissionFlagsBits, type APIEmbed, type GuildTextBasedChannel, type Message, type MessageReaction, type PartialMessage, type PartialMessageReaction } from 'discord.js';
 import type { StarboardConfig } from './config.js';
 
 type Ctx = BotModuleContext<StarboardConfig>;
@@ -30,15 +30,51 @@ async function countStars(reaction: MessageReaction, authorId: string, config: S
   return users.filter((u) => !u.bot && (config.selfStar || u.id !== authorId)).size;
 }
 
+/**
+ * Whether the board may show a message of the channel: one everyone on the server can read. A staff channel, a
+ * ticket or a private thread stays private, however many stars it gets.
+ */
+export function publicChannel(channel: GuildTextBasedChannel): boolean {
+  if (channel.type === ChannelType.PrivateThread) return false;
+  return channel.permissionsFor(channel.guild.roles.everyone)?.has(PermissionFlagsBits.ViewChannel) ?? false;
+}
+
+/**
+ * A reaction came or went. Messages are not cached, so the reaction and the message need REST calls: they are made
+ * only for the board's emoji, which the event carries even when partial. One update per message at a time (a Redis
+ * lock across clusters): two at once would both post a copy; a reaction coming meanwhile asks the holder to run again.
+ */
 export async function onReaction(ctx: Ctx, rawReaction: MessageReaction | PartialMessageReaction): Promise<void> {
-  const reaction = rawReaction.partial ? await rawReaction.fetch().catch(() => null) : rawReaction;
+  const { guildId, channelId, id: messageId } = rawReaction.message;
+  if (!guildId) return;
+  const config = await ctx.getConfig(guildId);
+  if (!config.channelId || channelId === config.channelId || !matchesEmoji(config.emoji, rawReaction.emoji)) return;
+
+  const lock = `starboard:lock:${messageId}`;
+  const again = `starboard:again:${messageId}`;
+  if (!(await ctx.redis.set(lock, '1', 'PX', LOCK_MS, 'NX'))) {
+    await ctx.redis.set(again, '1', 'PX', LOCK_MS);
+    return;
+  }
+  try {
+    do await updateEntry(ctx, rawReaction, config);
+    while (await ctx.redis.getdel(again));
+  } finally {
+    await ctx.redis.del(lock);
+  }
+}
+
+/** Longer than an update takes (a few REST calls), so a crashed cluster frees the message soon. */
+const LOCK_MS = 15_000;
+
+async function updateEntry(ctx: Ctx, rawReaction: MessageReaction | PartialMessageReaction, config: StarboardConfig): Promise<void> {
+  const reaction = await rawReaction.fetch().catch(() => null);
   if (!reaction) return;
   const message: Message | PartialMessage = reaction.message.partial ? await reaction.message.fetch().catch(() => reaction.message) : reaction.message;
-  if (message.partial || !message.inGuild()) return;
-  const config = await ctx.getConfig(message.guildId);
-  if (!config.channelId || message.channelId === config.channelId || !matchesEmoji(config.emoji, reaction.emoji)) return;
+  if (message.partial || !message.inGuild() || !config.channelId) return;
   if (config.ignoredChannelIds.includes(message.channelId) || (message.channel.parentId && config.ignoredChannelIds.includes(message.channel.parentId))) return;
   if (!config.allowNsfw && 'nsfw' in message.channel && message.channel.nsfw) return;
+  if (!publicChannel(message.channel)) return;
 
   const board = message.guild.channels.cache.get(config.channelId);
   if (!board?.isSendable()) return;

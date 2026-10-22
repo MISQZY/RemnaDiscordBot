@@ -14,7 +14,7 @@ import { type ModerationConfig } from './config.js';
 import { parseDuration } from './duration.js';
 import { historyLines } from './history.js';
 import { lockdown, unlock } from './lockdown-commands.js';
-import { ModerationService } from './service.js';
+import { escalationAllowed, ModerationService } from './service.js';
 import { modsettings, slowmode } from './settings.js';
 
 type Ctx = InteractionContext<ModerationConfig>;
@@ -174,7 +174,9 @@ export const warn = defineCommand<ModerationConfig>({
     const prepared = await prepare(interaction, ctx, 'warn');
     if (!prepared) return;
     await interaction.deferReply();
-    const { case: modCase, escalated } = await prepared.service.warn(prepared.input, prepared.config);
+    const { case: modCase, escalated } = await prepared.service.warn(prepared.input, prepared.config, {
+      mayEscalate: escalationAllowed(interaction.memberPermissions),
+    });
     await done(interaction, ctx, 'warn', modCase.number);
     if (escalated) {
       await interaction.followUp({
