@@ -29,4 +29,6 @@ export const RedisKeys = {
 
 export const RedisChannels = {
   configInvalidate: 'config:invalidate',
+  /** VIP changed: processes reread it from the database. */
+  vipChanged: 'vip:changed',
 } as const;

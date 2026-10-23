@@ -41,6 +41,7 @@ function setup({ enabled = true, cooldownFree = true } = {}) {
     config: {
       isEnabled: vi.fn(async () => enabled),
       get: vi.fn(async () => ({ enabled, config: leveling.defaultConfig })),
+      vipLocked: vi.fn(() => false),
     },
     redis: {
       set: vi.fn(async () => (cooldownFree ? 'OK' : null)),

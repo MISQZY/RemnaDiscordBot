@@ -5,11 +5,13 @@ import {
   GuildLocales,
   ModuleRegistry,
   PrismaConfigStore,
+  PrismaVipStore,
   RedisConfigCache,
   RedisKeys,
   Scheduler,
   publishConfigInvalidation,
   registerCoreLocales,
+  VipAccess,
   type AnyModule,
 } from '@bot/core';
 import { GuildSnapshotReader } from '@bot/discord';
@@ -66,6 +68,7 @@ export async function createTestApp({ modules = [], rateLimitPerMinute = 0 }: Te
       sharedCache: new RedisConfigCache(redis),
       publish: (message) => publishConfigInvalidation(redis, message),
       locales: { localeOf: (guildId) => guildLocales.get(guildId), i18n },
+      vip: new VipAccess(new PrismaVipStore(database.db)),
       logger,
     }),
     scheduler: new Scheduler(database.db),

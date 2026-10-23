@@ -107,7 +107,7 @@ export class Dispatcher {
         }
 
         if (!(await this.isEnabledFor(entry.module, interaction.guildId))) {
-          await interaction.reply(this.ephemeral(ctx.t(`core.moduleDisabled`, { module: this.moduleName(entry.module, ctx), id: entry.module.id })));
+          await interaction.reply(this.ephemeral(this.disabledText(entry.module, ctx, interaction.guildId)));
           return;
         }
 
@@ -126,7 +126,7 @@ export class Dispatcher {
         if (!entry) return;
         const ctx = await this.interactionContext(entry.module, interaction);
         if (!(await this.isEnabledFor(entry.module, interaction.guildId))) {
-          await interaction.reply(this.ephemeral(ctx.t('core.moduleDisabled', { module: this.moduleName(entry.module, ctx), id: entry.module.id })));
+          await interaction.reply(this.ephemeral(this.disabledText(entry.module, ctx, interaction.guildId)));
           return;
         }
         const retryAfterMs = await this.acquireCooldown(entry.item, interaction.user.id);
@@ -144,7 +144,7 @@ export class Dispatcher {
         const ctx = await this.interactionContext(entry.module, interaction);
 
         if (!(await this.isEnabledFor(entry.module, interaction.guildId))) {
-          const answer = this.ephemeral(ctx.t('core.moduleDisabled', { module: this.moduleName(entry.module, ctx), id: entry.module.id }));
+          const answer = this.ephemeral(this.disabledText(entry.module, ctx, interaction.guildId));
           if (interaction.isAnySelectMenu()) {
             // The menu would keep the pick selected, and the same pick would send nothing once the module is back on.
             await interaction.update({ components: interaction.message.components });
@@ -174,7 +174,7 @@ export class Dispatcher {
     if (!fallback) return;
     const ctx = await this.interactionContext(fallback.module, interaction);
     if (!(await this.isEnabledFor(fallback.module, interaction.guildId))) {
-      await interaction.reply(this.ephemeral(ctx.t('core.moduleDisabled', { module: this.moduleName(fallback.module, ctx), id: fallback.module.id })));
+      await interaction.reply(this.ephemeral(this.disabledText(fallback.module, ctx, interaction.guildId)));
       return;
     }
     await this.timeCommand(fallback.module, 'fallback', () => fallback.item.execute(interaction, ctx));
@@ -191,6 +191,12 @@ export class Dispatcher {
       metrics.handlerErrors.inc({ module: module.id, handler: `command:${command}` });
       throw err;
     }
+  }
+
+  /** Why a command of a disabled module does nothing: off, or on but locked for want of VIP. */
+  private disabledText(module: AnyModule, ctx: InteractionContext<unknown>, guildId: string | null): string {
+    const key = guildId && this.services.config.vipLocked(guildId, module.id) ? 'core.vipRequired' : 'core.moduleDisabled';
+    return ctx.t(key, { module: this.moduleName(module, ctx), id: module.id });
   }
 
   private async isEnabledFor(module: AnyModule, guildId: string | null): Promise<boolean> {

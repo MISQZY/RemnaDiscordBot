@@ -107,6 +107,7 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
           name: i18n.has(`${module.id}.name`, locale) ? i18n.t(locale, `${module.id}.name`) : module.id,
           alwaysEnabled: module.alwaysEnabled ?? false,
           enabledByDefault: module.enabledByDefault ?? false,
+          vip: config.vip.isVipModule(module.id),
           configSchema: z.toJSONSchema(module.configSchema, { io: 'input', unrepresentable: 'any' }) as Record<string, unknown>,
         }));
       },
@@ -223,7 +224,8 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
               currentUserId: (request) => requireSession(request).userId,
               guildEntities,
               requireEnabled: async (guildId) => {
-                if (!(await config.isEnabled(guildId, module.id))) throw HttpError.moduleDisabled(module.id);
+                if (await config.isEnabled(guildId, module.id)) return;
+                throw config.vipLocked(guildId, module.id) ? HttpError.vipRequired(module.id) : HttpError.moduleDisabled(module.id);
               },
             });
           },

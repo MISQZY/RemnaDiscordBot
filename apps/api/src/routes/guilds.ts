@@ -32,7 +32,7 @@ async function readSettings(db: PrismaClient, guildId: string): Promise<GuildSet
   };
 }
 
-export function guildRoutes({ db, redis, snapshots, guildLocales }: ApiDeps, userGuilds: UserGuildService): FastifyPluginAsyncZod {
+export function guildRoutes({ db, redis, snapshots, guildLocales, config }: ApiDeps, userGuilds: UserGuildService): FastifyPluginAsyncZod {
   return async (app) => {
     app.addHook('preHandler', requireGuildAccess(userGuilds));
 
@@ -43,7 +43,7 @@ export function guildRoutes({ db, redis, snapshots, guildLocales }: ApiDeps, use
         const { guildId } = request.params;
         const meta = await snapshots.getMeta(guildId);
         if (!meta) throw ApiError.botNotInGuild();
-        return { meta, settings: await readSettings(db, guildId) };
+        return { meta, settings: await readSettings(db, guildId), vip: config.vip.of(guildId) };
       },
     );
 

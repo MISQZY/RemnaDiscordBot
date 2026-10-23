@@ -118,6 +118,7 @@ describe('guild routes', () => {
     expect((await get(`/v1/guilds/${GUILD_ID}`)).json()).toEqual({
       meta: expect.objectContaining({ id: GUILD_ID, name: 'Test guild' }),
       settings: { locale: 'ru', timezone: 'Europe/Moscow', modRoleIds: [] },
+      vip: null,
     });
     expect((await get(`/v1/guilds/${GUILD_ID}/channels`)).json()).toEqual([expect.objectContaining({ id: CHANNEL_ID })]);
     expect((await get(`/v1/guilds/${GUILD_ID}/roles`)).json()).toHaveLength(2);

@@ -5,11 +5,13 @@ import {
   GuildLocales,
   ModuleRegistry,
   PrismaConfigStore,
+  PrismaVipStore,
   RedisConfigCache,
   Scheduler,
   publishConfigInvalidation,
   registerCoreLocales,
   subscribeConfigInvalidation,
+  VipAccess,
 } from '@bot/core';
 import { createDatabaseClient, isSqliteUrl } from '@bot/db';
 import { GuildSnapshotWriter } from '@bot/discord';
@@ -68,8 +70,11 @@ registry.registerLocales(i18n);
 
 const bus = new EventBus(logger);
 const guildLocales = new GuildLocales(db, i18n);
+const vip = new VipAccess(new PrismaVipStore(db));
+const stopVip = await vip.start(redis, logger);
 const config = new ConfigService({
   registry,
+  vip,
   store: new PrismaConfigStore(db),
   sharedCache: new RedisConfigCache(redis),
   publish: (message) => publishConfigInvalidation(redis, message),
@@ -106,6 +111,7 @@ async function shutdown(signal: string): Promise<void> {
     await teardownModules();
     await client.destroy();
     await unsubscribeConfig();
+    await stopVip();
     await redis.quit();
     await db.$disconnect();
   } catch (err) {

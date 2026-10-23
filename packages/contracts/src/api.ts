@@ -13,6 +13,7 @@ export const ApiErrorCode = z.enum([
   'NOT_FOUND',
   'MODULE_NOT_FOUND',
   'MODULE_DISABLED',
+  'VIP_REQUIRED',
   'CONFLICT',
   'PRECONDITION_FAILED',
   'RATE_LIMITED',
@@ -109,9 +110,15 @@ export const BotProfilePatch = z
   .partial();
 export type BotProfilePatch = z.infer<typeof BotProfilePatch>;
 
+/** The guild's active VIP: `expiresAt: null` — forever. */
+export const GuildVipStatus = z.object({ expiresAt: z.iso.datetime().nullable() });
+export type GuildVipStatus = z.infer<typeof GuildVipStatus>;
+
 export const GuildOverview = z.object({
   meta: GuildMeta,
   settings: GuildSettings,
+  /** `null` — no VIP: VIP modules work as disabled. */
+  vip: GuildVipStatus.nullable(),
 });
 export type GuildOverview = z.infer<typeof GuildOverview>;
 
@@ -120,6 +127,8 @@ export const ModuleInfo = z.object({
   name: z.string(),
   alwaysEnabled: z.boolean(),
   enabledByDefault: z.boolean(),
+  /** Works only in guilds with VIP. */
+  vip: z.boolean(),
   /** Config JSON Schema — for generating forms in the web app. */
   configSchema: z.record(z.string(), z.unknown()),
 });
@@ -133,6 +142,16 @@ export const ModuleState = z.object({
   updatedAt: z.iso.datetime().nullable(),
 });
 export type ModuleState = z.infer<typeof ModuleState>;
+
+/**
+ * VIP as an external dashboard keeps it (`PUT /v1/vip`, the whole state at once): which modules need it and which
+ * guilds have it until when (`null` — forever).
+ */
+export const VipState = z.object({
+  modules: z.array(ModuleId).max(100),
+  guilds: z.array(z.object({ guildId: Snowflake, expiresAt: z.iso.datetime().nullable() })).max(100_000),
+});
+export type VipState = z.infer<typeof VipState>;
 
 /** PUT: the config is replaced entirely. */
 export const ModuleConfigReplace = z.object({

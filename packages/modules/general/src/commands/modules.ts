@@ -51,7 +51,8 @@ export const modules = defineCommand<GeneralConfig>({
       const lines = await Promise.all(
         ctx.registry.all().map(async (m) => {
           const enabled = await ctx.config.isEnabled(guildId, m.id);
-          return `${enabled ? '🟢' : '⚪'} **${moduleName(ctx, m.id)}** · \`${m.id}\``;
+          const mark = enabled ? '🟢' : ctx.config.vipLocked(guildId, m.id) ? '🔒' : '⚪';
+          return `${mark} **${moduleName(ctx, m.id)}** · \`${m.id}\``;
         }),
       );
       const embed = new EmbedBuilder().setTitle(ctx.t('general.modules.title')).setDescription(lines.join('\n')).setFooter({ text: ctx.t('general.modules.hint') });
@@ -67,6 +68,10 @@ export const modules = defineCommand<GeneralConfig>({
     }
 
     const enabled = sub === 'enable';
+    if (enabled && ctx.config.vipLocked(guildId, id)) {
+      await interaction.reply({ content: ctx.t('general.modules.vipRequired', { module: moduleName(ctx, id) }), flags: MessageFlags.Ephemeral });
+      return;
+    }
     const wasEnabled = await ctx.config.isEnabled(guildId, id);
     await ctx.config.update(guildId, id, { enabled }, interaction.user.id);
     await ctx.db.dashboardAuditLog.create({

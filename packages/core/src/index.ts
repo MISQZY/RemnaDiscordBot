@@ -19,3 +19,5 @@ export * from './redis-keys.js';
 export * from './registry.js';
 export * from './safe-regex.js';
 export * from './validation.js';
+export * from './vip/access.js';
+export * from './vip/store.js';

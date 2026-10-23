@@ -5,12 +5,14 @@ import {
   GuildLocales,
   ModuleRegistry,
   PrismaConfigStore,
+  PrismaVipStore,
   RedisConfigCache,
   Scheduler,
   publishConfigInvalidation,
   handleMetricsRequest,
   registerCoreLocales,
   subscribeConfigInvalidation,
+  VipAccess,
 } from '@bot/core';
 import { createDatabaseClient } from '@bot/db';
 import { GuildSnapshotReader } from '@bot/discord';
@@ -41,8 +43,11 @@ registerCoreLocales(i18n);
 registry.registerLocales(i18n);
 
 const guildLocales = new GuildLocales(db, i18n);
+const vip = new VipAccess(new PrismaVipStore(db));
+const stopVip = await vip.start(redis, logger);
 const config = new ConfigService({
   registry,
+  vip,
   store: new PrismaConfigStore(db),
   sharedCache: new RedisConfigCache(redis),
   publish: (message) => publishConfigInvalidation(redis, message),
@@ -99,6 +104,7 @@ async function shutdown(signal: string): Promise<void> {
     await app.close();
     metricsServer.close();
     await unsubscribeConfig();
+    await stopVip();
     await redis.quit();
     await db.$disconnect();
   } catch (err) {

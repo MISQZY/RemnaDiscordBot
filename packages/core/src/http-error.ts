@@ -29,6 +29,11 @@ export class HttpError extends Error {
     return new HttpError(409, 'MODULE_DISABLED', `Module "${moduleId}" is disabled in this guild`);
   }
 
+  /** The module works only in guilds with VIP, and this one has none. */
+  static vipRequired(moduleId: string) {
+    return new HttpError(403, 'VIP_REQUIRED', `Module "${moduleId}" needs VIP in this guild`);
+  }
+
   static tooManyRequests(message: string) {
     return new HttpError(429, 'RATE_LIMITED', message);
   }

@@ -69,6 +69,7 @@ export const locales: Record<Locale, Dictionary> = {
       enabled: 'Модуль «{module}» включён.',
       disabled: 'Модуль «{module}» выключен.',
       unknown: 'Модуля «{module}» нет или его нельзя выключить.',
+      vipRequired: 'Модуль «{module}» работает только на серверах с VIP. Активируйте VIP-ключ в панели управления.',
     },
   },
   en: {
@@ -138,6 +139,7 @@ export const locales: Record<Locale, Dictionary> = {
       enabled: 'The “{module}” module is enabled.',
       disabled: 'The “{module}” module is disabled.',
       unknown: 'There is no “{module}” module, or it cannot be toggled.',
+      vipRequired: 'The “{module}” module works only on servers with VIP. Activate a VIP key in the dashboard.',
     },
   },
 };

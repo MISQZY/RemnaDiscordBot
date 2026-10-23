@@ -7,6 +7,7 @@ export const CORE_NAMESPACE = 'core';
 export const coreLocales: Record<Locale, Dictionary> = {
   ru: {
     moduleDisabled: 'Модуль «{module}» отключён на этом сервере. Администратор может включить его: /modules enable {id}',
+    vipRequired: 'Модуль «{module}» работает только на серверах с VIP. Активируйте VIP-ключ в панели управления.',
     cooldown: 'Подождите {seconds} с перед повторным использованием.',
     error: 'Что-то пошло не так. Попробуйте позже.',
     roleElevated: 'Роль «{role}» даёт модераторские права — бот такие роли не выдаёт.',
@@ -14,6 +15,7 @@ export const coreLocales: Record<Locale, Dictionary> = {
   },
   en: {
     moduleDisabled: 'The “{module}” module is disabled on this server. An admin can enable it with /modules enable {id}',
+    vipRequired: 'The “{module}” module works only on servers with VIP. Activate a VIP key in the dashboard.',
     cooldown: 'Please wait {seconds}s before using this again.',
     error: 'Something went wrong. Please try again later.',
     roleElevated: 'The “{role}” role grants moderator permissions — the bot does not hand such roles out.',

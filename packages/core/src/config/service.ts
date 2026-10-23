@@ -2,8 +2,10 @@ import type { ConfigInvalidation, Locale } from '@bot/contracts';
 import type { I18n } from '@bot/i18n';
 import type { Logger } from '@bot/logger';
 import { LRUCache } from 'lru-cache';
+import { HttpError } from '../http-error.js';
 import type { AnyModule } from '../module.js';
 import type { ModuleRegistry } from '../registry.js';
+import { VipAccess } from '../vip/access.js';
 import type { SharedConfigCache } from './shared-cache.js';
 import type { ConfigStore, StoredConfig } from './store.js';
 
@@ -28,6 +30,8 @@ export interface ConfigServiceOptions {
   publish?: (message: ConfigInvalidation) => Promise<void>;
   /** Guild language and dictionaries — for localized defaults (`localizeDefaults`). */
   locales?: { localeOf(guildId: string): Promise<Locale>; i18n: I18n };
+  /** Which modules need VIP and which guilds have it; without it no module needs VIP. */
+  vip?: VipAccess;
   localTtlMs?: number;
   localMax?: number;
 }
@@ -41,8 +45,10 @@ export class UnknownModuleError extends Error {
 /**
  * Module configs per guild. Reads: process LRU → shared cache (Redis) → database → defaultConfig.
  * Writes validate the config with the module's schema and invalidate caches in all processes.
+ * A VIP module in a guild without VIP reads as disabled; what is stored stays, and works again once VIP is back.
  */
 export class ConfigService {
+  readonly vip: VipAccess;
   private readonly local: LRUCache<string, ResolvedConfig>;
   /** Loads under way: a burst of events of one guild waits for one read of Redis or the database, not one each. */
   private readonly loading = new Map<string, Promise<ResolvedConfig>>();
@@ -52,9 +58,21 @@ export class ConfigService {
   constructor(private readonly options: ConfigServiceOptions) {
     // Guilds × modules that see events: a cluster of four busy shards needs tens of thousands.
     this.local = new LRUCache({ max: options.localMax ?? 100_000, ttl: options.localTtlMs ?? 5 * 60_000 });
+    this.vip = options.vip ?? new VipAccess();
   }
 
   async get<T = unknown>(guildId: string, moduleId: string): Promise<ResolvedConfig<T>> {
+    const resolved = await this.stored<T>(guildId, moduleId);
+    return resolved.enabled && this.vip.locked(guildId, moduleId) ? { ...resolved, enabled: false } : resolved;
+  }
+
+  /** The module is off only for want of VIP. */
+  vipLocked(guildId: string, moduleId: string): boolean {
+    return this.vip.locked(guildId, moduleId);
+  }
+
+  /** The config as saved, VIP aside — what the cache keeps, since VIP runs out by the clock. */
+  private async stored<T = unknown>(guildId: string, moduleId: string): Promise<ResolvedConfig<T>> {
     const key = `${guildId}:${moduleId}`;
     const cached = this.local.get(key);
     if (cached) return cached as ResolvedConfig<T>;
@@ -88,7 +106,9 @@ export class ConfigService {
     updatedBy?: string,
   ): Promise<ResolvedConfig<T>> {
     const module = this.requireModule(moduleId);
-    const current = await this.get(guildId, moduleId);
+    // Saving the config of a module locked for want of VIP keeps it on for when VIP is back.
+    const current = await this.stored(guildId, moduleId);
+    if (patch.enabled === true && this.vip.locked(guildId, moduleId)) throw HttpError.vipRequired(moduleId);
 
     const config = module.configSchema.parse(patch.config ?? current.config);
     const enabled = module.alwaysEnabled ? true : (patch.enabled ?? current.enabled);
@@ -103,7 +123,7 @@ export class ConfigService {
     this.invalidate({ guildId, moduleId });
     await this.options.publish?.({ guildId, moduleId });
 
-    return { enabled, config: config as T, updatedAt: saved.updatedAt };
+    return { enabled: enabled && !this.vip.locked(guildId, moduleId), config: config as T, updatedAt: saved.updatedAt };
   }
 
   /** Drops the local cache — called on a pub/sub message. */

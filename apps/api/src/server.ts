@@ -18,6 +18,7 @@ import { profileRoutes } from './routes/profile.js';
 import { meRoutes } from './routes/me.js';
 import { moduleRoutes } from './routes/modules.js';
 import { statusRoutes } from './routes/status.js';
+import { vipRoutes } from './routes/vip.js';
 import { healthRoutes } from './routes/health.js';
 
 /** Fastify's request log line, without the query: OAuth codes and states travel in it (`/v1/auth/callback`). */
@@ -71,6 +72,7 @@ export async function buildServer(deps: ApiDeps): Promise<FastifyInstance> {
   await app.register(healthRoutes(deps));
   await app.register(statusRoutes(deps));
   await app.register(authRoutes({ ...deps, sessions }));
+  await app.register(vipRoutes(deps));
 
   app.decorateRequest('guild', null);
   const userGuilds = new UserGuildService(deps.redis, deps.oauth, sessions, deps.snapshots);
