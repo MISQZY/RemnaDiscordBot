@@ -2,8 +2,11 @@ import { MessageTemplate, Snowflake } from '@bot/contracts';
 import { z } from 'zod';
 
 export const TicketsConfig = z.object({
-  /** `thread` — a private thread of `parentChannelId`; `channel` — a channel in the `parentChannelId` category. */
-  mode: z.enum(['thread', 'channel']),
+  /**
+   * `thread` — a private thread of `parentChannelId`; `channel` — a channel in the `parentChannelId` category;
+   * `forum` — a post in the `parentChannelId` forum, seen by everyone who sees the forum.
+   */
+  mode: z.enum(['thread', 'channel', 'forum']),
   parentChannelId: Snowflake.nullable(),
   /** See and answer every ticket; a panel category may name its own. */
   supportRoleIds: z.array(Snowflake).max(10),

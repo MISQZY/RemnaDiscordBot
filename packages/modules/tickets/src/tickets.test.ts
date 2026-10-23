@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { I18n } from '@bot/i18n';
+import { describe, expect, it, vi } from 'vitest';
 import { defaultTicketsConfig } from './config.js';
 import { buildComponents, withIds } from './panel.js';
-import { formatTranscript, supportRolesOf, ticketName } from './service.js';
+import { locales } from './locales.js';
+import { formatTranscript, supportRolesOf, ticketName, TicketService } from './service.js';
 
 describe('tickets', () => {
   it('gives new categories and questions ids and keeps the existing ones', () => {
@@ -33,5 +35,39 @@ describe('tickets', () => {
     const config = { ...defaultTicketsConfig, supportRoleIds: ['all'] };
     expect(supportRolesOf(config, { supportRoleIds: ['billing'] })).toEqual(['billing']);
     expect(supportRolesOf(config, { supportRoleIds: [] })).toEqual(['all']);
+  });
+
+  it('opens a forum ticket as a post with its first message and the open tag, then adds the buttons', async () => {
+    const i18n = new I18n('ru');
+    i18n.register('tickets', locales);
+    const rest = {
+      get: vi.fn(async () => ({ type: 15, available_tags: [{ id: 't-open', name: 'Открыт' }] })),
+      post: vi.fn(async () => ({ id: 'post-1' })),
+      put: vi.fn(async () => undefined),
+      patch: vi.fn(async () => undefined),
+    };
+    const service = new TicketService({
+      db: { ticketCounter: { upsert: async () => ({ last: 7 }) }, ticket: { create: async ({ data }: { data: object }) => ({ id: 'tk1', ...data }) } },
+      rest,
+      redis: { set: async () => 'OK' },
+      logger: { warn: () => undefined },
+      i18n,
+      guildLocales: { get: async () => 'ru' },
+    } as never);
+
+    const ticket = await service.open({
+      guildId: 'g',
+      owner: { id: 'u', vars: {} },
+      config: { ...defaultTicketsConfig, mode: 'forum', parentChannelId: 'forum' },
+      panelId: null,
+      category: null,
+      answers: [],
+    });
+
+    expect(ticket.channelId).toBe('post-1');
+    expect(rest.post).toHaveBeenCalledWith('/channels/forum/threads', expect.objectContaining({
+      body: expect.objectContaining({ name: 'ticket-0007', applied_tags: ['t-open'], message: expect.objectContaining({ content: expect.stringContaining('<@u>') }) }),
+    }));
+    expect(rest.patch).toHaveBeenCalledWith('/channels/post-1/messages/post-1', { body: { components: [expect.objectContaining({ components: expect.arrayContaining([expect.objectContaining({ custom_id: 'tk:close:tk1' })]) })] } });
   });
 });

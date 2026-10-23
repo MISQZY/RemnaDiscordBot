@@ -22,6 +22,9 @@ export const locales: Record<Locale, Dictionary> = {
     statuses: { pending: 'На рассмотрении', considered: '🤔 Обдумываем', approved: '✅ Принято', denied: '❌ Отклонено', implemented: '🚀 Сделано' },
     embed: { title: 'Предложение #{number}', author: 'Автор', status: 'Статус', reviewer: 'Решение принял', response: 'Ответ' },
     thread: 'Обсуждение #{number}',
+    /** A forum post's title and the names of the forum tags for the statuses (put on when the forum has them). */
+    post: '#{number} {text}',
+    tags: { pending: 'На рассмотрении', considered: 'Обдумываем', approved: 'Принято', denied: 'Отклонено', implemented: 'Сделано' },
     off: 'Предложения на этом сервере выключены.',
     sent: 'Предложение #{number} отправлено в {channel}.',
     noAccess: 'Решения принимают управляющие сервером и роли из настроек.',
@@ -50,6 +53,8 @@ export const locales: Record<Locale, Dictionary> = {
     statuses: { pending: 'Pending', considered: '🤔 Considering', approved: '✅ Approved', denied: '❌ Denied', implemented: '🚀 Implemented' },
     embed: { title: 'Suggestion #{number}', author: 'Author', status: 'Status', reviewer: 'Decided by', response: 'Response' },
     thread: 'Discussion #{number}',
+    post: '#{number} {text}',
+    tags: { pending: 'Pending', considered: 'Considering', approved: 'Approved', denied: 'Denied', implemented: 'Implemented' },
     off: 'Suggestions are off on this server.',
     sent: 'Suggestion #{number} was posted in {channel}.',
     noAccess: 'Decisions are made by server managers and the roles from the settings.',

@@ -1,7 +1,9 @@
+import { SUPPORTED_LOCALES } from '@bot/contracts';
 import { HttpError, type CoreServices } from '@bot/core';
 import type { Suggestion } from '@bot/db';
+import { forumTagIds } from '@bot/discord';
 import { ButtonStyle, ChannelType, ComponentType, Routes, type APIEmbed } from 'discord.js';
-import type { SuggestionDto, SuggestionsConfig, SuggestionStatus } from './config.js';
+import { STATUSES, type SuggestionDto, type SuggestionsConfig, type SuggestionStatus } from './config.js';
 
 type Services = Pick<CoreServices, 'db' | 'rest' | 'logger' | 'i18n' | 'guildLocales'>;
 type Translate = (key: string, vars?: Record<string, string | number>) => string;
@@ -73,6 +75,18 @@ export class SuggestionService {
     const counter = await db.suggestionCounter.upsert({ where: { guildId }, create: { guildId, last: 1 }, update: { last: { increment: 1 } } });
     const row = await db.suggestion.create({ data: { guildId, number: counter.last, authorId, content, channelId: config.channelId } });
     const t = await this.translator(guildId);
+    if (config.mode === 'forum') {
+      // A post of its own: its first message has the post's id, and the suggestion keeps the post as its channel.
+      const post = (await rest.post(Routes.threads(config.channelId), {
+        body: {
+          name: t('suggestions.post', { number: row.number, text: content.replace(/\s+/g, ' ') }).slice(0, 100),
+          auto_archive_duration: 10_080,
+          applied_tags: (await forumTagIds(rest, config.channelId, [t('suggestions.tags.pending')])) ?? [],
+          message: suggestionMessage(t, row, config),
+        },
+      })) as { id: string };
+      return db.suggestion.update({ where: { id: row.id }, data: { channelId: post.id, messageId: post.id } });
+    }
     const posted = (await rest.post(Routes.channelMessages(config.channelId), { body: suggestionMessage(t, row, config) })) as { id: string };
     if (config.threads) {
       await rest
@@ -80,6 +94,22 @@ export class SuggestionService {
         .catch((err: unknown) => this.services.logger.debug({ err }, 'Suggestion thread not created'));
     }
     return db.suggestion.update({ where: { id: row.id }, data: { messageId: posted.id } });
+  }
+
+  /** A forum post shows the status with the forum's tag of that name, in place of the previous status tag. */
+  private async tagPost(postId: string, tagName: string): Promise<void> {
+    const { rest, logger, i18n } = this.services;
+    try {
+      const post = (await rest.get(Routes.channel(postId))) as { parent_id?: string | null; applied_tags?: string[] };
+      if (!post.parent_id) return;
+      const statusNames = SUPPORTED_LOCALES.flatMap((locale) => STATUSES.map((s) => i18n.t(locale, `suggestions.tags.${s}`)));
+      const statusTags = new Set((await forumTagIds(rest, post.parent_id, statusNames)) ?? []);
+      const [tag] = (await forumTagIds(rest, post.parent_id, [tagName])) ?? [];
+      const kept = (post.applied_tags ?? []).filter((id) => !statusTags.has(id));
+      await rest.patch(Routes.channel(postId), { body: { applied_tags: [...kept, ...(tag ? [tag] : [])].slice(0, 5) } });
+    } catch (err) {
+      logger.warn({ err, postId }, 'Suggestion post tags not updated');
+    }
   }
 
   /** Casts, changes or takes back a vote; returns the suggestion with the new counts. */
@@ -105,6 +135,7 @@ export class SuggestionService {
     if (updated.messageId) {
       await rest.patch(Routes.channelMessage(updated.channelId, updated.messageId), { body: suggestionMessage(t, updated, config) }).catch((err: unknown) => logger.warn({ err }, 'Suggestion message not updated'));
     }
+    if (updated.messageId === updated.channelId) await this.tagPost(updated.channelId, t(`suggestions.tags.${status}`));
     if (config.dmOnDecision && status !== 'pending') {
       try {
         const dm = (await rest.post(Routes.userChannels(), { body: { recipient_id: row.authorId } })) as { id: string };

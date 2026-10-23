@@ -20,13 +20,14 @@ export default defineModule({
   localizeDefaults: (defaults, t) => ({ ...defaults, openMessage: { content: t('defaults.openMessage') } }),
   validateConfig: (config, guild) => {
     const checker = new EntityChecker(guild).roles(config.supportRoleIds, ['supportRoleIds']).textChannel(config.logChannelId, ['logChannelId']);
-    // Threads go under a text channel, ticket channels under a category.
+    // Threads go under a text channel, posts into a forum, ticket channels under a category.
     if (config.parentChannelId) {
       const parent = guild.channels.find((c) => c.id === config.parentChannelId);
-      const wanted = config.mode === 'thread' ? [0] : [4];
+      const wanted = config.mode === 'thread' ? [0] : config.mode === 'forum' ? [15] : [4];
       if (!parent) checker.issues.push({ path: ['parentChannelId'], message: `Channel ${config.parentChannelId} not found` });
       else if (!wanted.includes(parent.type)) {
-        checker.issues.push({ path: ['parentChannelId'], message: config.mode === 'thread' ? 'Threads need a text channel' : 'Ticket channels need a category' });
+        const need = { thread: 'Threads need a text channel', forum: 'Forum tickets need a forum channel', channel: 'Ticket channels need a category' };
+        checker.issues.push({ path: ['parentChannelId'], message: need[config.mode] });
       }
     }
     return checker.issues;

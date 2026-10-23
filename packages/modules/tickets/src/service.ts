@@ -1,5 +1,6 @@
 import type { CoreServices } from '@bot/core';
 import type { Prisma, Ticket } from '@bot/db';
+import { forumTagIds } from '@bot/discord';
 import { renderMessage, toRestMessage, type TemplateVars } from '@bot/templates';
 import {
   ButtonStyle,
@@ -41,6 +42,9 @@ export function toTicketDto(row: Ticket): TicketDto {
     closeReason: row.closeReason,
   };
 }
+
+/** A thread or a forum post — closed by archiving, not deleted. */
+const isThreadType = (type: number) => type === ChannelType.PrivateThread || type === ChannelType.PublicThread;
 
 /** The ticket's name in Discord: `ticket-0042`. */
 export const ticketName = (number: number) => `ticket-${String(number).padStart(4, '0')}`;
@@ -114,8 +118,26 @@ export class TicketService {
     const number = counter.last;
     const support = supportRolesOf(config, category);
 
+    const vars = { ...owner.vars, 'ticket.number': number, 'ticket.category': category?.label ?? '' };
+    const rendered = toRestMessage(renderMessage(config.openMessage, vars));
+    const pings = [`<@${owner.id}>`, ...(config.pingSupport ? support.map((id) => `<@&${id}>`) : [])].join(' ');
+    const answers = input.answers.length > 0 ? [{ title: t('tickets.answers'), color: 0x5865f2, fields: input.answers.map((a) => ({ name: a.question, value: a.answer.slice(0, 1024) || '—' })) }] : [];
+    const first = {
+      content: [pings, rendered.content].filter(Boolean).join('\n').slice(0, 2000),
+      embeds: [...(rendered.embeds ?? []), ...answers].slice(0, 10),
+      allowed_mentions: { users: [owner.id], roles: config.pingSupport ? support : [] },
+    };
+
     let channelId: string;
-    if (config.mode === 'thread') {
+    if (config.mode === 'forum') {
+      // A forum post is made with its first message; the buttons, which need the ticket's id, are put on it after.
+      const post = (await rest.post(Routes.threads(config.parentChannelId), {
+        body: { name: ticketName(number), auto_archive_duration: 10_080, applied_tags: (await forumTagIds(rest, config.parentChannelId, [t('tickets.tags.open')])) ?? [], message: first },
+        reason: `Ticket #${number}`,
+      })) as { id: string };
+      channelId = post.id;
+      await rest.put(Routes.threadMembers(channelId, owner.id));
+    } else if (config.mode === 'thread') {
       const thread = (await rest.post(Routes.threads(config.parentChannelId), {
         body: { name: ticketName(number), type: ChannelType.PrivateThread, invitable: false, auto_archive_duration: 10_080 },
         reason: `Ticket #${number}`,
@@ -155,26 +177,18 @@ export class TicketService {
     });
     await this.services.redis.set(channelKey(channelId), ticket.id);
 
-    const vars = { ...owner.vars, 'ticket.number': number, 'ticket.category': category?.label ?? '' };
-    const rendered = toRestMessage(renderMessage(config.openMessage, vars));
-    const pings = [`<@${owner.id}>`, ...(config.pingSupport ? support.map((id) => `<@&${id}>`) : [])].join(' ');
-    const answers = input.answers.length > 0 ? [{ title: t('tickets.answers'), color: 0x5865f2, fields: input.answers.map((a) => ({ name: a.question, value: a.answer.slice(0, 1024) || '—' })) }] : [];
-    await rest.post(Routes.channelMessages(channelId), {
-      body: {
-        content: [pings, rendered.content].filter(Boolean).join('\n').slice(0, 2000),
-        embeds: [...(rendered.embeds ?? []), ...answers].slice(0, 10),
-        allowed_mentions: { users: [owner.id], roles: config.pingSupport ? support : [] },
+    const components = [
+      {
+        type: ComponentType.ActionRow,
         components: [
-          {
-            type: ComponentType.ActionRow,
-            components: [
-              { type: ComponentType.Button, style: ButtonStyle.Danger, label: t('tickets.buttons.close'), custom_id: `${PREFIX}:close:${ticket.id}` },
-              ...(config.claimEnabled ? [{ type: ComponentType.Button, style: ButtonStyle.Secondary, label: t('tickets.buttons.claim'), custom_id: `${PREFIX}:claim:${ticket.id}` }] : []),
-            ],
-          },
+          { type: ComponentType.Button, style: ButtonStyle.Danger, label: t('tickets.buttons.close'), custom_id: `${PREFIX}:close:${ticket.id}` },
+          ...(config.claimEnabled ? [{ type: ComponentType.Button, style: ButtonStyle.Secondary, label: t('tickets.buttons.claim'), custom_id: `${PREFIX}:claim:${ticket.id}` }] : []),
         ],
       },
-    });
+    ];
+    // A forum post's first message has the post's id.
+    if (config.mode === 'forum') await rest.patch(Routes.channelMessage(channelId, channelId), { body: { components } });
+    else await rest.post(Routes.channelMessages(channelId), { body: { ...first, components } });
 
     await this.log(config, { content: t('tickets.log.opened', { number, user: `<@${owner.id}>`, channel: `<#${channelId}>`, category: category?.label ?? '—' }) });
     return ticket;
@@ -245,9 +259,12 @@ export class TicketService {
     }
 
     try {
-      if (config.mode === 'thread' || (await this.isThread(ticket.channelId))) {
+      const channel = (await rest.get(Routes.channel(ticket.channelId))) as { type: number; parent_id?: string | null };
+      if (isThreadType(channel.type)) {
         await rest.post(Routes.channelMessages(ticket.channelId), { body: { content: t('tickets.closedNotice', { by: closer, reason: reason ?? '—' }), allowed_mentions: { parse: [] } } });
-        await rest.patch(Routes.channel(ticket.channelId), { body: { archived: true, locked: true }, reason: `Ticket #${ticket.number} closed` });
+        // A forum post swaps its "open" tag for "closed" (when the forum has them).
+        const tags = channel.parent_id ? await forumTagIds(rest, channel.parent_id, [t('tickets.tags.closed')]) : null;
+        await rest.patch(Routes.channel(ticket.channelId), { body: { archived: true, locked: true, ...(tags ? { applied_tags: tags } : {}) }, reason: `Ticket #${ticket.number} closed` });
       } else {
         await rest.delete(Routes.channel(ticket.channelId), { reason: `Ticket #${ticket.number} closed` });
       }
@@ -271,7 +288,7 @@ export class TicketService {
 
   private async isThread(channelId: string): Promise<boolean> {
     const channel = (await this.services.rest.get(Routes.channel(channelId))) as { type: number };
-    return channel.type === ChannelType.PrivateThread || channel.type === ChannelType.PublicThread;
+    return isThreadType(channel.type);
   }
 
   private async log(config: TicketsConfig, body: { content: string }, file?: { name: string; data: Buffer }): Promise<void> {

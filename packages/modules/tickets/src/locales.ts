@@ -38,6 +38,8 @@ export const locales: Record<Locale, Dictionary> = {
     removed: '{user} убран из тикета.',
     renamed: 'Тикет переименован: {name}',
     system: 'автоматически',
+    /** Names of the forum tags the bot puts on a ticket's post, when the forum has them. */
+    tags: { open: 'Открыт', closed: 'Закрыт' },
     autoClosed: 'нет активности {hours, plural, one {# час} few {# часа} other {# часов}}',
     dm: 'Ваш тикет #{number} на сервере **{guild}** закрыт. Переписка — в файле.',
     log: {
@@ -81,6 +83,7 @@ export const locales: Record<Locale, Dictionary> = {
     removed: '{user} was removed from the ticket.',
     renamed: 'Ticket renamed: {name}',
     system: 'automatically',
+    tags: { open: 'Open', closed: 'Closed' },
     autoClosed: 'no activity for {hours, plural, one {# hour} other {# hours}}',
     dm: 'Your ticket #{number} on **{guild}** was closed. The conversation is in the file.',
     log: {

@@ -1,6 +1,6 @@
 import { Snowflake } from '@bot/contracts';
 import { defineModule, EntityChecker } from '@bot/core';
-import { UserDirectory, UserInfo } from '@bot/discord';
+import { FORUM_CHANNEL_TYPE, UserDirectory, UserInfo } from '@bot/discord';
 import { z } from 'zod';
 import { suggestCommand, suggestionCommand, voteComponent } from './bot.js';
 import { defaultSuggestionsConfig, SuggestionDto, SuggestionsConfig, SuggestionStatus } from './config.js';
@@ -16,7 +16,15 @@ export default defineModule({
   defaultConfig: defaultSuggestionsConfig,
   configVersion: 1,
   locales,
-  validateConfig: (config, guild) => new EntityChecker(guild).textChannel(config.channelId, ['channelId']).roles(config.reviewerRoleIds, ['reviewerRoleIds']).issues,
+  validateConfig: (config, guild) => {
+    const checker = new EntityChecker(guild).textChannel(config.channelId, ['channelId']).roles(config.reviewerRoleIds, ['reviewerRoleIds']);
+    // A forum takes posts, not messages: the channel must be of the mode's kind.
+    const channel = config.channelId ? guild.channels.find((c) => c.id === config.channelId) : undefined;
+    if (channel && (channel.type === FORUM_CHANNEL_TYPE) !== (config.mode === 'forum')) {
+      checker.issues.push({ path: ['channelId'], message: config.mode === 'forum' ? 'Choose a forum channel' : 'A forum channel needs the forum mode' });
+    }
+    return checker.issues;
+  },
   bot: {
     commands: [suggestCommand, suggestionCommand],
     components: { [PREFIX]: voteComponent },

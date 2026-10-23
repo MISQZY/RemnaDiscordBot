@@ -1,4 +1,5 @@
 export * from './components.js';
+export * from './forum.js';
 export * from './mappers.js';
 export * from './member-roles.js';
 export * from './role-safety.js';
