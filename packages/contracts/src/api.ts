@@ -12,6 +12,7 @@ export const ApiErrorCode = z.enum([
   'BOT_NOT_IN_GUILD',
   'NOT_FOUND',
   'MODULE_NOT_FOUND',
+  'MODULE_DISABLED',
   'CONFLICT',
   'PRECONDITION_FAILED',
   'RATE_LIMITED',

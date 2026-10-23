@@ -23,6 +23,7 @@ export function messagesApi(app: FastifyInstance, ctx: ApiModuleContext<Messages
 
   app.post('/sent', { schema: { tags: ['messages'], summary: 'Post a message as the bot', body: SendInput, response: { 201: SentMessage } } }, async (request, reply) => {
     const input = request.body as SendInput;
+    await ctx.requireEnabled(params(request).guildId);
     await checkChannel(params(request).guildId, input.channelId);
     return reply.status(201).send(await service.send(params(request).guildId, input, ctx.currentUserId(request)));
   });
@@ -30,7 +31,10 @@ export function messagesApi(app: FastifyInstance, ctx: ApiModuleContext<Messages
   app.put(
     '/sent/:id',
     { schema: { tags: ['messages'], summary: 'Edit a posted message', params: IdParams, body: z.object({ message: MessageTemplate }), response: { 200: SentMessage } } },
-    async (request) => service.edit(params(request).guildId, params(request).id, (request.body as { message: MessageTemplate }).message),
+    async (request) => {
+      await ctx.requireEnabled(params(request).guildId);
+      return service.edit(params(request).guildId, params(request).id, (request.body as { message: MessageTemplate }).message);
+    },
   );
 
   app.delete('/sent/:id', { schema: { tags: ['messages'], summary: 'Delete a posted message', params: IdParams, response: { 204: z.null() } } }, async (request, reply) => {
@@ -69,8 +73,11 @@ export function messagesApi(app: FastifyInstance, ctx: ApiModuleContext<Messages
     '/sticky/:channelId',
     { schema: { tags: ['messages'], summary: 'Keep a message at the bottom of the channel', params: ChannelParams, body: StickyInput, response: { 200: StickyDto } } },
     async (request) => {
+      const input = request.body as StickyInput;
+      // Turning a sticky message off only removes its copy; posting it waits for the module.
+      if (input.enabled) await ctx.requireEnabled(params(request).guildId);
       await checkChannel(params(request).guildId, params(request).channelId);
-      return service.saveSticky(params(request).guildId, params(request).channelId, request.body as StickyInput, ctx.currentUserId(request));
+      return service.saveSticky(params(request).guildId, params(request).channelId, input, ctx.currentUserId(request));
     },
   );
 

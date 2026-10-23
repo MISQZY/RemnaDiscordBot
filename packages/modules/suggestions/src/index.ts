@@ -68,6 +68,7 @@ export default defineModule({
         const { number } = request.params as { number: number };
         const { status, response } = request.body as { status: SuggestionStatus; response: string | null };
         const id = guildId(request);
+        await ctx.requireEnabled(id);
         return toSuggestionDto(await service.decide(id, Number(number), status, ctx.currentUserId(request), response, await ctx.getConfig(id)));
       },
     );

@@ -158,6 +158,15 @@ describe('module routes', () => {
     ]);
   });
 
+  it('switches a module on and off though its saved config points at a deleted channel', async () => {
+    await t.deps.config.update(GUILD_ID, 'announcer', { config: { channelId: '599999999999999999', roleIds: [] } });
+
+    expect((await send('PATCH', url('/announcer'), { enabled: true })).statusCode).toBe(200);
+    const off = await send('PUT', url('/announcer'), { enabled: false, config: { channelId: '599999999999999999', roleIds: [] } });
+    expect(off.statusCode).toBe(200);
+    expect((await send('PATCH', url('/announcer'), { config: { channelId: '599999999999999998' } })).statusCode).toBe(400);
+  });
+
   it('serves public module routes only while the module is enabled', async () => {
     const publicUrl = `/v1/public/guilds/${GUILD_ID}/modules/leveling/board`;
     await send('PATCH', url('/leveling'), { enabled: false });

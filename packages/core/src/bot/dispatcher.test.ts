@@ -100,6 +100,21 @@ describe('Dispatcher events', () => {
     await dispatcher.dispatchEvent('messageCreate', [{ guildId: GUILD }]);
     expect(onMessage).not.toHaveBeenCalled();
   });
+
+  it('runs housekeeping handlers of disabled modules', async () => {
+    const { services } = setup({ enabled: false });
+    const tidy = vi.fn();
+    const act = vi.fn();
+    const tickets = createTestModule('tickets');
+    tickets.bot!.events = { channelDelete: act };
+    tickets.bot!.housekeeping = { channelDelete: tidy };
+    const dispatcher = new Dispatcher(services, new ModuleRegistry([tickets]));
+
+    await dispatcher.dispatchEvent('channelDelete', [{ guildId: GUILD }]);
+
+    expect(tidy).toHaveBeenCalledOnce();
+    expect(act).not.toHaveBeenCalled();
+  });
 });
 
 describe('Dispatcher module setup', () => {

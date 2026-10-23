@@ -24,6 +24,11 @@ export class HttpError extends Error {
     return new HttpError(404, 'NOT_FOUND', message);
   }
 
+  /** An action that would make the bot post or act in Discord, while the module is disabled in the guild. */
+  static moduleDisabled(moduleId: string) {
+    return new HttpError(409, 'MODULE_DISABLED', `Module "${moduleId}" is disabled in this guild`);
+  }
+
   static tooManyRequests(message: string) {
     return new HttpError(429, 'RATE_LIMITED', message);
   }

@@ -24,16 +24,26 @@ describe('giveaways', () => {
     await t.close();
   });
 
+  const input = () => ({
+    channelId: CHANNEL_ID,
+    prize: 'Nitro',
+    description: null,
+    winners: 1,
+    endsAt: new Date(Date.now() + 3600_000).toISOString(),
+    requiredRoleIds: [],
+    minMemberDays: 0,
+  });
+
+  it('posts nothing while the module is off', async () => {
+    const refused = await send('POST', '', input());
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json().error.code).toBe('MODULE_DISABLED');
+    expect(await t.database.db.giveaway.count()).toBe(0);
+  });
+
   it('starts a giveaway, draws its winners and rerolls one', async () => {
-    const created = await send('POST', '', {
-      channelId: CHANNEL_ID,
-      prize: 'Nitro',
-      description: null,
-      winners: 1,
-      endsAt: new Date(Date.now() + 3600_000).toISOString(),
-      requiredRoleIds: [],
-      minMemberDays: 0,
-    });
+    await t.deps.config.update(GUILD_ID, 'giveaways', { enabled: true });
+    const created = await send('POST', '', input());
     expect(created.statusCode).toBe(201);
     const giveaway = created.json();
     expect(giveaway).toMatchObject({ status: 'running', messageId: expect.any(String) });

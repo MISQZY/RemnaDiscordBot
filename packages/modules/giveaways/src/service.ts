@@ -240,4 +240,14 @@ export class GiveawayService {
     await this.services.db.giveawayEntry.deleteMany({ where: { giveawayId: giveaway.id } });
     await this.services.db.giveaway.delete({ where: { id: giveaway.id } });
   }
+
+  /** The running giveaways of a deleted message or channel are cancelled, their draws dropped. */
+  async cancelGone(guildId: string, where: { messageId: string } | { channelId: string }): Promise<void> {
+    const { db, scheduler } = this.services;
+    const gone = await db.giveaway.findMany({ where: { guildId, status: 'running', ...where }, select: { id: true } });
+    for (const { id } of gone) {
+      await db.giveaway.updateMany({ where: { id, status: 'running' }, data: { status: 'cancelled' } });
+      await scheduler.cancel(endKey(id));
+    }
+  }
 }

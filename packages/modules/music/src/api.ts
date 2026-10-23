@@ -1,4 +1,4 @@
-import type { ApiModuleContext } from '@bot/core';
+import type { ApiModuleContext, ModuleServices, SavedChange } from '@bot/core';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { MusicConfig } from './config.js';
@@ -46,6 +46,7 @@ export function musicApi(app: FastifyInstance, ctx: ApiModuleContext<MusicConfig
     },
     async (request, reply) => {
       const id = guildId(request);
+      await ctx.requireEnabled(id);
       const accepted = (await readState(id)) !== null;
       if (accepted) {
         const message: ControlMessage = { guildId: id, userId: ctx.currentUserId(request), ...(request.body as ControlAction) };
@@ -54,4 +55,11 @@ export function musicApi(app: FastifyInstance, ctx: ApiModuleContext<MusicConfig
       return reply.code(202).send({ accepted });
     },
   );
+}
+
+/** The module was switched off: the guild's player stops and leaves the voice channel. */
+export async function stopWhenDisabled(ctx: ModuleServices<MusicConfig>, { guildId, userId, before, after }: SavedChange<MusicConfig>): Promise<void> {
+  if (!before.enabled || after.enabled || !(await ctx.redis.exists(MusicKeys.state(guildId)))) return;
+  const message: ControlMessage = { guildId, userId, action: 'stop' };
+  await ctx.redis.publish(MusicKeys.control, JSON.stringify(message));
 }

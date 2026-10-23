@@ -25,6 +25,7 @@ describe('autoroles API', () => {
     t.oauth.guilds = [{ id: GUILD_ID, name: 'Managed', icon: null, owner: true, permissions: '0' }];
     await seedGuildSnapshot(t);
     cookie = await login(t);
+    await t.deps.config.update(GUILD_ID, 'autoroles', { enabled: true });
   });
 
   beforeEach(() => {

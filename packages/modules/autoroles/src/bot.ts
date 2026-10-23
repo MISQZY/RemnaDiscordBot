@@ -1,7 +1,7 @@
 import { defineComponent, type BotModuleContext } from '@bot/core';
 import { assignableRoleIds, changeMemberRoles, memberTemplateVars } from '@bot/discord';
 import { channelVars, renderMessage } from '@bot/templates';
-import { MessageFlags, roleMention, type GuildMember, type PartialGuildMember } from 'discord.js';
+import { MessageFlags, roleMention, type GuildMember, type InteractionReplyOptions, type PartialGuildMember } from 'discord.js';
 import type { AutorolesConfig } from './config.js';
 import { toInfoPanel } from './info-panel.js';
 import { computeRoleChanges, toPanel } from './panel.js';
@@ -88,21 +88,28 @@ export const panelComponent = defineComponent<AutorolesConfig>({
   async handle(interaction, ctx) {
     if (!interaction.inCachedGuild() || interaction.isModalSubmit()) return;
     const [, panelId, roleId] = interaction.customId.split(':');
+    const isSelect = interaction.isStringSelectMenu();
+    // Discord keeps the picked options selected, and picking them again would send nothing: the menu is reset to the
+    // posted one, and the reply follows.
+    const respond = async (options: InteractionReplyOptions & { flags: MessageFlags.Ephemeral }) => {
+      if (!isSelect) return void (await interaction.reply(options));
+      await interaction.update({ components: interaction.message.components });
+      await interaction.followUp(options);
+    };
 
     const row = panelId ? await ctx.db.rolePanel.findUnique({ where: { id: panelId } }) : null;
     if (!row || row.guildId !== interaction.guildId) {
-      await interaction.reply({ content: ctx.t('autoroles.panelMissing'), flags: MessageFlags.Ephemeral });
+      await respond({ content: ctx.t('autoroles.panelMissing'), flags: MessageFlags.Ephemeral });
       return;
     }
 
     const panel = toPanel(row);
     const member = interaction.member;
-    const isSelect = interaction.isStringSelectMenu();
     const picked = isSelect ? interaction.values : roleId ? [roleId] : [];
     const changes = computeRoleChanges(panel, new Set(member.roles.cache.keys()), picked, isSelect ? 'select' : 'button');
 
     if (changes.limited) {
-      await interaction.reply({ content: ctx.t('autoroles.limit', { max: panel.maxRoles ?? 0 }), flags: MessageFlags.Ephemeral });
+      await respond({ content: ctx.t('autoroles.limit', { max: panel.maxRoles ?? 0 }), flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -116,7 +123,7 @@ export const panelComponent = defineComponent<AutorolesConfig>({
       remove.length > 0 ? ctx.t('autoroles.removed', { roles: remove.map(roleMention).join(', ') }) : null,
       skipped > 0 ? ctx.t('autoroles.cannotManage') : null,
     ].filter(Boolean);
-    await interaction.reply({
+    await respond({
       content: lines.length > 0 ? lines.join('\n') : ctx.t('autoroles.unchanged'),
       flags: MessageFlags.Ephemeral,
       allowedMentions: { parse: [] },

@@ -44,6 +44,11 @@ export interface ApiModuleContext<TConfig> extends ModuleServices<TConfig> {
   currentUserId(request: FastifyRequest): string;
   /** Guild channels and roles from the snapshot — for checking references in module data. */
   guildEntities(guildId: string): Promise<GuildEntities>;
+  /**
+   * Refuses (409 `MODULE_DISABLED`) while the module is disabled in the guild — for routes that make the bot post or
+   * act in Discord. Reading, editing stored records and cleaning up (deleting, cancelling, closing) need not call it.
+   */
+  requireEnabled(guildId: string): Promise<void>;
 }
 
 /** Context of a module's scheduled job in the worker. */

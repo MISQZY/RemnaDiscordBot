@@ -151,6 +151,7 @@ export function moderationApi(app: FastifyInstance, ctx: ApiModuleContext<Modera
     },
     async (request) => {
       const id = guildId(request);
+      await ctx.requireEnabled(id);
       const { channelIds, durationSec, reason } = request.body as z.infer<typeof LockBody>;
       await ownChannels(id, channelIds);
       const config = await ctx.getConfig(id);

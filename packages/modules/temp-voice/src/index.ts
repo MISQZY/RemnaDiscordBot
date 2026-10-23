@@ -1,6 +1,6 @@
 import { defineModule } from '@bot/core';
 import { GatewayIntentBits } from 'discord.js';
-import { onReady, onVoiceState, PREFIX, tempVoiceComponent } from './bot.js';
+import { onReady, onVoiceLeave, onVoiceState, PREFIX, tempVoiceComponent } from './bot.js';
 import { voiceCommand } from './commands.js';
 import { defaultTempVoiceConfig, TempVoiceConfig } from './config.js';
 import { locales } from './locales.js';
@@ -31,14 +31,12 @@ export default defineModule({
     intents: [GatewayIntentBits.GuildVoiceStates],
     commands: [voiceCommand],
     components: { [PREFIX]: tempVoiceComponent },
-    events: {
-      voiceStateUpdate: onVoiceState,
-      clientReady: async (ctx, client) => {
-        // `clientReady` has no guild: only servers where the module is on are cleaned up.
-        const flags = await Promise.all([...client.guilds.cache.keys()].map(async (id) => ((await ctx.config.isEnabled(id, 'temp-voice')) ? id : null)));
-        const enabled = flags.filter((id): id is string => id !== null);
-        if (enabled.length > 0) await onReady(ctx, client, enabled);
-      },
+    events: { voiceStateUpdate: onVoiceState },
+    // Temp channels are cleaned up whether or not the module is on: switching it off must not leave them behind.
+    housekeeping: {
+      voiceStateUpdate: onVoiceLeave,
+      clientReady: onReady,
+      channelDelete: async (ctx, channel) => void (await ctx.db.tempVoiceChannel.deleteMany({ where: { channelId: channel.id } })),
     },
   },
 });

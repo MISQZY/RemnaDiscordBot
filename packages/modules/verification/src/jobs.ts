@@ -10,7 +10,6 @@ const KickPayload = z.object({ userId: Snowflake });
 /** Time to pass ran out: the member is kicked unless they passed (or were let in by hand) meanwhile. */
 export async function kickUnverified(payload: unknown, ctx: JobContext<VerificationConfig>): Promise<void> {
   const { userId } = KickPayload.parse(payload);
-  if (!(await ctx.config.isEnabled(ctx.guildId, 'verification'))) return;
   const config = await ctx.getConfig(ctx.guildId);
   let member: APIGuildMember;
   try {

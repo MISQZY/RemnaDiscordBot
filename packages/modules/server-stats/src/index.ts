@@ -3,7 +3,7 @@ import { defineModule, HttpError } from '@bot/core';
 import { z } from 'zod';
 import { defaultServerStatsConfig, ServerStatsConfig } from './config.js';
 import { locales } from './locales.js';
-import { counterName, createCounterChannel, readStats, RENAME_EVERY_SEC, updateAll, updateCounters } from './service.js';
+import { counterName, createCounterChannel, deleteRemovedCounters, dropDeletedCounter, readStats, RENAME_EVERY_SEC, updateAll, updateCounters } from './service.js';
 
 export { ServerStatsConfig, STAT_PLACEHOLDERS } from './config.js';
 
@@ -26,6 +26,14 @@ export default defineModule({
   },
   // A counter is renamed at most every RENAME_EVERY_SEC anyway: checking more often only spends calls.
   intervals: { counters: { everyMs: RENAME_EVERY_SEC * 1000, run: updateAll } },
+  bot: {
+    housekeeping: {
+      channelDelete: async (ctx, channel) => {
+        if (!channel.isDMBased()) await dropDeletedCounter(ctx, channel.guildId, channel.id);
+      },
+    },
+  },
+  onSaved: (ctx, { guildId, before, after }) => deleteRemovedCounters(ctx, guildId, before.config, after.config),
   api: (app, ctx) => {
     const guildId = (request: { params: unknown }) => (request.params as { guildId: string }).guildId;
 
@@ -57,6 +65,7 @@ export default defineModule({
       },
       async (request, reply) => {
         const { template, parentId } = request.body as { template: string; parentId: string | null };
+        await ctx.requireEnabled(guildId(request));
         return reply.status(201).send({ channelId: await createCounterChannel(ctx, guildId(request), template, parentId) });
       },
     );
@@ -66,6 +75,7 @@ export default defineModule({
       { schema: { tags: ['server-stats'], summary: 'Update the counters now; a channel renamed in the last five minutes waits', response: { 200: z.object({ renamed: z.number().int() }) } } },
       async (request) => {
         const id = guildId(request);
+        await ctx.requireEnabled(id);
         if (!(await ctx.redis.set(`server-stats:refresh:${id}`, '1', 'EX', REFRESH_COOLDOWN_SEC, 'NX'))) throw HttpError.tooManyRequests('Counters were updated recently');
         return { renamed: await updateCounters(ctx, id, await ctx.getConfig(id)) };
       },

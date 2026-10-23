@@ -81,6 +81,11 @@ export class Scheduler {
     await this.db.scheduledAction.update({ where: { id }, data: { doneAt: new Date(), lockedUntil: null, lastError: null } });
   }
 
+  /** Not run now, on purpose (the module is off): moved to `runAt`, the claim's attempt given back. */
+  async postpone(id: string, runAt: Date): Promise<void> {
+    await this.db.scheduledAction.update({ where: { id }, data: { runAt, lockedUntil: null, attempts: { decrement: 1 } } });
+  }
+
   /** Failure: retry at `retryAt` or, when `null`, give up for good (`doneAt` + `lastError`). */
   async fail(id: string, error: string, retryAt: Date | null): Promise<void> {
     await this.db.scheduledAction.update({

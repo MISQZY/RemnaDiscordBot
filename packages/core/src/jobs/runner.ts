@@ -19,6 +19,9 @@ export function retryDelayMs(attempts: number): number {
   return Math.min(10_000 * 2 ** Math.max(attempts - 1, 0), 60 * 60_000);
 }
 
+/** How often a postponed job of a disabled module looks again whether the module is back on. */
+const POSTPONE_MS = 10 * 60_000;
+
 class JobTimeout extends Error {}
 
 function withTimeout<T>(promise: Promise<T>, ms: number, controller: AbortController): Promise<T> {
@@ -108,9 +111,23 @@ export class JobRunner {
       return;
     }
 
+    const { run, whenDisabled } = entry.item;
+    try {
+      if (whenDisabled !== 'run' && !(await this.services.config.isEnabled(action.guildId, entry.module.id))) {
+        if (whenDisabled === 'postpone') await scheduler.postpone(action.id, new Date(Date.now() + POSTPONE_MS));
+        else await scheduler.complete(action.id);
+        metrics.jobs.inc({ job: action.type, status: whenDisabled === 'postpone' ? 'postponed' : 'skipped' });
+        return;
+      }
+    } catch (err) {
+      // The config could not be read: the claim's lock runs out and the job is taken again.
+      logger.warn({ err, actionId: action.id, type: action.type }, 'Job module state unknown');
+      return;
+    }
+
     const controller = new AbortController();
     const ctx = { ...moduleServices(this.services, entry.module), guildId: action.guildId, signal: controller.signal };
-    const work = Promise.resolve().then(() => entry.item(action.payload, ctx));
+    const work = Promise.resolve().then(() => run(action.payload, ctx));
     try {
       await withTimeout(work, this.options.timeoutMs, controller);
       await scheduler.complete(action.id);

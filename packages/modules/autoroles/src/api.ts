@@ -80,7 +80,10 @@ export function autorolesApi(app: FastifyInstance, ctx: ApiModuleContext<Autorol
   app.post(
     '/panels/:panelId/publish',
     { schema: { tags: ['autoroles'], summary: 'Post or update the panel message in Discord', params: PanelParams, response: { 200: Panel } } },
-    async (request) => panels.publish(params(request).guildId, params(request).panelId),
+    async (request) => {
+      await ctx.requireEnabled(params(request).guildId);
+      return panels.publish(params(request).guildId, params(request).panelId);
+    },
   );
 
   app.get('/info-panels', { schema: { tags: ['autoroles'], summary: 'Info panels', response: { 200: z.array(InfoPanel) } } }, async (request) =>
@@ -137,6 +140,9 @@ export function autorolesApi(app: FastifyInstance, ctx: ApiModuleContext<Autorol
   app.post(
     '/info-panels/:panelId/publish',
     { schema: { tags: ['autoroles'], summary: 'Post or update the info panel message in Discord', params: PanelParams, response: { 200: InfoPanel } } },
-    async (request) => infoPanels.publish(params(request).guildId, params(request).panelId),
+    async (request) => {
+      await ctx.requireEnabled(params(request).guildId);
+      return infoPanels.publish(params(request).guildId, params(request).panelId);
+    },
   );
 }

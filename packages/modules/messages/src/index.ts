@@ -25,9 +25,12 @@ export default defineModule({
     commands: [remindCommand, stickyCommand],
     events: { messageCreate: onMessage },
     setup: () => clearStickyTimers,
+    // A deleted channel takes its sticky message along, the module on or off.
+    housekeeping: { channelDelete: (ctx, channel) => new MessageService(ctx).dropChannel(channel.id) },
   },
   jobs: {
-    scheduled: (payload, ctx) => new MessageService(ctx).runScheduled(ById.parse(payload).id),
+    // Runs while the module is off as well: it skips the post itself, but plans the next run of a repeating message.
+    scheduled: { whenDisabled: 'run', run: (payload, ctx) => new MessageService(ctx).runScheduled(ById.parse(payload).id) },
     remind: (payload, ctx) => sendReminder(ctx, ById.parse(payload).id),
   },
   api: messagesApi,

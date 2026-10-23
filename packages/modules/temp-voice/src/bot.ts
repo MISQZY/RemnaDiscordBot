@@ -83,22 +83,24 @@ async function postPanel(ctx: Ctx, channel: VoiceBasedChannel, owner: GuildMembe
   });
 }
 
-/** Joining a creator makes a channel; leaving a temp channel empty deletes it. */
+/** Leaving a temp channel empty deletes it — housekeeping: the module's channels go while it is off too. */
+export async function onVoiceLeave(ctx: Ctx, oldState: VoiceState, newState: VoiceState): Promise<void> {
+  if (oldState.channelId === newState.channelId || !oldState.channel || occupants(oldState.channel) > 0) return;
+  const temp = await ctx.db.tempVoiceChannel.findUnique({ where: { channelId: oldState.channel.id } });
+  if (temp) await removeChannel(ctx, oldState.channel);
+}
+
+/** Joining a creator makes a channel. */
 export async function onVoiceState(ctx: Ctx, oldState: VoiceState, newState: VoiceState): Promise<void> {
   if (oldState.channelId === newState.channelId) return;
   const config = await ctx.getConfig(newState.guild.id);
-
-  if (oldState.channel && occupants(oldState.channel) === 0) {
-    const temp = await ctx.db.tempVoiceChannel.findUnique({ where: { channelId: oldState.channel.id } });
-    if (temp) await removeChannel(ctx, oldState.channel);
-  }
   const creator = config.creators.find((c) => c.channelId === newState.channelId);
   if (creator && newState.member && !newState.member.user.bot) await createFor(ctx, newState.member, creator, config);
 }
 
 /** After a restart: temp channels everyone left meanwhile are deleted, rows of deleted channels dropped. */
-export async function onReady(ctx: Ctx, client: Client<true>, guildIds: readonly string[]): Promise<void> {
-  const rows = await ctx.db.tempVoiceChannel.findMany({ where: { guildId: { in: [...guildIds] } } });
+export async function onReady(ctx: Ctx, client: Client<true>): Promise<void> {
+  const rows = await ctx.db.tempVoiceChannel.findMany({ where: { guildId: { in: [...client.guilds.cache.keys()] } } });
   for (const row of rows) {
     const channel = client.guilds.cache.get(row.guildId)?.channels.cache.get(row.channelId);
     if (!channel?.isVoiceBased()) await ctx.db.tempVoiceChannel.deleteMany({ where: { channelId: row.channelId } });

@@ -59,10 +59,8 @@ async function openTicket(
   const lock = `tickets:opening:${interaction.guildId}:${interaction.user.id}`;
   if (!(await ctx.redis.set(lock, '1', 'PX', OPENING_LOCK_MS, 'NX'))) return void (await interaction.editReply(ctx.t('tickets.limit', { channel: '—' })));
   try {
-    if ((await service.openCount(interaction.guildId, interaction.user.id)) >= config.maxOpenPerUser) {
-      const existing = await service.findOpenByOwner(interaction.guildId, interaction.user.id);
-      return void (await interaction.editReply(ctx.t('tickets.limit', { channel: existing ? `<#${existing.channelId}>` : '—' })));
-    }
+    const limit = await limitReached(service, interaction.guildId, interaction.user.id, config);
+    if (limit) return void (await interaction.editReply(ctx.t('tickets.limit', { channel: limit })));
     const ticket = await service.open({
       guildId: interaction.guildId,
       owner: { id: interaction.user.id, vars: memberTemplateVars(interaction.member) },
@@ -87,11 +85,8 @@ async function startOpen(interaction: MessageComponentInteraction<'cached'>, ctx
   const category = row && row.guildId === interaction.guildId ? toPanel(row).categories.find((c) => c.id === categoryId) : undefined;
   if (!category) return void (await interaction.reply(ephemeral(ctx.t('tickets.panelMissing'))));
 
-  const service = new TicketService(ctx);
-  if ((await service.openCount(interaction.guildId, interaction.user.id)) >= config.maxOpenPerUser) {
-    const existing = await service.findOpenByOwner(interaction.guildId, interaction.user.id);
-    return void (await interaction.reply(ephemeral(ctx.t('tickets.limit', { channel: existing ? `<#${existing.channelId}>` : '—' }))));
-  }
+  const limit = await limitReached(new TicketService(ctx), interaction.guildId, interaction.user.id, config);
+  if (limit) return void (await interaction.reply(ephemeral(ctx.t('tickets.limit', { channel: limit }))));
 
   if (category.questions.length === 0) return openTicket(interaction, ctx, panelId, category, []);
   const modal = new ModalBuilder().setCustomId(`${PREFIX}:form:${panelId}:${category.id}`).setTitle(category.label.slice(0, 45));
@@ -106,7 +101,22 @@ async function startOpen(interaction: MessageComponentInteraction<'cached'>, ctx
     modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(input));
   }
   await interaction.showModal(modal);
-  // A menu keeps the picked option selected: put it back so the same category can be picked again.
+}
+
+/**
+ * The member's open tickets are at the limit: the mention of the latest one. Tickets whose channel was deleted by hand
+ * (or while the module was off) are closed first — they must not hold the member's limit for ever.
+ */
+async function limitReached(service: TicketService, guildId: string, userId: string, config: TicketsConfig): Promise<string | null> {
+  if ((await service.openCount(guildId, userId)) < config.maxOpenPerUser) return null;
+  await service.closeGone(guildId, userId);
+  if ((await service.openCount(guildId, userId)) < config.maxOpenPerUser) return null;
+  const existing = await service.findOpenByOwner(guildId, userId);
+  return existing ? `<#${existing.channelId}>` : '—';
+}
+
+/** A menu keeps the picked option selected, and picking it again sends nothing: the posted menu is put back. */
+async function resetMenu(interaction: MessageComponentInteraction<'cached'>): Promise<void> {
   if (interaction.isStringSelectMenu()) await interaction.message.edit({ components: interaction.message.components }).catch(() => undefined);
 }
 
@@ -137,7 +147,11 @@ export const ticketComponent = defineComponent<TicketsConfig>({
 
     if (action === 'open' && a) {
       const categoryId = interaction.isStringSelectMenu() ? interaction.values[0] : b;
-      return startOpen(interaction, ctx, a, categoryId);
+      try {
+        return await startOpen(interaction, ctx, a, categoryId);
+      } finally {
+        await resetMenu(interaction);
+      }
     }
     if (!a) return;
     const ticket = await ctx.db.ticket.findUnique({ where: { id: a } });
@@ -168,6 +182,12 @@ export const ticketComponent = defineComponent<TicketsConfig>({
 });
 
 const ACTIVITY_THROTTLE_SEC = 300;
+
+/** The ticket's channel or thread was deleted in Discord: the ticket is closed, even while the module is off. */
+export async function onChannelGone(ctx: BotModuleContext<TicketsConfig>, channel: { id: string }): Promise<void> {
+  const ticket = await ctx.db.ticket.findUnique({ where: { channelId: channel.id } });
+  if (ticket?.status === 'open') await new TicketService(ctx).markGone(ticket);
+}
 
 /** A message in a ticket moves its last activity — what auto-close looks at. Written at most every few minutes. */
 export async function onMessage(ctx: BotModuleContext<TicketsConfig>, message: Message): Promise<void> {

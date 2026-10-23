@@ -23,8 +23,9 @@ export default defineModule({
     events: {
       messageReactionAdd: (ctx, reaction) => onReaction(ctx, reaction),
       messageReactionRemove: (ctx, reaction) => onReaction(ctx, reaction),
-      messageDelete: onMessageDelete,
     },
+    // The original was deleted: its copy goes too, the module on or off.
+    housekeeping: { messageDelete: onMessageDelete },
   },
   api: (app, ctx) => {
     const users = new UserDirectory(ctx.redis, ctx.rest);

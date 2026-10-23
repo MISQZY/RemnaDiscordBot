@@ -54,6 +54,7 @@ export function welcomeApi(app: FastifyInstance, ctx: ApiModuleContext<WelcomeCo
     },
     async (request) => {
       const { guildId } = request.params as { guildId: string };
+      await ctx.requireEnabled(guildId);
       const { kind } = request.body as z.infer<typeof TestBody>;
       try {
         return await sendTestMessage(ctx.rest, await ctx.getConfig(guildId), { guildId, userId: ctx.currentUserId(request), kind });

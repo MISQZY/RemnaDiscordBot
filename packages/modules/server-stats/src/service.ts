@@ -13,6 +13,8 @@ const nameKey = (channelId: string) => `server-stats:name:${channelId}`;
 const NAME_TTL_SEC = 7 * 86_400;
 /** A counter whose channel is gone is left alone for a while instead of failing every run. */
 const GONE_SEC = 3600;
+/** Counter channels the bot made in the guild: removing such a counter deletes its channel too. */
+const createdKey = (guildId: string) => `server-stats:created:${guildId}`;
 /** Servers updated at once: each is a call or two to Discord. */
 const CONCURRENCY = 5;
 
@@ -94,7 +96,33 @@ export async function createCounterChannel(services: Services, guildId: string, 
     },
     reason: 'Server stats counter',
   })) as { id: string };
+  await services.redis.sadd(createdKey(guildId), channel.id);
   return channel.id;
+}
+
+/**
+ * Counters taken out of the config: the channels the bot made for them are deleted (a channel the admin picked
+ * themselves stays). Runs on every save, the module on or off.
+ */
+export async function deleteRemovedCounters(services: Services, guildId: string, before: ServerStatsConfig, after: ServerStatsConfig): Promise<void> {
+  const kept = new Set(after.counters.map((c) => c.channelId));
+  for (const { channelId } of before.counters) {
+    if (kept.has(channelId) || !(await services.redis.sismember(createdKey(guildId), channelId))) continue;
+    try {
+      await services.rest.delete(Routes.channel(channelId), { reason: 'Server stats counter removed' });
+    } catch (err) {
+      if (!(err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownChannel)) throw err;
+    }
+    await services.redis.multi().srem(createdKey(guildId), channelId).del(nameKey(channelId), renamedKey(channelId)).exec();
+  }
+}
+
+/** A counter's channel was deleted in Discord: the counter goes from the config, so the config stays valid to save. */
+export async function dropDeletedCounter(ctx: Pick<ModuleServices<ServerStatsConfig>, 'config' | 'redis'>, guildId: string, channelId: string): Promise<void> {
+  const { config } = await ctx.config.get<ServerStatsConfig>(guildId, 'server-stats');
+  if (!config.counters.some((c) => c.channelId === channelId)) return;
+  await ctx.config.update(guildId, 'server-stats', { config: { counters: config.counters.filter((c) => c.channelId !== channelId) } });
+  await ctx.redis.multi().srem(createdKey(guildId), channelId).del(nameKey(channelId), renamedKey(channelId)).exec();
 }
 
 /** Worker: counters of every server where the module is on, a few servers at a time. */

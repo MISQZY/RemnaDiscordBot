@@ -34,6 +34,7 @@ describe('scheduler and job runner', () => {
     configSchema: z.object({}),
     defaultConfig: {},
     configVersion: 1,
+    enabledByDefault: true,
     jobs: {
       unban: async (payload, ctx) => void handled.push({ payload, guildId: ctx.guildId, moduleId: ctx.moduleId }),
       broken: failing,
@@ -41,7 +42,20 @@ describe('scheduler and job runner', () => {
     },
     intervals: { flush: { everyMs: 60_000, run: flush }, poll: { everyMs: 1, run: slow } },
   });
-  const registry = new ModuleRegistry([module]);
+  // Off unless a guild turns it on: what becomes of its jobs while it is off.
+  const draws = vi.fn(async () => {});
+  const giveaways = defineModule({
+    id: 'giveaways',
+    configSchema: z.object({}),
+    defaultConfig: {},
+    configVersion: 1,
+    jobs: {
+      reminder: async () => void handled.push('reminder'),
+      end: { whenDisabled: 'postpone', run: draws },
+      expire: { whenDisabled: 'run', run: async () => void handled.push('expire') },
+    },
+  });
+  const registry = new ModuleRegistry([module, giveaways]);
 
   beforeAll(async () => {
     database = await createTestDatabase();
@@ -82,6 +96,28 @@ describe('scheduler and job runner', () => {
     expect(await runner.tick()).toBe(0);
     expect(handled).toEqual([{ payload: { userId: '5' }, guildId: GUILD, moduleId: 'moderation' }]);
     expect(await database.db.scheduledAction.count({ where: { doneAt: { not: null } } })).toBe(1);
+  });
+
+  it('skips, postpones or runs the jobs of a disabled module as each job says', async () => {
+    const runner = new JobRunner(services, registry);
+    const schedule = (job: string) => services.scheduler.schedule({ guildId: GUILD, moduleId: 'giveaways', job, payload: {}, runAt: past() });
+    const skipped = await schedule('reminder');
+    const postponed = await schedule('end');
+    await schedule('expire');
+
+    expect(await runner.tick()).toBe(3);
+    expect(handled).toEqual(['expire']);
+    expect(draws).not.toHaveBeenCalled();
+    expect(await database.db.scheduledAction.findUniqueOrThrow({ where: { id: skipped.id } })).toMatchObject({ doneAt: expect.any(Date) });
+    const waiting = await database.db.scheduledAction.findUniqueOrThrow({ where: { id: postponed.id } });
+    expect(waiting).toMatchObject({ doneAt: null, attempts: 0, lockedUntil: null });
+    expect(waiting.runAt.getTime()).toBeGreaterThan(Date.now());
+
+    await services.config.update(GUILD, 'giveaways', { enabled: true });
+    await database.db.scheduledAction.update({ where: { id: postponed.id }, data: { runAt: past() } });
+    await runner.tick();
+    expect(draws).toHaveBeenCalledOnce();
+    await services.config.update(GUILD, 'giveaways', { enabled: false });
   });
 
   it('replaces and cancels jobs by key', async () => {

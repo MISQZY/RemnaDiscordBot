@@ -76,6 +76,11 @@ export interface BotFacet<TConfig> {
   /** Commands in the user and message menus (Apps). */
   contextMenus?: ContextMenuCommand<TConfig>[];
   events?: EventHandlers<TConfig>;
+  /**
+   * Handlers that run whether or not the module is enabled in the guild: they only tidy up after the module (rows of
+   * deleted channels and messages, its own emptied channels) and never post or act on members.
+   */
+  housekeeping?: EventHandlers<TConfig>;
   /** Component handlers by `customId` prefix (the part before the first `:`). */
   components?: Record<string, ComponentHandler<TConfig>>;
   /**
@@ -123,14 +128,39 @@ export interface ModuleDefinition<TSchema extends z.ZodType = z.ZodType> {
    * They respond only when the module is enabled in the guild (checked by the API).
    */
   publicApi?: (app: FastifyInstance, ctx: ModuleServices<z.output<TSchema>>) => Promise<void> | void;
-  /** Scheduled jobs: type `<moduleId>:<name>`, scheduled via `ctx.scheduler`, run by the worker. */
-  jobs?: Record<string, JobHandler<z.output<TSchema>>>;
+  /**
+   * Scheduled jobs: type `<moduleId>:<name>`, scheduled via `ctx.scheduler`, run by the worker. A job whose module is
+   * disabled in its guild is dropped, unless its definition says otherwise (`whenDisabled`).
+   */
+  jobs?: Record<string, JobHandler<z.output<TSchema>> | JobDefinition<z.output<TSchema>>>;
   /** Worker interval tasks (flushing counters, polling sources). */
   intervals?: Record<string, IntervalTask<z.output<TSchema>>>;
+  /**
+   * Runs in the API after the module's state or config was saved — to undo in Discord what the change took away
+   * (a removed counter's channel, a player of a disabled module). A failure is logged; the save stands.
+   */
+  onSaved?: (ctx: ModuleServices<z.output<TSchema>>, change: SavedChange<z.output<TSchema>>) => Promise<void>;
+}
+
+export interface SavedChange<TConfig> {
+  guildId: string;
+  /** Who saved it. */
+  userId: string;
+  before: { enabled: boolean; config: TConfig };
+  after: { enabled: boolean; config: TConfig };
 }
 
 /** Job handler; the module validates `payload` itself. An error means a delayed retry. */
 export type JobHandler<TConfig = unknown> = (payload: unknown, ctx: JobContext<TConfig>) => Promise<void>;
+
+/**
+ * A job and what becomes of it while its module is disabled in the guild: `skip` — dropped (the default for a bare
+ * handler), `postpone` — waits until the module is on again, `run` — runs anyway (a punishment still ends on time).
+ */
+export interface JobDefinition<TConfig = unknown> {
+  run: JobHandler<TConfig>;
+  whenDisabled: 'skip' | 'postpone' | 'run';
+}
 
 export interface IntervalTask<TConfig = unknown> {
   everyMs: number;

@@ -1,5 +1,5 @@
 import { ModuleConfigPatch, ModuleConfigReplace, ModuleId, ModuleInfo, ModuleState, Snowflake } from '@bot/contracts';
-import { moduleServices, UnknownModuleError, type AnyModule, type ConfigPatch, type ResolvedConfig } from '@bot/core';
+import { HttpError, moduleServices, UnknownModuleError, type AnyModule, type ConfigPatch, type ResolvedConfig } from '@bot/core';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod, ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -56,8 +56,10 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
       throw ApiError.badRequest('This module cannot be disabled', [{ path: ['enabled'], message: 'Always enabled' }]);
     }
 
-    if (module.validateConfig) {
-      const parsed = module.configSchema.parse(patch.config ?? current.config);
+    // Only a changed config is checked: a channel deleted in Discord meanwhile must not keep the module from being
+    // switched on or off.
+    const parsed = patch.config === undefined ? current.config : module.configSchema.parse(patch.config);
+    if (module.validateConfig && JSON.stringify(parsed) !== JSON.stringify(current.config)) {
       const issues = module.validateConfig(parsed, await guildEntities(guildId));
       if (issues.length > 0) {
         throw ApiError.badRequest(
@@ -67,17 +69,20 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
       }
     }
 
-    const updated = await config.update(guildId, moduleId, patch, requireSession(request).userId);
-    await recordAudit(db, {
-      guildId,
-      userId: requireSession(request).userId,
-      moduleId,
-      action,
-      diff: {
-        before: { enabled: current.enabled, config: current.config },
-        after: { enabled: updated.enabled, config: updated.config },
-      },
-    });
+    const userId = requireSession(request).userId;
+    const updated = await config.update(guildId, moduleId, patch, userId);
+    const diff = {
+      before: { enabled: current.enabled, config: current.config },
+      after: { enabled: updated.enabled, config: updated.config },
+    };
+    await recordAudit(db, { guildId, userId, moduleId, action, diff });
+    if (module.onSaved) {
+      try {
+        await module.onSaved(moduleServices(deps, module), { guildId, userId, ...diff });
+      } catch (err) {
+        request.log.warn({ err, guildId, moduleId }, 'Module onSaved failed');
+      }
+    }
 
     reply.header('etag', configEtag(updated));
     return toState(moduleId, updated);
@@ -217,6 +222,9 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
               ...moduleServices(deps, module),
               currentUserId: (request) => requireSession(request).userId,
               guildEntities,
+              requireEnabled: async (guildId) => {
+                if (!(await config.isEnabled(guildId, module.id))) throw HttpError.moduleDisabled(module.id);
+              },
             });
           },
           { prefix: `/v1/guilds/:guildId/modules/${module.id}` },

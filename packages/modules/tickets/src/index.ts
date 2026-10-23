@@ -1,7 +1,7 @@
 import { defineModule, EntityChecker } from '@bot/core';
 import { GatewayIntentBits } from 'discord.js';
 import { ticketsApi } from './api.js';
-import { onMessage, ticketComponent } from './bot.js';
+import { onChannelGone, onMessage, ticketComponent } from './bot.js';
 import { ticketCommand } from './commands.js';
 import { defaultTicketsConfig, TicketsConfig } from './config.js';
 import { autoClose } from './jobs.js';
@@ -36,6 +36,7 @@ export default defineModule({
     commands: [ticketCommand],
     components: { [PREFIX]: ticketComponent },
     events: { messageCreate: onMessage },
+    housekeeping: { channelDelete: onChannelGone, threadDelete: onChannelGone },
   },
   intervals: { autoClose: { everyMs: 10 * 60_000, run: (ctx) => autoClose(ctx).then(() => undefined) } },
   api: ticketsApi,

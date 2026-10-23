@@ -17,6 +17,7 @@ describe('messages', () => {
     t.rest.responses.set(`/guilds/${GUILD_ID}`, { id: GUILD_ID, name: 'Test guild', approximate_member_count: 42 });
     await seedGuildSnapshot(t);
     cookie = await login(t);
+    await t.deps.config.update(GUILD_ID, 'messages', { enabled: true });
   });
 
   beforeEach(async () => {

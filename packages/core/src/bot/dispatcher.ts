@@ -76,9 +76,9 @@ export class Dispatcher {
     const timeoutMs = this.options.handlerTimeoutMs ?? 10_000;
 
     await Promise.all(
-      this.registry.subscribers(event).map(async ({ module, item }) => {
+      this.registry.subscribers(event).map(async ({ module, item, always }) => {
         try {
-          if (guildId && !(await this.services.config.isEnabled(guildId, module.id))) return;
+          if (!always && guildId && !(await this.services.config.isEnabled(guildId, module.id))) return;
           const handler = item as LooseEventHandler;
           metrics.events.inc({ event, module: module.id });
           await withTimeout(Promise.resolve(handler(this.moduleContext(module), ...args)), timeoutMs, `${module.id}:${event}`);
@@ -144,7 +144,12 @@ export class Dispatcher {
         const ctx = await this.interactionContext(entry.module, interaction);
 
         if (!(await this.isEnabledFor(entry.module, interaction.guildId))) {
-          await interaction.reply(this.ephemeral(ctx.t('core.moduleDisabled', { module: this.moduleName(entry.module, ctx), id: entry.module.id })));
+          const answer = this.ephemeral(ctx.t('core.moduleDisabled', { module: this.moduleName(entry.module, ctx), id: entry.module.id }));
+          if (interaction.isAnySelectMenu()) {
+            // The menu would keep the pick selected, and the same pick would send nothing once the module is back on.
+            await interaction.update({ components: interaction.message.components });
+            await interaction.followUp(answer);
+          } else await interaction.reply(answer);
           return;
         }
         try {

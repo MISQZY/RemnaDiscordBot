@@ -79,6 +79,24 @@ export class TicketService {
     return this.services.db.ticket.findFirst({ where: { guildId, ownerId, status: 'open' }, orderBy: { createdAt: 'desc' } });
   }
 
+  /** The ticket's channel is gone: closed by the system, without a transcript — there is nothing left to read. */
+  async markGone(ticket: Ticket): Promise<void> {
+    await this.services.db.ticket.updateMany({ where: { id: ticket.id, status: 'open' }, data: { status: 'closed', closedAt: new Date(), closedBy: 'system' } });
+    await this.services.redis.del(channelKey(ticket.channelId));
+  }
+
+  /** Closes the member's open tickets whose channel no longer exists in Discord. */
+  async closeGone(guildId: string, ownerId: string): Promise<void> {
+    const open = await this.services.db.ticket.findMany({ where: { guildId, ownerId, status: 'open' } });
+    for (const ticket of open) {
+      try {
+        await this.services.rest.get(Routes.channel(ticket.channelId));
+      } catch (err) {
+        if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownChannel) await this.markGone(ticket);
+      }
+    }
+  }
+
   /** Opens a ticket: a private thread or a channel, its first message, the log entry. */
   async open(input: {
     guildId: string;

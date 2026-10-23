@@ -1,6 +1,6 @@
 import { defineModule, EntityChecker } from '@bot/core';
 import { GatewayIntentBits } from 'discord.js';
-import { musicApi } from './api.js';
+import { musicApi, stopWhenDisabled } from './api.js';
 import { buttons, commands, runtime } from './commands.js';
 import { defaultMusicConfig, MusicConfig } from './config.js';
 import { parseLavalinkNodes } from './format.js';
@@ -44,4 +44,5 @@ export default defineModule({
     },
   },
   api: musicApi,
+  onSaved: stopWhenDisabled,
 });

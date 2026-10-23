@@ -14,7 +14,7 @@ import {
   type StickyInput,
 } from './config.js';
 
-type Services = Pick<CoreServices, 'db' | 'rest' | 'redis' | 'scheduler' | 'logger'>;
+type Services = Pick<CoreServices, 'db' | 'rest' | 'redis' | 'scheduler' | 'logger' | 'config'>;
 
 export const scheduledKey = (id: string) => `messages:scheduled:${id}`;
 export const reminderKey = (id: string) => `messages:remind:${id}`;
@@ -130,13 +130,13 @@ export class MessageService {
     await this.services.db.scheduledMessage.delete({ where: { id } });
   }
 
-  /** Posts a due scheduled message and plans the next run of a repeating one. */
+  /** Posts a due scheduled message (unless the module is off) and plans the next run of a repeating one. */
   async runScheduled(id: string, now = new Date()): Promise<void> {
-    const { db, rest, logger } = this.services;
+    const { db, rest, logger, config } = this.services;
     const row = await db.scheduledMessage.findUnique({ where: { id } });
     if (!row?.enabled) return;
     try {
-      await rest.post(Routes.channelMessages(row.channelId), { body: await this.body(row.guildId, MessageTemplate.parse(row.message)) });
+      if (await config.isEnabled(row.guildId, 'messages')) await rest.post(Routes.channelMessages(row.channelId), { body: await this.body(row.guildId, MessageTemplate.parse(row.message)) });
     } catch (err) {
       // A deleted channel or lost access: the run is skipped, the next one still planned.
       logger.warn({ err, id }, 'Scheduled message not posted');
@@ -181,6 +181,12 @@ export class MessageService {
     await this.services.redis.del(stickyKey(channelId));
     await this.removeCopy(channelId);
     await this.services.db.stickyMessage.delete({ where: { channelId } });
+  }
+
+  /** The channel was deleted: its sticky message is no longer kept. */
+  async dropChannel(channelId: string): Promise<void> {
+    const { count } = await this.services.db.stickyMessage.deleteMany({ where: { channelId } });
+    if (count > 0) await this.services.redis.del(stickyKey(channelId));
   }
 
   /** Posts the sticky message again at the bottom, removing its previous copy. */

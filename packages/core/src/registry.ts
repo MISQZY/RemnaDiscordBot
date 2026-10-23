@@ -2,7 +2,7 @@ import { ModuleId } from '@bot/contracts';
 import type { I18n } from '@bot/i18n';
 import type { ClientEvents, GatewayIntentBits, Partials } from 'discord.js';
 import { CORE_NAMESPACE } from './locales.js';
-import type { AnyModule, ComponentHandler, ContextMenuCommand, EventHandlers, FallbackCommand, JobHandler, SlashCommand } from './module.js';
+import type { AnyModule, ComponentHandler, ContextMenuCommand, EventHandlers, FallbackCommand, JobDefinition, SlashCommand } from './module.js';
 
 export interface Registered<T> {
   module: AnyModule;
@@ -10,6 +10,11 @@ export interface Registered<T> {
 }
 
 type AnyEventHandler = NonNullable<EventHandlers<unknown>[keyof ClientEvents]>;
+
+/** An event handler; `always` — a housekeeping one, run while the module is disabled too. */
+export interface RegisteredEvent extends Registered<AnyEventHandler> {
+  always: boolean;
+}
 
 const contextMenuKey = (command: ContextMenuCommand) => {
   const { type, name } = command.data.toJSON();
@@ -22,7 +27,7 @@ export class ModuleRegistry {
   /** By `<type>:<name>`: a user and a message command may share a name. */
   private readonly contextMenus = new Map<string, Registered<ContextMenuCommand>>();
   private readonly components = new Map<string, Registered<ComponentHandler>>();
-  private readonly events = new Map<keyof ClientEvents, Registered<AnyEventHandler>[]>();
+  private readonly events = new Map<keyof ClientEvents, RegisteredEvent[]>();
   private fallback: Registered<FallbackCommand> | undefined;
 
   constructor(modules: AnyModule[] = []) {
@@ -68,21 +73,26 @@ export class ModuleRegistry {
     for (const [prefix, handler] of Object.entries(module.bot?.components ?? {})) {
       this.components.set(prefix, { module, item: handler });
     }
-    for (const [event, handler] of Object.entries(module.bot?.events ?? {})) {
-      const name = event as keyof ClientEvents;
-      const list = this.events.get(name) ?? [];
-      list.push({ module, item: handler as AnyEventHandler });
-      this.events.set(name, list);
-    }
+    const subscribe = (handlers: EventHandlers<unknown> | undefined, always: boolean) => {
+      for (const [event, handler] of Object.entries(handlers ?? {})) {
+        const name = event as keyof ClientEvents;
+        const list = this.events.get(name) ?? [];
+        list.push({ module, item: handler as AnyEventHandler, always });
+        this.events.set(name, list);
+      }
+    };
+    subscribe(module.bot?.events, false);
+    subscribe(module.bot?.housekeeping, true);
     return this;
   }
 
-  /** Job handler by type `<moduleId>:<job>`. */
-  findJob(type: string): Registered<JobHandler> | undefined {
+  /** Job by type `<moduleId>:<job>`; a bare handler is skipped while its module is disabled. */
+  findJob(type: string): Registered<JobDefinition> | undefined {
     const separator = type.indexOf(':');
     const module = this.modules.get(type.slice(0, separator));
-    const handler = separator > 0 ? module?.jobs?.[type.slice(separator + 1)] : undefined;
-    return module && handler ? { module, item: handler } : undefined;
+    const job = separator > 0 ? module?.jobs?.[type.slice(separator + 1)] : undefined;
+    if (!module || !job) return undefined;
+    return { module, item: typeof job === 'function' ? { run: job, whenDisabled: 'skip' } : job };
   }
 
   get(id: string): AnyModule | undefined {
@@ -124,7 +134,7 @@ export class ModuleRegistry {
     return [...this.events.keys()];
   }
 
-  subscribers(event: keyof ClientEvents): Registered<AnyEventHandler>[] {
+  subscribers(event: keyof ClientEvents): RegisteredEvent[] {
     return this.events.get(event) ?? [];
   }
 

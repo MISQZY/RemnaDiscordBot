@@ -61,7 +61,10 @@ export function ticketsApi(app: FastifyInstance, ctx: ApiModuleContext<TicketsCo
   app.post(
     '/panels/:panelId/publish',
     { schema: { tags: ['tickets'], summary: 'Post or update the panel message', params: PanelParams, response: { 200: TicketPanel } } },
-    async (request) => panels.publish(params(request).guildId, params(request).panelId),
+    async (request) => {
+      await ctx.requireEnabled(params(request).guildId);
+      return panels.publish(params(request).guildId, params(request).panelId);
+    },
   );
 
   app.get('/tickets', { schema: { tags: ['tickets'], summary: 'Tickets, newest first', querystring: TicketsQuery, response: { 200: TicketsPage } } }, async (request) => {

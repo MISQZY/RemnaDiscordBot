@@ -35,6 +35,7 @@ export default defineModule({
     components: { [MOD_PREFIX]: moderationComponent },
     events: { guildAuditLogEntryCreate: onAuditLogEntry },
   },
-  jobs: { unban: unbanJob, unlock: unlockJob },
+  // A temporary punishment or lockdown ends on time, whether or not the module is still on.
+  jobs: { unban: { run: unbanJob, whenDisabled: 'run' }, unlock: { run: unlockJob, whenDisabled: 'run' } },
   api: moderationApi,
 });

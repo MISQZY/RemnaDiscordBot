@@ -19,6 +19,7 @@ describe('tickets', () => {
     t.rest.responses.set(`/guilds/${GUILD_ID}`, { id: GUILD_ID, name: 'Test guild' });
     await seedGuildSnapshot(t);
     cookie = await login(t);
+    await t.deps.config.update(GUILD_ID, 'tickets', { enabled: true });
   });
 
   beforeEach(async () => {

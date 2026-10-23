@@ -30,27 +30,30 @@ export function giveawaysApi(app: FastifyInstance, ctx: ApiModuleContext<Giveawa
   app.post('/giveaways', { schema: { tags: ['giveaways'], summary: 'Start a giveaway', body: GiveawayInput, response: { 201: GiveawayDto } } }, async (request, reply) => {
     const { guildId } = params(request);
     const input = request.body as GiveawayInput;
+    await ctx.requireEnabled(guildId);
     const checker = new EntityChecker(await ctx.guildEntities(guildId)).textChannel(input.channelId, ['channelId']).roles(input.requiredRoleIds, ['requiredRoleIds']);
     if (checker.issues.length > 0) throw HttpError.badRequest('Unknown channel or roles', checker.issues);
     return reply.status(201).send(toGiveawayDto(await service.start(guildId, input, ctx.currentUserId(request), await ctx.getConfig(guildId))));
   });
 
-  const action = (path: string, summary: string, run: (id: string, guildId: string, body: { count?: number }) => Promise<unknown>) =>
+  /** `posts` — the action announces in Discord, so it waits for the module to be on; cancelling only tidies up. */
+  const action = (path: string, summary: string, posts: boolean, run: (id: string, guildId: string, body: { count?: number }) => Promise<unknown>) =>
     app.post(
       `/giveaways/:id/${path}`,
       { schema: { tags: ['giveaways'], summary, params: IdParams, body: z.object({ count: z.number().int().min(1).max(50).optional() }).default({}), response: { 200: GiveawayDto } } },
       async (request) => {
         const { guildId, id } = params(request);
+        if (posts) await ctx.requireEnabled(guildId);
         await run(id, guildId, request.body as { count?: number });
         return toGiveawayDto(await service.find(guildId, id));
       },
     );
 
-  action('end', 'End now and draw the winners', async (id, guildId) => service.end(await service.find(guildId, id), await ctx.getConfig(guildId)));
-  action('reroll', 'Draw new winners of an ended giveaway', async (id, guildId, body) =>
+  action('end', 'End now and draw the winners', true, async (id, guildId) => service.end(await service.find(guildId, id), await ctx.getConfig(guildId)));
+  action('reroll', 'Draw new winners of an ended giveaway', true, async (id, guildId, body) =>
     service.end(await service.find(guildId, id), await ctx.getConfig(guildId), { reroll: body.count ?? 1 }),
   );
-  action('cancel', 'Cancel without winners', async (id, guildId) => service.cancel(await service.find(guildId, id), await ctx.getConfig(guildId)));
+  action('cancel', 'Cancel without winners', false, async (id, guildId) => service.cancel(await service.find(guildId, id), await ctx.getConfig(guildId)));
 
   app.delete('/giveaways/:id', { schema: { tags: ['giveaways'], summary: 'Delete a giveaway and its message', params: IdParams, response: { 204: z.null() } } }, async (request, reply) => {
     await service.delete(await service.find(params(request).guildId, params(request).id));
