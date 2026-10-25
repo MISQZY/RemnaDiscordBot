@@ -2,6 +2,7 @@ import type { ApiModuleContext, ModuleServices, SavedChange } from '@bot/core';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { MusicConfig } from './config.js';
+import { SourcesState } from './sources.js';
 import { ControlAction, MusicKeys, PlayerState, type ControlMessage } from './state.js';
 
 const guildId = (request: FastifyRequest) => (request.params as { guildId: string }).guildId;
@@ -30,6 +31,25 @@ export function musicApi(app: FastifyInstance, ctx: ApiModuleContext<MusicConfig
     async (request) => {
       const state = await readState(guildId(request));
       return { active: state !== null, state };
+    },
+  );
+
+  app.get(
+    '/sources',
+    {
+      schema: {
+        tags: ['music'],
+        summary: 'Search sources that work',
+        description:
+          'Checked by the bot every few minutes: the audio node has the source on and its search answers without an error. ' +
+          'Empty with `checkedAt: null` while the bot has not reached Lavalink or music is off.',
+        response: { 200: SourcesState },
+      },
+    },
+    async (): Promise<SourcesState> => {
+      const raw = await ctx.redis.get(MusicKeys.sources);
+      const parsed = raw ? SourcesState.safeParse(JSON.parse(raw)) : null;
+      return parsed?.success ? parsed.data : { sources: [], checkedAt: null };
     },
   );
 

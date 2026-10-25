@@ -9,6 +9,7 @@ import { locales } from './locales.js';
 import { MusicService } from './service.js';
 
 export { MusicConfig } from './config.js';
+export { SourcesState } from './sources.js';
 export { ControlAction, PlayerState, TrackView } from './state.js';
 
 /** Music through a Lavalink node: queue, player buttons, DJ roles and dashboard control. */

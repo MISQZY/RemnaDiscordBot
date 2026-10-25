@@ -8,6 +8,7 @@ import { escapeTitle, formatDuration, parseLavalinkNodes, parseTimestamp, progre
 import music from './index.js';
 import { nextRepeatMode } from './messages.js';
 import { MusicService } from './service.js';
+import { supportedSources } from './sources.js';
 import { ControlMessage } from './state.js';
 import { playableQuery, requesterOf, trackView } from './tracks.js';
 
@@ -49,6 +50,17 @@ describe('LAVALINK_NODES', () => {
 
   it('rejects other schemes', () => {
     expect(() => parseLavalinkNodes('http://pw@host:2333')).toThrow(/lavalink:\/\//);
+  });
+});
+
+describe('search sources', () => {
+  it('offers only sources whose source managers the node has', () => {
+    expect(supportedSources(['soundcloud', 'bandcamp', 'http'])).toEqual(['soundcloud', 'bandcamp']);
+    expect(supportedSources(['youtube', 'spotify', 'yandexmusic'])).toEqual(['youtube', 'youtubemusic', 'spotify', 'yandexmusic']);
+  });
+
+  it('needs YouTube for Spotify, which plays from YouTube Music', () => {
+    expect(supportedSources(['spotify', 'deezer'])).toEqual(['deezer']);
   });
 });
 

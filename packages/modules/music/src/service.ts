@@ -19,9 +19,10 @@ import {
   type UnresolvedSearchResult,
   type UnresolvedTrack,
 } from 'lavalink-client';
-import type { MusicConfig } from './config.js';
+import { SearchSource, type MusicConfig } from './config.js';
 import { SEARCH_PLATFORMS } from './format.js';
 import { nowPlayingMessage } from './messages.js';
+import { PROBE_INTERVAL_MS, PROBE_QUERY, SOURCES_TTL_SEC, supportedSources, type SourcesState } from './sources.js';
 import {
   ControlMessage,
   MusicKeys,
@@ -69,6 +70,7 @@ export class MusicService {
   readonly manager: LavalinkManager;
   private readonly aloneTimers = new Map<string, NodeJS.Timeout>();
   private subscriber: Redis | null = null;
+  private sourcesTimer: NodeJS.Timeout | null = null;
   private resumed = false;
 
   constructor(
@@ -119,12 +121,14 @@ export class MusicService {
     this.subscriber.on('error', (err) => this.ctx.logger.warn({ err }, 'Music control subscriber error'));
     this.subscriber.on('message', (_channel, raw: string) => void this.onControlMessage(raw));
     await this.subscriber.subscribe(MusicKeys.control);
+    this.sourcesTimer = setInterval(() => void this.checkSources(), PROBE_INTERVAL_MS).unref();
   }
 
   /** Saves playing players for the next start and leaves the voice channels. */
   async stop(): Promise<void> {
     for (const timer of this.aloneTimers.values()) clearTimeout(timer);
     this.aloneTimers.clear();
+    if (this.sourcesTimer) clearInterval(this.sourcesTimer);
     await this.subscriber?.quit().catch(() => {});
 
     for (const player of [...this.manager.players.values()]) {
@@ -309,8 +313,12 @@ export class MusicService {
     manager.nodeManager.on('connect', (node) => {
       ctx.logger.info({ node: node.id }, 'Lavalink node connected');
       void this.resumeSaved();
+      void this.checkSources(true);
     });
-    manager.nodeManager.on('disconnect', (node, reason) => ctx.logger.warn({ node: node.id, reason }, 'Lavalink node disconnected'));
+    manager.nodeManager.on('disconnect', (node, reason) => {
+      ctx.logger.warn({ node: node.id, reason }, 'Lavalink node disconnected');
+      void this.checkSources(true);
+    });
     manager.nodeManager.on('error', (node, err) => ctx.logger.warn({ err, node: node.id }, 'Lavalink node error'));
 
     manager.on('trackStart', (player, track) => {
@@ -391,6 +399,41 @@ export class MusicService {
   }
 
   // ─── Dashboard control and restarts ─────────────────────────────────────
+
+  /**
+   * Which search sources work: a connected node has their source managers and a search answers without an error (bad
+   * credentials, a region block). One cluster checks a round; a node connecting or dropping is checked at once.
+   */
+  async checkSources(force = false): Promise<void> {
+    const { redis, logger } = this.ctx;
+    try {
+      const locked = await redis.set(MusicKeys.sourcesLock, '1', 'PX', PROBE_INTERVAL_MS - 30_000, 'NX');
+      if (!locked && !force) return;
+      const requester: Requester = { id: '', username: '' };
+      const working = new Set<SearchSource>();
+      for (const node of this.manager.nodeManager.nodes.values()) {
+        if (!node.connected || !node.info) continue;
+        const untested = supportedSources(node.info.sourceManagers).filter((s) => !working.has(s));
+        const passed = await Promise.all(
+          untested.map(async (source) => {
+            try {
+              const result = await withTimeout(node.search({ query: PROBE_QUERY, source: SEARCH_PLATFORMS[source] }, requester), SEARCH_TIMEOUT_MS);
+              if (result.loadType !== 'error') return source;
+              logger.warn({ node: node.id, source, exception: result.exception }, 'Music source answers with an error');
+            } catch (err) {
+              logger.warn({ err, node: node.id, source }, 'Music source does not answer');
+            }
+            return null;
+          }),
+        );
+        for (const source of passed) if (source) working.add(source);
+      }
+      const state: SourcesState = { sources: SearchSource.options.filter((s) => working.has(s)), checkedAt: Date.now() };
+      await redis.set(MusicKeys.sources, JSON.stringify(state), 'EX', SOURCES_TTL_SEC);
+    } catch (err) {
+      logger.warn({ err }, 'Music sources not checked');
+    }
+  }
 
   private async onControlMessage(raw: string): Promise<void> {
     let message: ControlMessage;

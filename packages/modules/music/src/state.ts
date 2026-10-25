@@ -9,6 +9,10 @@ export const MusicKeys = {
   resumePattern: 'music:resume:*',
   /** Dashboard → bot: player actions, executed by the cluster that has the player. */
   control: 'music:control',
+  /** Search sources that work (SourcesState of sources.ts), checked by the bot. */
+  sources: 'music:sources',
+  /** Held by the cluster checking the sources, so the others skip that round. */
+  sourcesLock: 'music:sources:lock',
 } as const;
 
 export const STATE_TTL_SEC = 3600;
