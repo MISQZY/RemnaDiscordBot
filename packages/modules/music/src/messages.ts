@@ -1,5 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import type { Player, Track } from 'lavalink-client';
+import type { MusicConfig } from './config.js';
 import { escapeTitle, formatDuration, progressBar } from './format.js';
 import { requesterOf } from './tracks.js';
 
@@ -49,6 +50,18 @@ export function playerButtons(player: Player): ActionRowBuilder<ButtonBuilder> {
     button('repeat', player.repeatMode === 'track' ? '🔂' : '🔁', player.repeatMode === 'off' ? ButtonStyle.Secondary : ButtonStyle.Success),
     button('stop', '⏹', ButtonStyle.Danger),
   );
+}
+
+/** The channel for the "now playing" message by `announceTarget`; null — nowhere to post. */
+export function announceChannelId(config: MusicConfig, player: Pick<Player, 'textChannelId' | 'voiceChannelId'>): string | null {
+  switch (config.announceTarget) {
+    case 'command':
+      return player.textChannelId;
+    case 'voice':
+      return player.voiceChannelId;
+    case 'channel':
+      return config.announceChannelId;
+  }
 }
 
 export function nowPlayingMessage(t: T, player: Player, track: Track) {

@@ -20,8 +20,10 @@ export default defineModule({
   configVersion: 1,
   locales,
   validateConfig: (config, guild) =>
-    new EntityChecker(guild).roles(config.djRoleIds, ['djRoleIds']).channels(config.allowedVoiceChannelIds, ['allowedVoiceChannelIds'])
-      .issues,
+    new EntityChecker(guild)
+      .roles(config.djRoleIds, ['djRoleIds'])
+      .channels(config.allowedVoiceChannelIds, ['allowedVoiceChannelIds'])
+      .textChannel(config.announceTarget === 'channel' ? config.announceChannelId : null, ['announceChannelId']).issues,
   bot: {
     intents: [GatewayIntentBits.GuildVoiceStates],
     commands,

@@ -6,7 +6,7 @@ import { canControl } from './commands.js';
 import { defaultMusicConfig, type MusicConfig } from './config.js';
 import { escapeTitle, formatDuration, parseLavalinkNodes, parseTimestamp, progressBar } from './format.js';
 import music from './index.js';
-import { nextRepeatMode } from './messages.js';
+import { announceChannelId, nextRepeatMode } from './messages.js';
 import { MusicService } from './service.js';
 import { supportedSources } from './sources.js';
 import { ControlMessage } from './state.js';
@@ -201,6 +201,30 @@ describe('music module', () => {
       { channels: [], roles: [] } as never,
     );
     expect(issues.map((i) => i.path[0])).toEqual(['djRoleIds', 'allowedVoiceChannelIds']);
+  });
+
+  it('checks the announcement channel only when it is chosen', () => {
+    const guild = { channels: [], roles: [] } as never;
+    const channel = '555555555555555555';
+    expect(music.validateConfig!({ ...defaultMusicConfig, announceTarget: 'voice', announceChannelId: channel }, guild)).toEqual([]);
+    const issues = music.validateConfig!({ ...defaultMusicConfig, announceTarget: 'channel', announceChannelId: channel }, guild);
+    expect(issues.map((i) => i.path[0])).toEqual(['announceChannelId']);
+  });
+
+  it('reads configs saved before the announcement target as the command channel', () => {
+    const { announceTarget: _target, announceChannelId: _channel, ...saved } = defaultMusicConfig;
+    expect(music.configSchema.parse(saved)).toMatchObject({ announceTarget: 'command', announceChannelId: null });
+  });
+});
+
+describe('announcement channel', () => {
+  const player = { textChannelId: '1', voiceChannelId: '2' };
+
+  it('follows the target', () => {
+    expect(announceChannelId({ ...defaultMusicConfig, announceTarget: 'command' }, player)).toBe('1');
+    expect(announceChannelId({ ...defaultMusicConfig, announceTarget: 'voice' }, player)).toBe('2');
+    expect(announceChannelId({ ...defaultMusicConfig, announceTarget: 'channel', announceChannelId: '3' }, player)).toBe('3');
+    expect(announceChannelId({ ...defaultMusicConfig, announceTarget: 'channel' }, player)).toBeNull();
   });
 });
 

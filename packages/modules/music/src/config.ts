@@ -5,6 +5,9 @@ import { z } from 'zod';
 export const SearchSource = z.enum(['soundcloud', 'bandcamp', 'youtube', 'youtubemusic', 'deezer', 'spotify', 'yandexmusic']);
 export type SearchSource = z.infer<typeof SearchSource>;
 
+export const AnnounceTarget = z.enum(['command', 'voice', 'channel']);
+export type AnnounceTarget = z.infer<typeof AnnounceTarget>;
+
 export const MusicConfig = z.object({
   /** Members with these roles control the player (skip, stop, volume…); empty — everyone. */
   djRoleIds: z.array(Snowflake).max(25),
@@ -18,8 +21,14 @@ export const MusicConfig = z.object({
   maxTrackDurationSec: z.number().int().min(0).max(24 * 3600),
   /** Leave the voice channel after it stays without listeners this long; 0 — stay. */
   leaveWhenAloneSec: z.number().int().min(0).max(3600),
-  /** Post a "now playing" message with player buttons to the channel `/play` was used in. */
+  /** Post a "now playing" message with player buttons. */
   announceTracks: z.boolean(),
+  /**
+   * Where that message goes: `command` — the channel `/play` was used in, `voice` — the chat of the voice channel the
+   * bot plays in, `channel` — `announceChannelId`. Configs from before the choice have none: the command's channel.
+   */
+  announceTarget: AnnounceTarget.default('command'),
+  announceChannelId: Snowflake.nullable().default(null),
 });
 export type MusicConfig = z.infer<typeof MusicConfig>;
 
@@ -32,4 +41,6 @@ export const defaultMusicConfig: MusicConfig = {
   maxTrackDurationSec: 0,
   leaveWhenAloneSec: 60,
   announceTracks: true,
+  announceTarget: 'command',
+  announceChannelId: null,
 };

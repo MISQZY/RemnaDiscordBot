@@ -21,7 +21,7 @@ import {
 } from 'lavalink-client';
 import { SearchSource, type MusicConfig } from './config.js';
 import { SEARCH_PLATFORMS } from './format.js';
-import { nowPlayingMessage } from './messages.js';
+import { announceChannelId, nowPlayingMessage } from './messages.js';
 import { PROBE_INTERVAL_MS, PROBE_QUERY, SOURCES_TTL_SEC, supportedSources, type SourcesState } from './sources.js';
 import {
   ControlMessage,
@@ -45,6 +45,11 @@ export type EnqueueResult =
   | { kind: 'failed'; message: string }
   | { kind: 'badLink' };
 
+interface NowPlaying {
+  channelId: string;
+  messageId: string;
+}
+
 /** What a restart keeps of a player: where it played and the tracks with their encoded data. */
 interface ResumeSnapshot {
   voiceChannelId: string;
@@ -57,7 +62,8 @@ interface ResumeSnapshot {
   tracks: Track[];
 }
 
-const NOW_PLAYING_KEY = 'nowPlayingMessageId';
+/** Player data: the current "now playing" message and the channel it was posted to. */
+const NOW_PLAYING_KEY = 'nowPlaying';
 const SEARCH_TIMEOUT_MS = 8_000;
 /** The player waits this long on an empty queue before leaving. */
 const EMPTY_QUEUE_LEAVE_MS = 120_000;
@@ -367,35 +373,35 @@ export class MusicService {
     }
   }
 
-  private async textChannel(player: Player): Promise<SendableChannels | null> {
-    if (!player.textChannelId) return null;
-    const channel = await this.ctx.client.channels.fetch(player.textChannelId).catch(() => null);
+  private async sendableChannel(channelId: string | null): Promise<SendableChannels | null> {
+    if (!channelId) return null;
+    const channel = await this.ctx.client.channels.fetch(channelId).catch(() => null);
     return channel?.isSendable() ? channel : null;
   }
 
   private async announce(player: Player, track: Track): Promise<void> {
     const config = await this.ctx.getConfig(player.guildId);
     if (!config.announceTracks) return;
-    const channel = await this.textChannel(player);
+    const channel = await this.sendableChannel(announceChannelId(config, player));
     if (!channel) return;
     await this.clearNowPlaying(player);
     const locale = await this.ctx.guildLocales.get(player.guildId);
     const t = (key: string, vars?: Record<string, string | number>) => this.ctx.i18n.t(locale, key, vars);
     try {
       const message: Message = await channel.send(nowPlayingMessage(t, player, track));
-      player.setData(NOW_PLAYING_KEY, message.id);
+      player.setData(NOW_PLAYING_KEY, { channelId: channel.id, messageId: message.id } satisfies NowPlaying);
     } catch (err) {
       this.ctx.logger.debug({ err, guildId: player.guildId }, 'Now playing message not sent');
     }
   }
 
-  /** Removes the previous "now playing" message, so the channel keeps only the current one. */
+  /** Removes the previous "now playing" message, so its channel keeps only the current one. */
   private async clearNowPlaying(player: Player): Promise<void> {
-    const messageId = player.getData<string | undefined>(NOW_PLAYING_KEY);
-    if (!messageId) return;
+    const posted = player.getData<NowPlaying | undefined>(NOW_PLAYING_KEY);
+    if (!posted) return;
     player.deleteData(NOW_PLAYING_KEY);
-    const channel = await this.textChannel(player);
-    if (channel && 'messages' in channel) await channel.messages.delete(messageId).catch(() => {});
+    const channel = await this.sendableChannel(posted.channelId);
+    if (channel && 'messages' in channel) await channel.messages.delete(posted.messageId).catch(() => {});
   }
 
   // ─── Dashboard control and restarts ─────────────────────────────────────
