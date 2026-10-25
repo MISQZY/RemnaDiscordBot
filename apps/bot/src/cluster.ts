@@ -22,6 +22,7 @@ import { ClusterClient, getInfo } from 'discord-hybrid-sharding';
 import { Client, Events, GatewayIntentBits, Options } from 'discord.js';
 import { Redis } from 'ioredis';
 import { loadClusterEnv } from './env.js';
+import { RedisIdentifyThrottler } from './identify.js';
 import { GuildLifecycle } from './lifecycle/guilds.js';
 import { startHeartbeat } from './lifecycle/heartbeat.js';
 import { registerClusterMetrics } from './metrics.js';
@@ -53,6 +54,13 @@ const client = new Client({
     users: { interval: 3600, filter: () => (user) => user.id !== user.client.user.id },
   },
   allowedMentions: { parse: ['users'] },
+  // Identifies take turns through Redis: the clusters of other servers share the same rate limit.
+  ws: {
+    buildIdentifyThrottler: async (manager) => {
+      const gateway = await manager.fetchGatewayInformation();
+      return new RedisIdentifyThrottler(redis, gateway.session_start_limit.max_concurrency, logger);
+    },
+  },
 });
 client.cluster = new ClusterClient(client);
 registerClusterMetrics(client, info.CLUSTER);
