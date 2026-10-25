@@ -1,4 +1,5 @@
-import type { VipState } from '@bot/contracts';
+import type { VipFeature, VipState } from '@bot/contracts';
+import type { z } from 'zod';
 import type { Logger } from '@bot/logger';
 import type { Redis } from 'ioredis';
 import { RedisChannels } from '../redis-keys.js';
@@ -13,13 +14,15 @@ const REFRESH_MS = 60_000;
  */
 export class VipAccess {
   private modules = new Set<string>();
+  private features = new Set<VipFeature>();
   /** Guild → end of VIP in ms; Infinity — forever. */
   private guilds = new Map<string, number>();
 
   constructor(private readonly store?: VipStore) {}
 
-  set(state: VipState): void {
+  set(state: z.input<typeof VipState>): void {
     this.modules = new Set(state.modules);
+    this.features = new Set(state.features);
     this.guilds = new Map(state.guilds.map((g) => [g.guildId, g.expiresAt ? Date.parse(g.expiresAt) : Infinity]));
   }
 
@@ -37,6 +40,11 @@ export class VipAccess {
   /** The module needs VIP the guild does not have: it works as disabled, its stored state kept. */
   locked(guildId: string, moduleId: string, now = Date.now()): boolean {
     return this.isVipModule(moduleId) && this.of(guildId, now) === null;
+  }
+
+  /** The feature needs VIP the guild does not have. */
+  featureLocked(guildId: string, feature: VipFeature, now = Date.now()): boolean {
+    return this.features.has(feature) && this.of(guildId, now) === null;
   }
 
   async refresh(): Promise<void> {

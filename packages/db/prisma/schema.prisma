@@ -514,5 +514,7 @@ model VipSettings {
   id        String   @id
   /// Module IDs that work only in guilds with VIP (a JSON array).
   modules   Json     @default("[]")
+  /// Features outside modules that need VIP (`VipFeature`, a JSON array).
+  features  Json     @default("[]")
   updatedAt DateTime @updatedAt
 }

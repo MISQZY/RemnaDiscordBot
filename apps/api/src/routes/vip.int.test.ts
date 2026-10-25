@@ -49,4 +49,14 @@ describe('VIP routes', () => {
     expect(overview.vip).toEqual({ expiresAt: null });
     expect(await t.deps.db.guildVip.count()).toBe(1);
   });
+
+  it('keeps VIP features, none when a dashboard sends none', async () => {
+    await putVip({ modules: [], features: ['profile'], guilds: [] });
+    expect((await t.deps.db.vipSettings.findFirst())?.features).toEqual(['profile']);
+    expect(t.deps.config.vip.featureLocked(GUILD_ID, 'profile')).toBe(true);
+    expect((await putVip({ modules: [], features: ['unknown'], guilds: [] })).statusCode).toBe(400);
+
+    await putVip({ modules: [], guilds: [] });
+    expect((await t.deps.db.vipSettings.findFirst())?.features).toEqual([]);
+  });
 });

@@ -26,6 +26,14 @@ describe('VipAccess', () => {
     expect(vip.of('333333333333333333', NOW)).toBeNull();
   });
 
+  it('locks VIP features in guilds without VIP', () => {
+    const features = new VipAccess();
+    features.set({ modules: [], features: ['profile'], guilds: [{ guildId: GUILD, expiresAt: null }] });
+    expect(features.featureLocked(GUILD, 'profile', NOW)).toBe(false);
+    expect(features.featureLocked(OTHER, 'profile', NOW)).toBe(true);
+    expect(vip.featureLocked(OTHER, 'profile', NOW)).toBe(false);
+  });
+
   it('locks only VIP modules in guilds without VIP', () => {
     expect(vip.locked(GUILD, 'music', NOW)).toBe(false);
     expect(vip.locked('333333333333333333', 'music', NOW)).toBe(true);

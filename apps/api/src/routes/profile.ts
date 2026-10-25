@@ -25,7 +25,7 @@ const picture = (hash: string, size: number) => `${hash}.${hash.startsWith('a_')
  * The bot's profile on one server (Modify Current Member): a name, avatar, banner and "About me" seen only there.
  * Discord gives back the name and the pictures; the "About me" is kept as last set.
  */
-export function profileRoutes({ db, rest, redis, snapshots, options }: ApiDeps, userGuilds: UserGuildService): FastifyPluginAsyncZod {
+export function profileRoutes({ db, rest, redis, snapshots, config, options }: ApiDeps, userGuilds: UserGuildService): FastifyPluginAsyncZod {
   let self: Promise<APIUser> | undefined;
   const botUser = () => (self ??= rest.get(Routes.user()) as Promise<APIUser>);
 
@@ -41,6 +41,7 @@ export function profileRoutes({ db, rest, redis, snapshots, options }: ApiDeps, 
       bio: guild?.botBio ?? null,
       global: { name: user.global_name ?? user.username, avatarUrl: user.avatar ? `${CDN}/avatars/${user.id}/${picture(user.avatar, 256)}` : null },
       editable: options.botProfileEdits,
+      vipRequired: config.vip.featureLocked(guildId, 'profile'),
     };
   }
 
@@ -74,6 +75,7 @@ export function profileRoutes({ db, rest, redis, snapshots, options }: ApiDeps, 
         const { guildId } = request.params;
         if (!options.botProfileEdits) throw ApiError.forbidden("The bot's owner does not let servers change its profile");
         if (!(await snapshots.isPresent(guildId))) throw ApiError.botNotInGuild();
+        if (config.vip.featureLocked(guildId, 'profile')) throw ApiError.featureNeedsVip('profile');
         const patch = request.body;
 
         if (patch.avatar !== undefined || patch.banner !== undefined) {

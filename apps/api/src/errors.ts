@@ -14,6 +14,11 @@ export class ApiError extends HttpError {
     return new ApiError(403, 'FORBIDDEN', message);
   }
 
+  /** A feature outside modules works only in guilds with VIP, and this one has none. */
+  static featureNeedsVip(feature: string) {
+    return new ApiError(403, 'VIP_REQUIRED', `"${feature}" needs VIP in this guild`);
+  }
+
   static botNotInGuild() {
     return new ApiError(403, 'BOT_NOT_IN_GUILD', 'The bot is not a member of this guild');
   }

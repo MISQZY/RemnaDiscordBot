@@ -37,6 +37,7 @@ describe('bot profile', () => {
       bio: null,
       global: { name: 'Bot', avatarUrl: `https://cdn.discordapp.com/avatars/${BOT}/abc.png?size=256` },
       editable: true,
+      vipRequired: false,
     });
   });
 
@@ -58,5 +59,17 @@ describe('bot profile', () => {
     expect((await patch({ avatar: null })).statusCode).toBe(429);
     // The name is not a picture: it still changes.
     expect((await patch({ nick: null })).statusCode).toBe(200);
+  });
+
+  it('needs VIP for changes once the profile is a VIP feature', async () => {
+    t.deps.config.vip.set({ modules: [], features: ['profile'], guilds: [] });
+    expect((await t.app.inject({ method: 'GET', url, headers: { cookie } })).json()).toMatchObject({ vipRequired: true });
+    const refused = await patch({ nick: 'Support' });
+    expect(refused.statusCode).toBe(403);
+    expect(refused.json()).toMatchObject({ error: { code: 'VIP_REQUIRED' } });
+
+    t.deps.config.vip.set({ modules: [], features: ['profile'], guilds: [{ guildId: GUILD_ID, expiresAt: null }] });
+    expect((await patch({ nick: 'Support' })).statusCode).toBe(200);
+    t.deps.config.vip.set({ modules: [], guilds: [] });
   });
 });

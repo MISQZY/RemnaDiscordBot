@@ -96,6 +96,8 @@ export const BotProfile = z.object({
   global: z.object({ name: z.string(), avatarUrl: z.string().nullable() }),
   /** Whether the bot's owner lets servers change it (BOT_PROFILE_EDITS). */
   editable: z.boolean(),
+  /** Changing it needs VIP this server has not got. */
+  vipRequired: z.boolean(),
 });
 export type BotProfile = z.infer<typeof BotProfile>;
 
@@ -143,12 +145,17 @@ export const ModuleState = z.object({
 });
 export type ModuleState = z.infer<typeof ModuleState>;
 
+/** Parts of the bot outside modules that may need VIP: `profile` — changing the bot's profile on a server. */
+export const VipFeature = z.enum(['profile']);
+export type VipFeature = z.infer<typeof VipFeature>;
+
 /**
- * VIP as an external dashboard keeps it (`PUT /v1/vip`, the whole state at once): which modules need it and which
- * guilds have it until when (`null` — forever).
+ * VIP as an external dashboard keeps it (`PUT /v1/vip`, the whole state at once): which modules and features need it
+ * and which guilds have it until when (`null` — forever). Dashboards from before the features send none.
  */
 export const VipState = z.object({
   modules: z.array(ModuleId).max(100),
+  features: z.array(VipFeature).max(VipFeature.options.length).default([]),
   guilds: z.array(z.object({ guildId: Snowflake, expiresAt: z.iso.datetime().nullable() })).max(100_000),
 });
 export type VipState = z.infer<typeof VipState>;

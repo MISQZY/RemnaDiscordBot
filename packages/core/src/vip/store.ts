@@ -1,4 +1,4 @@
-import type { VipState } from '@bot/contracts';
+import { VipFeature, type VipState } from '@bot/contracts';
 import type { Prisma, PrismaClient } from '@bot/db';
 import { z } from 'zod';
 
@@ -19,16 +19,20 @@ export class PrismaVipStore implements VipStore {
       this.db.guildVip.findMany(),
     ]);
     const modules = z.array(z.string()).safeParse(settings?.modules);
+    // A feature the bot no longer knows is dropped, not the whole list.
+    const features = z.array(z.unknown()).safeParse(settings?.features);
     return {
       modules: modules.success ? modules.data : [],
+      features: features.success ? features.data.filter((f): f is VipFeature => VipFeature.safeParse(f).success) : [],
       guilds: guilds.map((g) => ({ guildId: g.guildId, expiresAt: g.expiresAt?.toISOString() ?? null })),
     };
   }
 
   async replace(state: VipState): Promise<void> {
     const modules = state.modules as Prisma.InputJsonValue;
+    const features = state.features as Prisma.InputJsonValue;
     await this.db.$transaction([
-      this.db.vipSettings.upsert({ where: { id: SETTINGS_ID }, create: { id: SETTINGS_ID, modules }, update: { modules } }),
+      this.db.vipSettings.upsert({ where: { id: SETTINGS_ID }, create: { id: SETTINGS_ID, modules, features }, update: { modules, features } }),
       this.db.guildVip.deleteMany(),
       this.db.guildVip.createMany({
         data: state.guilds.map((g) => ({ guildId: g.guildId, expiresAt: g.expiresAt ? new Date(g.expiresAt) : null })),
