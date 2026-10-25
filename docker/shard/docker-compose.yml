@@ -1,0 +1,20 @@
+# A share of the bot's clusters on another server (an SNI node): only the bot runs here. Postgres, Redis, the worker,
+# the API and migrations stay on the main server, reached over a private network (STORAGE_BIND there).
+# Copy this file and .env.example (as .env) to /opt/discord-bot-shard and run: docker compose up -d
+name: discord-bot-shard
+
+services:
+  bot:
+    # The very build the main server runs: the same migrations, the same shard split.
+    image: ${IMAGE_REPO:?set IMAGE_REPO}/bot:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    # Forwards signals and reaps child processes (bot clusters, Prisma).
+    init: true
+    env_file: .env
+    # A node also carries the VPN: the clusters must not take its memory.
+    mem_limit: ${BOT_MEMORY:-1g}
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

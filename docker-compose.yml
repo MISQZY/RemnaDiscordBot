@@ -8,8 +8,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-bot}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bot}
       POSTGRES_DB: ${POSTGRES_DB:-bot}
+    # STORAGE_BIND: the address the bot of other servers reaches Postgres and Redis at (a private network such as
+    # WireGuard, never a public IP); the default keeps them on this host. See docs: Шардинг на нескольких серверах.
     ports:
-      - "127.0.0.1:5432:5432"
+      - "${STORAGE_BIND:-127.0.0.1}:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -23,13 +25,21 @@ services:
     restart: unless-stopped
     # A memory cap: without it Audit Log's message cache grows Redis until the host runs out. Over the cap the keys
     # nearest to expiry go first (cached messages, rate-limit windows), never keys without a TTL (configs, snapshots).
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "${REDIS_MAXMEMORY:-512mb}", "--maxmemory-policy", "volatile-ttl"]
+    # REDIS_PASSWORD, when set, is required of every client: other servers connect once STORAGE_BIND publishes it.
+    # Through the image entrypoint, which drops root before starting the server.
+    entrypoint:
+      - sh
+      - -c
+      - exec docker-entrypoint.sh redis-server --appendonly yes --maxmemory "$$REDIS_MAXMEMORY" --maxmemory-policy volatile-ttl $${REDIS_PASSWORD:+--requirepass "$$REDIS_PASSWORD"}
+    environment:
+      REDIS_MAXMEMORY: ${REDIS_MAXMEMORY:-512mb}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     ports:
-      - "127.0.0.1:6379:6379"
+      - "${STORAGE_BIND:-127.0.0.1}:6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "[ -z \"$$REDIS_PASSWORD\" ] || export REDISCLI_AUTH=\"$$REDIS_PASSWORD\"; redis-cli ping | grep -q PONG"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -61,7 +71,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-bot}:${POSTGRES_PASSWORD:-bot}@postgres:5432/${POSTGRES_DB:-bot}
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379
     # The bot alone reaches the audio node (network `music`).
     networks: [default, music]
     depends_on:
@@ -83,7 +93,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-bot}:${POSTGRES_PASSWORD:-bot}@postgres:5432/${POSTGRES_DB:-bot}
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379
     depends_on:
       redis:
         condition: service_healthy
@@ -103,7 +113,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-bot}:${POSTGRES_PASSWORD:-bot}@postgres:5432/${POSTGRES_DB:-bot}
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379
       API_HOST: 0.0.0.0
     ports:
       - "127.0.0.1:${API_PUBLISHED_PORT:-3000}:3000"
@@ -141,8 +151,9 @@ services:
     volumes:
       - ./docker/lavalink/application.yml:/opt/Lavalink/application.yml:ro
       - lavalink-plugins:/opt/Lavalink/plugins
+    # Bots of other servers play through it too (LAVALINK_NODES with the STORAGE_BIND address): it is published there.
     ports:
-      - "127.0.0.1:2333:2333"
+      - "${STORAGE_BIND:-127.0.0.1}:2333:2333"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- --header=\"Authorization: $${LAVALINK_SERVER_PASSWORD}\" http://127.0.0.1:2333/version || exit 1"]
       interval: 15s
