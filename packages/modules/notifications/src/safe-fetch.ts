@@ -50,6 +50,34 @@ export function isPublicAddress(address: string): boolean {
   return !blocked.check(address, version === 4 ? 'ipv4' : 'ipv6');
 }
 
+/**
+ * Networks allowed besides the public internet, from `FETCH_ALLOW_NETWORKS` (`198.18.0.0/15,10.1.0.0/16`): for a
+ * machine whose VPN answers DNS with addresses of its own (fake-ip), never needed on a server. A wrong entry fails
+ * loudly, not silently allowing less.
+ */
+export function allowedNetworks(value = process.env.FETCH_ALLOW_NETWORKS ?? ''): BlockList {
+  const allowed = new BlockList();
+  for (const entry of value.split(',').map((s) => s.trim()).filter(Boolean)) {
+    const [network = '', prefix] = entry.split('/');
+    const version = isIP(network);
+    const bits = Number(prefix);
+    if (version === 0 || !Number.isInteger(bits) || bits < 0 || bits > (version === 4 ? 32 : 128)) {
+      throw new Error(`FETCH_ALLOW_NETWORKS: "${entry}" is not a network like 198.18.0.0/15`);
+    }
+    allowed.addSubnet(network, bits, version === 4 ? 'ipv4' : 'ipv6');
+  }
+  return allowed;
+}
+
+let extra: BlockList | undefined;
+
+/** A public address, or one in FETCH_ALLOW_NETWORKS. */
+export function isAllowedAddress(address: string): boolean {
+  if (isPublicAddress(address)) return true;
+  const version = isIP(address);
+  return version !== 0 && (extra ??= allowedNetworks()).check(address, version === 4 ? 'ipv4' : 'ipv6');
+}
+
 /** The address is not on the public internet, or the response broke a limit. */
 export class FetchRefused extends Error {}
 
@@ -84,8 +112,13 @@ export interface SafeFetchOptions {
   maxBytes?: number;
   maxRedirects?: number;
   userAgent?: string;
-  /** Which addresses may be connected to; tests allow the loopback one. */
+  /** Which addresses may be connected to: public ones and FETCH_ALLOW_NETWORKS; tests allow the loopback one. */
   isAllowed?: (address: string) => boolean;
+  /**
+   * How long making the connection (TCP and TLS) may take before it is dropped and made once more. A handshake that
+   * hangs (a VPN or NAT waking up after idle) then costs a few seconds, not the whole request.
+   */
+  connectTimeoutMs?: number;
 }
 
 const DEFAULTS: Required<SafeFetchOptions> = {
@@ -93,8 +126,12 @@ const DEFAULTS: Required<SafeFetchOptions> = {
   maxBytes: 2 * 1024 * 1024,
   maxRedirects: 5,
   userAgent: 'Mozilla/5.0 (compatible; feed reader)',
-  isAllowed: isPublicAddress,
+  isAllowed: isAllowedAddress,
+  connectTimeoutMs: 4_000,
 };
+
+/** The connection was not made in time: worth one more try. */
+class ConnectTimeout extends Error {}
 
 function decompress(response: IncomingMessage): Readable {
   switch (response.headers['content-encoding']?.trim().toLowerCase()) {
@@ -154,7 +191,24 @@ function requestOnce(url: URL, headers: Record<string, string>, options: Require
       body.on('error', reject);
     });
     request.on('error', reject);
+    // A socket kept alive from an earlier request is connected already; a new one gets until the handshake ends.
+    request.on('socket', (socket) => {
+      if (!socket.connecting) return;
+      const timer = setTimeout(() => request.destroy(new ConnectTimeout(`No connection in ${options.connectTimeoutMs} ms`)), options.connectTimeoutMs);
+      socket.once(url.protocol === 'https:' ? 'secureConnect' : 'connect', () => clearTimeout(timer));
+      socket.once('close', () => clearTimeout(timer));
+    });
   });
+}
+
+/** The request, made once more on a new connection when the first could not be made in time. */
+async function requestWithRetry(url: URL, headers: Record<string, string>, options: Required<SafeFetchOptions>, signal: AbortSignal) {
+  try {
+    return await requestOnce(url, headers, options, signal);
+  } catch (err) {
+    if (!(err instanceof ConnectTimeout) || signal.aborted) throw err;
+    return requestOnce(url, headers, options, signal);
+  }
 }
 
 /** GET over http(s) to public addresses only, following a few redirects; the body is decoded to text. */
@@ -171,7 +225,7 @@ export function createSafeFetch(opts: SafeFetchOptions = {}): FetchText {
       const host = url.hostname.replace(/^\[|\]$/g, '');
       if (isIP(host) !== 0 && !options.isAllowed(host)) throw new FetchRefused(`${host} is not a public address`);
 
-      const response = await requestOnce(url, headers, options, signal);
+      const response = await requestWithRetry(url, headers, options, signal);
       const location = response.headers.location;
       if (response.status >= 300 && response.status < 400 && location) {
         if (redirects >= options.maxRedirects) throw new FetchRefused('Too many redirects');
