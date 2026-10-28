@@ -7,7 +7,7 @@ import type { Provider as FeedProvider, ProviderId } from './providers.js';
 import { SubscriptionService } from './service.js';
 
 const SubscriptionParams = z.object({ guildId: Snowflake, subscriptionId: z.string() });
-const LookupQuery = z.object({ provider: Provider, query: z.string().min(1).max(200) });
+const LookupQuery = z.object({ provider: Provider, query: z.string().min(1).max(500) });
 const SourceInfo = z.object({ externalId: z.string(), name: z.string(), url: z.string() });
 
 export function notificationsApi(providers: () => Map<ProviderId, FeedProvider>) {
@@ -17,7 +17,7 @@ export function notificationsApi(providers: () => Map<ProviderId, FeedProvider>)
 
     app.get(
       '/lookup',
-      { schema: { tags: ['notifications'], summary: 'Find a YouTube channel or Twitch streamer', querystring: LookupQuery, response: { 200: SourceInfo } } },
+      { schema: { tags: ['notifications'], summary: 'Find a YouTube channel, a Twitch streamer or a feed', querystring: LookupQuery, response: { 200: SourceInfo } } },
       async (request) => {
         const { provider, query } = request.query as z.infer<typeof LookupQuery>;
         return service.lookup(provider, query);
@@ -32,7 +32,7 @@ export function notificationsApi(providers: () => Map<ProviderId, FeedProvider>)
 
     app.post(
       '/subscriptions',
-      { schema: { tags: ['notifications'], summary: 'Subscribe to a channel or streamer', body: SubscriptionCreate, response: { 201: SubscriptionDto } } },
+      { schema: { tags: ['notifications'], summary: 'Subscribe to a channel, a streamer or a feed', body: SubscriptionCreate, response: { 201: SubscriptionDto } } },
       async (request, reply) => {
         const { guildId } = params(request);
         const created = await service.create(guildId, request.body as SubscriptionCreate, await ctx.guildEntities(guildId));

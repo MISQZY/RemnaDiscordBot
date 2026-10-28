@@ -5,17 +5,17 @@ export const locales: Record<Locale, Dictionary> = {
   ru: {
     commands: {
       notify: {
-        description: 'Оповещения о YouTube и Twitch',
+        description: 'Оповещения о YouTube, Twitch и RSS',
         list: { name: 'list', description: 'Показать подписки' },
         add: {
           name: 'add',
-          description: 'Оповещать о новых видео или стримах',
+          description: 'Оповещать о новых видео, стримах или записях',
           options: {
-            platform: { name: 'площадка', description: 'Где следить', choices: { youtube: 'YouTube', twitch: 'Twitch' } },
-            source: { name: 'источник', description: 'Ссылка на канал, @handle или логин Twitch' },
+            platform: { name: 'площадка', description: 'Где следить', choices: { youtube: 'YouTube', twitch: 'Twitch', feed: 'RSS / Atom' } },
+            source: { name: 'источник', description: 'Ссылка на канал, @handle, логин Twitch или ссылка на ленту или сайт' },
             channel: { name: 'канал', description: 'Куда писать' },
             role: { name: 'роль', description: 'Какую роль упоминать' },
-            message: { name: 'текст', description: 'Текст: {channel.name}, {video.url}, {stream.url}…' },
+            message: { name: 'текст', description: 'Текст: {channel.name}, {video.url}, {stream.url}, {item.url}…' },
           },
         },
         edit: {
@@ -37,6 +37,7 @@ export const locales: Record<Locale, Dictionary> = {
     defaults: {
       youtube: '📺 **{channel.name}** выпустил новое видео: **{video.title}**\n{video.url}',
       twitch: '🔴 **{channel.name}** в эфире: **{stream.title}** ({stream.game})\n{stream.url}',
+      feed: '📰 **{feed.name}**: **{item.title}**\n{item.url}',
     },
     manage: {
       empty: 'Подписок пока нет — добавьте через `/notify add`.',
@@ -48,6 +49,7 @@ export const locales: Record<Locale, Dictionary> = {
       sourceErrors: {
         notFound: 'канал не найден — возможно, он удалён',
         unavailable: 'площадка не отвечает, проверки идут реже',
+        invalid: 'по адресу больше нет ленты или её не прочитать',
       },
       deliveryErrors: {
         noAccess: 'последнее оповещение не отправлено: у бота нет прав в канале',
@@ -61,23 +63,24 @@ export const locales: Record<Locale, Dictionary> = {
         notConfigured: 'Эта площадка не настроена у бота.',
         notFound: 'Подписка не найдена.',
         sourceNotFound: 'Канал или стример не найден — проверьте ссылку или имя.',
+        feedNotFound: 'По этой ссылке нет ленты RSS, Atom или JSON Feed, и страница на неё не ссылается.',
       },
     },
   },
   en: {
     commands: {
       notify: {
-        description: 'YouTube and Twitch notifications',
+        description: 'YouTube, Twitch and RSS notifications',
         list: { name: 'list', description: 'Show subscriptions' },
         add: {
           name: 'add',
-          description: 'Notify about new videos or streams',
+          description: 'Notify about new videos, streams or posts',
           options: {
-            platform: { name: 'platform', description: 'Where to watch', choices: { youtube: 'YouTube', twitch: 'Twitch' } },
-            source: { name: 'source', description: 'Channel link, @handle or Twitch login' },
+            platform: { name: 'platform', description: 'Where to watch', choices: { youtube: 'YouTube', twitch: 'Twitch', feed: 'RSS / Atom' } },
+            source: { name: 'source', description: 'Channel link, @handle, Twitch login or a feed or site link' },
             channel: { name: 'channel', description: 'Where to post' },
             role: { name: 'role', description: 'Role to mention' },
-            message: { name: 'message', description: 'Text: {channel.name}, {video.url}, {stream.url}…' },
+            message: { name: 'message', description: 'Text: {channel.name}, {video.url}, {stream.url}, {item.url}…' },
           },
         },
         edit: {
@@ -99,6 +102,7 @@ export const locales: Record<Locale, Dictionary> = {
     defaults: {
       youtube: '📺 **{channel.name}** posted a new video: **{video.title}**\n{video.url}',
       twitch: '🔴 **{channel.name}** is live: **{stream.title}** ({stream.game})\n{stream.url}',
+      feed: '📰 **{feed.name}**: **{item.title}**\n{item.url}',
     },
     manage: {
       empty: 'No subscriptions yet — add one with `/notify add`.',
@@ -110,6 +114,7 @@ export const locales: Record<Locale, Dictionary> = {
       sourceErrors: {
         notFound: 'channel not found — it may have been deleted',
         unavailable: 'the platform is not responding, checking less often',
+        invalid: 'the address no longer serves a readable feed',
       },
       deliveryErrors: {
         noAccess: 'the last notification was not posted: the bot lacks permissions in the channel',
@@ -123,6 +128,7 @@ export const locales: Record<Locale, Dictionary> = {
         notConfigured: 'This platform is not set up for the bot.',
         notFound: 'Subscription not found.',
         sourceNotFound: 'Channel or streamer not found — check the link or the name.',
+        feedNotFound: 'There is no RSS, Atom or JSON feed at this link, and the page does not point to one.',
       },
     },
   },

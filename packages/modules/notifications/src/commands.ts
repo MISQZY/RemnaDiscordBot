@@ -19,7 +19,7 @@ import { SubscriptionError, SubscriptionService } from './service.js';
 
 type Ctx = InteractionContext<NotificationsConfig>;
 
-const ICONS: Record<ProviderId, string> = { youtube: '📺', twitch: '🟣' };
+const ICONS: Record<ProviderId, string> = { youtube: '📺', twitch: '🟣', feed: '📰' };
 const label = (s: SubscriptionDto) => `${ICONS[s.provider]} ${s.source.name}`;
 
 const subscriptionOption = (o: SlashCommandStringOption) =>
@@ -39,27 +39,27 @@ export function notifyCommand(providers: () => Map<ProviderId, Provider>) {
   return defineCommand<NotificationsConfig>({
     data: new SlashCommandBuilder()
       .setName('notify')
-      .setDescription('YouTube and Twitch notifications')
+      .setDescription('YouTube, Twitch and RSS notifications')
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
       .setContexts(InteractionContextType.Guild)
       .addSubcommand((s) => s.setName('list').setDescription('Show subscriptions'))
       .addSubcommand((s) =>
         s
           .setName('add')
-          .setDescription('Notify about new videos or streams')
+          .setDescription('Notify about new videos, streams or posts')
           .addStringOption((o) =>
             o
               .setName('platform')
               .setDescription('Where to watch')
               .setRequired(true)
-              .addChoices({ name: 'YouTube', value: 'youtube' }, { name: 'Twitch', value: 'twitch' }),
+              .addChoices({ name: 'YouTube', value: 'youtube' }, { name: 'Twitch', value: 'twitch' }, { name: 'RSS / Atom', value: 'feed' }),
           )
-          .addStringOption((o) => o.setName('source').setDescription('Channel link, @handle or Twitch login').setRequired(true).setMaxLength(200))
+          .addStringOption((o) => o.setName('source').setDescription('Channel link, @handle, Twitch login or a feed or site link').setRequired(true).setMaxLength(500))
           .addChannelOption((o) =>
             o.setName('channel').setDescription('Where to post').setRequired(true).addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement),
           )
           .addRoleOption((o) => o.setName('role').setDescription('Role to mention'))
-          .addStringOption((o) => o.setName('message').setDescription('Text: {channel.name}, {video.url}, {stream.url}…').setMaxLength(2000)),
+          .addStringOption((o) => o.setName('message').setDescription('Text: {channel.name}, {video.url}, {stream.url}, {item.url}…').setMaxLength(2000)),
       )
       .addSubcommand((s) =>
         s
@@ -124,7 +124,7 @@ export function notifyCommand(providers: () => Map<ProviderId, Provider>) {
       const rawMessage = interaction.options.getString('message');
       const message = rawMessage ? MessageTemplate.parse({ content: rawMessage }) : undefined;
 
-      // Looking a source up goes to YouTube or Twitch and may take longer than 3 s.
+      // Looking a source up goes to YouTube, Twitch or a site and may take longer than 3 s.
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const answer = (content: string) => interaction.editReply({ content, allowedMentions: { parse: [] } });
       try {

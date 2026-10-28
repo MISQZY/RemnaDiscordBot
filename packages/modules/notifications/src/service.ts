@@ -4,7 +4,7 @@ import { MAX_SUBSCRIPTIONS, toDto, type SubscriptionCreate, type SubscriptionDto
 import type { Provider, ProviderId, SourceInfo } from './providers.js';
 
 /** Why a change was refused — the bot turns it into a localized reply, the API into an HTTP error. */
-export type SubscriptionProblem = 'limit' | 'conflict' | 'references' | 'notConfigured' | 'notFound' | 'sourceNotFound';
+export type SubscriptionProblem = 'limit' | 'conflict' | 'references' | 'notConfigured' | 'notFound' | 'sourceNotFound' | 'feedNotFound';
 
 export class SubscriptionError extends HttpError {
   constructor(
@@ -15,7 +15,7 @@ export class SubscriptionError extends HttpError {
   }
 }
 
-/** A guild's subscriptions to YouTube channels and Twitch streamers. Shared by the API and the bot. */
+/** A guild's subscriptions to YouTube channels, Twitch streamers and feeds. Shared by the API and the bot. */
 export class SubscriptionService {
   constructor(
     private readonly services: Pick<CoreServices, 'db' | 'i18n' | 'guildLocales'>,
@@ -33,7 +33,7 @@ export class SubscriptionService {
       return await this.provider(id).lookup(query);
     } catch (err) {
       // Providers answer "not found" with a 400; everything else is an outage.
-      if (err instanceof HttpError && !(err instanceof SubscriptionError)) throw new SubscriptionError('sourceNotFound', err);
+      if (err instanceof HttpError && !(err instanceof SubscriptionError)) throw new SubscriptionError(id === 'feed' ? 'feedNotFound' : 'sourceNotFound', err);
       throw err;
     }
   }
@@ -73,6 +73,7 @@ export class SubscriptionService {
           message: (input.message ?? {
             content: i18n.raw(await guildLocales.get(guildId), `notifications.defaults.${input.provider}`),
           }) as Prisma.InputJsonValue,
+          ...(input.filter ? { filter: input.filter } : {}),
         },
         include: { source: true },
       });

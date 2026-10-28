@@ -118,4 +118,13 @@ describe('pollProvider', () => {
     expect(await pollProvider(ctx, provider)).toBe(0);
     expect((await subscription()).deliveryError).toBe('channelNotFound');
   });
+
+  it('announces only the items that pass the subscription filter', async () => {
+    await database.db.notificationSubscription.updateMany({ where: { guildId: '1' }, data: { filter: { include: [], exclude: ['#shorts'] } } });
+    feed = [{ ...video('v9'), text: 'Long video' }, { ...video('v8'), text: 'Funny #Shorts' }, video('v7')];
+    post.mockClear();
+
+    expect(await pollProvider(ctx, provider)).toBe(1);
+    expect(post.mock.calls.map(([, { body }]) => body.content)).toEqual(['Video v9']);
+  });
 });

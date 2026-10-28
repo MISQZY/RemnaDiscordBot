@@ -1,8 +1,10 @@
 import { eachLimit, HttpError } from '@bot/core';
 import type { SourceError } from './config.js';
+import { discoverFeed, parseFeed, type ParsedFeed } from './feed.js';
+import { createSafeFetch, FetchRefused, type FetchText } from './safe-fetch.js';
 
 export type Fetch = typeof fetch;
-export type ProviderId = 'youtube' | 'twitch';
+export type ProviderId = 'youtube' | 'twitch' | 'feed';
 
 export interface SourceInfo {
   externalId: string;
@@ -10,10 +12,12 @@ export interface SourceInfo {
   url: string;
 }
 
-/** A new video or a started stream. `id` is used for deduplication. */
+/** A new video, a started stream or a post. `id` is used for deduplication. */
 export interface FeedItem {
   id: string;
   vars: Record<string, string | number>;
+  /** What subscription filters search: the title and the description. */
+  text?: string;
 }
 
 /** Why a source could not be checked; the message is for the logs. */
@@ -63,6 +67,7 @@ export function parseYoutubeFeed(xml: string): { channelName: string; items: Fee
         'video.url': `https://www.youtube.com/watch?v=${videoId}`,
         'channel.name': tag(entry!, 'name') || channelName,
       },
+      text: tag(entry!, 'title'),
     };
   });
   return { channelName, items };
@@ -177,6 +182,8 @@ export class TwitchProvider implements Provider {
               'stream.url': `https://www.twitch.tv/${stream.user_login}`,
               'channel.name': stream.user_name,
             },
+            text: `${stream.title}
+${stream.game_name}`,
           },
         ]);
       }
@@ -205,9 +212,97 @@ export class TwitchProvider implements Provider {
   }
 }
 
+const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+/** A link typed without a scheme is taken as https. */
+export function feedUrl(query: string): URL {
+  const trimmed = query.trim();
+  let url: URL;
+  try {
+    url = new URL(/^[a-z][\w+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`);
+  } catch {
+    throw HttpError.badRequest('Not a valid link');
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw HttpError.badRequest('Only http and https links are supported');
+  url.hash = '';
+  return url;
+}
+
+interface Cached {
+  etag?: string;
+  lastModified?: string;
+  items: FeedItem[];
+}
+
+/**
+ * Any RSS, Atom or JSON Feed by its address, or by a page that links to one. Feeds come from addresses users type
+ * in, so they are fetched through `createSafeFetch`: public addresses only, a bounded body.
+ */
+export class FeedProvider implements Provider {
+  readonly id = 'feed' as const;
+  /** The last items of each feed with its validators, to ask "changed since?" and get a 304 instead of the feed. */
+  private readonly cache = new Map<string, Cached>();
+
+  constructor(private readonly fetchText: FetchText = createSafeFetch({ timeoutMs: FEED_TIMEOUT_MS })) {}
+
+  async lookup(query: string): Promise<SourceInfo> {
+    let response;
+    try {
+      response = await this.fetchText(feedUrl(query).toString());
+      let feed = response.status === 200 ? parseFeed(response.body, response.url) : null;
+      // A site's page: follow the feed it points to.
+      const discovered = !feed && response.status === 200 ? discoverFeed(response.body, response.url) : null;
+      if (discovered) {
+        response = await this.fetchText(discovered);
+        feed = response.status === 200 ? parseFeed(response.body, response.url) : null;
+      }
+      if (response.status !== 200) throw HttpError.badRequest(`The address responded with ${response.status}`);
+      if (!feed) throw HttpError.badRequest('No RSS, Atom or JSON feed at this address');
+      return { externalId: response.url, name: feed.title || new URL(response.url).hostname, url: feed.link ?? response.url };
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
+      throw HttpError.badRequest(`Could not load the feed: ${message(err)}`);
+    }
+  }
+
+  async latest(externalIds: string[]): Promise<Map<string, FeedResult>> {
+    const result = new Map<string, FeedResult>();
+    await eachLimit(externalIds, FEED_CONCURRENCY, async (url) => {
+      result.set(url, await this.check(url));
+    });
+    // Feeds no longer checked are forgotten.
+    for (const url of this.cache.keys()) if (!externalIds.includes(url)) this.cache.delete(url);
+    return result;
+  }
+
+  private async check(url: string): Promise<FeedResult> {
+    const cached = this.cache.get(url);
+    const headers: Record<string, string> = {};
+    if (cached?.etag) headers['if-none-match'] = cached.etag;
+    if (cached?.lastModified) headers['if-modified-since'] = cached.lastModified;
+    let response;
+    try {
+      response = await this.fetchText(url, headers);
+    } catch (err) {
+      // A refused address or body will not get better by itself; a network error might.
+      return new SourceFailure(err instanceof FetchRefused ? 'invalid' : 'unavailable', message(err));
+    }
+    if (response.status === 304 && cached) return cached.items;
+    if (response.status === 404 || response.status === 410) return new SourceFailure('notFound', `The feed responded with ${response.status}`);
+    if (response.status !== 200) return new SourceFailure('unavailable', `The feed responded with ${response.status}`);
+    const feed: ParsedFeed | null = parseFeed(response.body, response.url);
+    if (!feed) return new SourceFailure('invalid', 'The address no longer serves a feed');
+    this.cache.set(url, { etag: response.headers.etag, lastModified: response.headers['last-modified'], items: feed.items });
+    return feed.items;
+  }
+}
+
 /** Providers from the process environment: Twitch only when the app credentials are set. */
 export function providersFromEnv(env: NodeJS.ProcessEnv = process.env): Map<ProviderId, Provider> {
-  const providers = new Map<ProviderId, Provider>([['youtube', new YoutubeProvider()]]);
+  const providers = new Map<ProviderId, Provider>([
+    ['youtube', new YoutubeProvider()],
+    ['feed', new FeedProvider()],
+  ]);
   if (env.TWITCH_CLIENT_ID && env.TWITCH_CLIENT_SECRET) {
     providers.set('twitch', new TwitchProvider(env.TWITCH_CLIENT_ID, env.TWITCH_CLIENT_SECRET));
   }
