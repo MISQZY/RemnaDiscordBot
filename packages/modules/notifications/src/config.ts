@@ -1,7 +1,8 @@
 import { MessageTemplate, Snowflake } from '@bot/contracts';
 import type { NotificationSource, NotificationSubscription } from '@bot/db';
 import { z } from 'zod';
-import { ApiSettingsDto, ApiSettingsInput, storedSettings, toSettingsDto } from './api-settings.js';
+import { ApiSettingsDto, ApiSettingsInput, storedSettingsDto } from './api-settings.js';
+import { secrets } from './secrets.js';
 
 /** No guild-level settings yet: everything is set per subscription. */
 export const NotificationsConfig = z.object({});
@@ -94,8 +95,8 @@ export const SubscriptionDto = z.object({
   enabled: z.boolean(),
   /** The last announcement: when it was posted, or why it was not. */
   delivery: z.object({ at: z.iso.datetime().nullable(), error: DeliveryError.nullable() }),
-  /** A webhook's address with its secret; null for other providers. */
-  webhook: z.object({ url: z.string() }).nullable(),
+  /** A webhook's address with its secret, `url: null` when no key opens the stored token (a new address fixes it); null for other providers. */
+  webhook: z.object({ url: z.string().nullable() }).nullable(),
   /** An API source's settings, header values left out; null for other providers. */
   api: ApiSettingsDto.nullable(),
   createdAt: z.iso.datetime(),
@@ -104,10 +105,20 @@ export type SubscriptionDto = z.infer<typeof SubscriptionDto>;
 
 const iso = (date: Date | null) => date?.toISOString() ?? null;
 
-const apiDto = (value: unknown) => {
-  const settings = storedSettings(value);
-  return settings ? toSettingsDto(settings) : null;
-};
+/** A stored webhook token opened; null when no key opens it. */
+export function openToken(sealed: string): string | null {
+  try {
+    return secrets().open(sealed);
+  } catch {
+    return null;
+  }
+}
+
+function webhookDto(guildId: string, subscriptionId: string, sealed: string | null) {
+  if (!sealed) return null;
+  const token = openToken(sealed);
+  return { url: token ? webhookUrl(guildId, subscriptionId, token) : null };
+}
 
 /** A webhook's address (see webhook.ts). The bot process does not know the API's public address, so there it is relative. */
 export function webhookUrl(guildId: string, subscriptionId: string, token: string, base = process.env.API_PUBLIC_URL ?? ''): string {
@@ -135,8 +146,8 @@ export function toDto(row: NotificationSubscription & { source: NotificationSour
       at: iso(row.deliveredAt),
       error: row.deliveryError === null ? null : DeliveryError.catch('failed').parse(row.deliveryError),
     },
-    webhook: row.webhookToken ? { url: webhookUrl(row.guildId, row.id, row.webhookToken) } : null,
-    api: source.provider === 'api' ? apiDto(source.settings) : null,
+    webhook: webhookDto(row.guildId, row.id, row.webhookToken),
+    api: source.provider === 'api' ? storedSettingsDto(source.settings) : null,
     createdAt: row.createdAt.toISOString(),
   };
 }

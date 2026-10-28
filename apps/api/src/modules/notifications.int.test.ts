@@ -65,6 +65,10 @@ describe('notifications API', () => {
     const { id, webhook } = created.json() as { id: string; webhook: { url: string } };
     const path = new URL(webhook.url, 'http://x').pathname;
     expect(path).toMatch(new RegExp(`^/v1/public/guilds/${GUILD_ID}/modules/notifications/hooks/${id}/[\\w-]{32}$`));
+    // The database keeps the token sealed.
+    const stored = (await t.database.db.notificationSubscription.findUniqueOrThrow({ where: { id } })).webhookToken!;
+    expect(stored).toMatch(/^sb1\./);
+    expect(stored).not.toContain(path.split('/').at(-1));
 
     const hook = (url: string, payload: object = { repository: { full_name: 'o/r' }, commits: [{ message: 'Fix' }, { message: 'Add' }] }) =>
       t.app.inject({ method: 'POST', url, headers: { 'x-github-event': 'push' }, payload });

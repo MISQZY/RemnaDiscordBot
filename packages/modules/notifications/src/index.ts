@@ -5,6 +5,7 @@ import { notifyCommand } from './commands.js';
 import { NotificationsConfig } from './config.js';
 import { locales } from './locales.js';
 import { pollProvider } from './poll.js';
+import { resealSecrets } from './reseal.js';
 import { providersFromEnv, type Provider, type ProviderId } from './providers.js';
 import { notificationsPublicApi } from './webhook.js';
 
@@ -40,6 +41,8 @@ export default defineModule({
     twitch: { everyMs: 2 * 60_000, run: poll('twitch') },
     feed: { everyMs: 10 * 60_000, run: poll('feed') },
     api: { everyMs: 10 * 60_000, run: poll('api') },
+    // Moves secrets to the current key; cheap, and the old key can go an hour after a new one is set.
+    reseal: { everyMs: 60 * 60_000, run: async (ctx) => void (await resealSecrets(ctx)) },
   },
   api: notificationsApi(getProviders),
   publicApi: notificationsPublicApi,

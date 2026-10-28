@@ -477,7 +477,7 @@ model NotificationSource {
   name          String
   /// IDs of the latest items, newest first — to avoid repeats. Null until the first check.
   seenIds       Json?
-  /// An API source's ApiSettings (address, headers with secrets, paths); null for other providers.
+  /// An API source's ApiSettings, the address and header values sealed (SecretBox); null for other providers.
   settings      Json?
   /// The last check, successful or not.
   lastCheckedAt DateTime?
@@ -505,7 +505,7 @@ model NotificationSubscription {
   message       Json
   /// SubscriptionFilter: words an item must or must not have; null — every item.
   filter        Json?
-  /// A webhook's secret, part of its address; null for other providers.
+  /// A webhook's secret, part of its address, sealed (SecretBox); null for other providers.
   webhookToken  String?
   enabled       Boolean   @default(true)
   /// The last announcement, and why it was not delivered (`noAccess` | `channelNotFound` | `failed`) if so.

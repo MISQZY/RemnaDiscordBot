@@ -2,7 +2,8 @@ import { EntityChecker, HttpError, type CoreServices, type GuildEntities } from 
 import { isUniqueViolation, type Prisma } from '@bot/db';
 import { MAX_SUBSCRIPTIONS, toDto, type SubscriptionCreate, type SubscriptionDto, type SubscriptionUpdate } from './config.js';
 import type { ApiProvider } from './api-source.js';
-import { mergeSettings, storedSettings, type ApiSettingsInput } from './api-settings.js';
+import { mergeSettings, sealSettings, storedSettings, type ApiSettingsInput } from './api-settings.js';
+import { secrets } from './secrets.js';
 import type { Provider, ProviderId, SourceInfo } from './providers.js';
 import { newOwnSourceId, newWebhookToken } from './webhook.js';
 
@@ -69,7 +70,7 @@ export class SubscriptionService {
         ? await db.notificationSource.create({ data: { provider: 'webhook', externalId: newOwnSourceId(), name } })
         : input.provider === 'api'
           ? await db.notificationSource.create({
-              data: { provider: 'api', externalId: newOwnSourceId(), name, settings: await this.checkApi(guildId, input.api, null) },
+              data: { provider: 'api', externalId: newOwnSourceId(), name, settings: sealSettings(await this.checkApi(guildId, input.api, null)) },
             })
           : await this.sharedSource(input.provider, input.query);
     try {
@@ -84,7 +85,7 @@ export class SubscriptionService {
             content: i18n.raw(await guildLocales.get(guildId), `notifications.defaults.${input.provider}`),
           }) as Prisma.InputJsonValue,
           ...(input.filter ? { filter: input.filter } : {}),
-          ...(input.provider === 'webhook' ? { webhookToken: newWebhookToken() } : {}),
+          ...(input.provider === 'webhook' ? { webhookToken: secrets().seal(newWebhookToken()) } : {}),
         },
         include: { source: true },
       });
@@ -103,7 +104,7 @@ export class SubscriptionService {
     if (!existing.webhookToken) throw HttpError.badRequest('Only webhooks have an address');
     const row = await this.services.db.notificationSubscription.update({
       where: { id: existing.id },
-      data: { webhookToken: newWebhookToken() },
+      data: { webhookToken: secrets().seal(newWebhookToken()) },
       include: { source: true },
     });
     return toDto(row);
@@ -123,9 +124,9 @@ export class SubscriptionService {
       if (moved) {
         // Another address or list: what was seen there means nothing now. A new source starts unchecked, so its first
         // check only remembers; the old one, the subscription's alone, goes away below.
-        sourceId = (await db.notificationSource.create({ data: { provider: 'api', externalId: newOwnSourceId(), name: existing.source.name, settings } })).id;
+        sourceId = (await db.notificationSource.create({ data: { provider: 'api', externalId: newOwnSourceId(), name: existing.source.name, settings: sealSettings(settings) } })).id;
       } else {
-        await db.notificationSource.update({ where: { id: existing.sourceId }, data: { settings, lastError: null, failures: 0, nextCheckAt: null } });
+        await db.notificationSource.update({ where: { id: existing.sourceId }, data: { settings: sealSettings(settings), lastError: null, failures: 0, nextCheckAt: null } });
       }
     }
     const row = await db.notificationSubscription.update({

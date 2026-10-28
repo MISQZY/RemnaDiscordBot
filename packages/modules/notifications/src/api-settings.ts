@@ -1,5 +1,7 @@
-import { HttpError } from '@bot/core';
+import { HttpError, type SecretBox } from '@bot/core';
+import type { Prisma } from '@bot/db';
 import { z } from 'zod';
+import { secrets } from './secrets.js';
 
 // Settings of an API source (see api-source.ts): what is stored, what a manager sends, what the API shows.
 
@@ -44,11 +46,27 @@ export const ApiSettingsInput = ApiSettings.extend({
 });
 export type ApiSettingsInput = z.infer<typeof ApiSettingsInput>;
 
-/** The settings as the API shows them: headers without values. */
-export const ApiSettingsDto = ApiSettings.omit({ headers: true }).extend({ headers: z.array(z.object({ name: z.string() })) });
+/**
+ * The settings as the API shows them: headers without values. `url` is empty when the stored settings can no longer
+ * be opened (the key changed): the manager enters the address and the header values again.
+ */
+export const ApiSettingsDto = ApiSettings.omit({ headers: true, url: true }).extend({ url: z.string(), headers: z.array(z.object({ name: z.string() })) });
 export type ApiSettingsDto = z.infer<typeof ApiSettingsDto>;
 
 export const toSettingsDto = ({ headers, ...rest }: ApiSettings): ApiSettingsDto => ({ ...rest, headers: headers.map(({ name }) => ({ name })) });
+
+/**
+ * What the database keeps: the address (it may carry a key) and the header values sealed (`SecretBox`), the rest as
+ * it is. Settings saved before sealing have them plain and are read the same way.
+ */
+const StoredSettings = ApiSettings.extend({
+  url: z.string(),
+  headers: z.array(z.object({ name: z.string(), value: z.string() })).default([]),
+});
+
+export function sealSettings(settings: ApiSettings, box = secrets()): Prisma.InputJsonObject {
+  return { ...settings, url: box.seal(settings.url), headers: settings.headers.map((h) => ({ name: h.name, value: box.seal(h.value) })) };
+}
 
 /** New settings with the values of headers left `null` taken from the stored ones; a new header needs its value. */
 export function mergeSettings(input: ApiSettingsInput, stored: ApiSettings | null): ApiSettings {
@@ -60,7 +78,23 @@ export function mergeSettings(input: ApiSettingsInput, stored: ApiSettings | nul
   return { ...input, headers };
 }
 
-export const storedSettings = (value: unknown): ApiSettings | null => {
-  const parsed = ApiSettings.safeParse(value);
-  return parsed.success ? parsed.data : null;
-};
+/** The stored settings opened; null when they are broken or no key opens them. */
+export function storedSettings(value: unknown, box: SecretBox = secrets()): ApiSettings | null {
+  const stored = StoredSettings.safeParse(value);
+  if (!stored.success) return null;
+  try {
+    const opened = { ...stored.data, url: box.open(stored.data.url), headers: stored.data.headers.map((h) => ({ name: h.name, value: box.open(h.value) })) };
+    const parsed = ApiSettings.safeParse(opened);
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The settings to show: opened when they can be, else what is not secret, with the address empty. */
+export function storedSettingsDto(value: unknown): ApiSettingsDto | null {
+  const opened = storedSettings(value);
+  if (opened) return toSettingsDto(opened);
+  const stored = StoredSettings.safeParse(value);
+  return stored.success ? toSettingsDto({ ...stored.data, url: '' }) : null;
+}

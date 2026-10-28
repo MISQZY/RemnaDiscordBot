@@ -1,10 +1,12 @@
-import { VipAccess, type CoreServices, type GuildEntities, type ModuleServices } from '@bot/core';
+import { SecretBox, VipAccess, type CoreServices, type GuildEntities, type ModuleServices } from '@bot/core';
 import { createLogger } from '@bot/logger';
 import { createTestDatabase, type TestDatabase } from '@bot/testing';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { ApiSettings, sealSettings, storedSettings, storedSettingsDto } from './api-settings.js';
 import { ApiProvider } from './api-source.js';
 import type { NotificationsConfig } from './config.js';
 import { pollProvider } from './poll.js';
+import { resealSecrets } from './reseal.js';
 import type { ProviderId, Provider } from './providers.js';
 import type { FetchText } from './safe-fetch.js';
 import { SubscriptionService } from './service.js';
@@ -66,7 +68,21 @@ describe('API sources', () => {
     expect(created).toMatchObject({ provider: 'api', source: { name: 'Releases' }, api: { url: 'https://api.example/items', headers: [{ name: 'Authorization' }] } });
     expect(JSON.stringify(created)).not.toContain('secret');
     expect(fetchText).toHaveBeenCalledTimes(1);
-    expect((await database.db.notificationSource.findFirstOrThrow()).settings).toMatchObject({ headers: [{ name: 'Authorization', value: 'Bearer secret' }] });
+    // The address and the key are sealed in the database, the rest is as it was.
+    const stored = (await database.db.notificationSource.findFirstOrThrow()).settings as { url: string; headers: { name: string; value: string }[]; idField: string };
+    expect(stored.url).toMatch(/^sb1\./);
+    expect(stored.headers[0]).toEqual({ name: 'Authorization', value: expect.stringMatching(/^sb1\./) });
+    expect(stored.idField).toBe('id');
+    expect(JSON.stringify(stored)).not.toContain('secret');
+    expect(storedSettings(stored)?.headers[0]?.value).toBe('Bearer secret');
+  });
+
+  it('shows settings no key opens without the address, and reads ones saved before sealing', async () => {
+    const sealed = sealSettings(ApiSettings.parse({ url: 'https://api.example/x', headers: [{ name: 'Authorization', value: 'k' }] }));
+    const foreign = { ...sealed, url: new SecretBox(['another-key']).seal('https://api.example/x') };
+    expect(storedSettings(foreign)).toBeNull();
+    expect(storedSettingsDto(foreign)).toEqual({ url: '', headers: [{ name: 'Authorization' }], itemsPath: '', idField: 'id', oldestFirst: false });
+    expect(storedSettings({ url: 'https://api.example/plain', headers: [{ name: 'X-Key', value: 'plain' }] })?.headers[0]?.value).toBe('plain');
   });
 
   it('polls only for guilds with VIP and announces new items', async () => {
@@ -94,8 +110,37 @@ describe('API sources', () => {
 
     expect(updated.api?.url).toBe('https://api.example/other');
     const source = await database.db.notificationSource.findFirstOrThrow();
-    expect(source.settings).toMatchObject({ headers: [{ name: 'Authorization', value: 'Bearer secret' }] });
+    expect(storedSettings(source.settings)?.headers).toEqual([{ name: 'Authorization', value: 'Bearer secret' }]);
     expect(source.seenIds).toBeNull();
     expect(fetchText).toHaveBeenLastCalledWith('https://api.example/other', expect.objectContaining({ Authorization: 'Bearer secret' }));
+  });
+
+  it('reseals with the current key what an older key or none sealed', async () => {
+    const tokenKey = new SecretBox(['the-bot-token']);
+    const legacy = await database.db.notificationSource.create({
+      data: {
+        provider: 'api',
+        externalId: 'legacy',
+        name: 'Legacy',
+        settings: { url: tokenKey.seal('https://api.example/legacy'), headers: [{ name: 'X-Key', value: 'plain-key' }], itemsPath: '', idField: 'id', oldestFirst: false },
+      },
+    });
+    const hook = await database.db.notificationSubscription.create({
+      data: { guildId: GUILD, sourceId: legacy.id, channelId: CHANNEL, message: {}, webhookToken: tokenKey.seal('hook-token') },
+    });
+    // The box of a process with SECRETS_KEY set and the bot token after it.
+    const box = SecretBox.fromEnv({ SECRETS_KEY: process.env.SECRETS_KEY, DISCORD_TOKEN: 'the-bot-token' });
+    // The other sources are already sealed with SECRETS_KEY: only these two move.
+    expect(await resealSecrets(ctx, box)).toBe(2);
+    expect(await resealSecrets(ctx, box)).toBe(0);
+
+    const current = new SecretBox([process.env.SECRETS_KEY!]);
+    const source = await database.db.notificationSource.findUniqueOrThrow({ where: { id: legacy.id } });
+    const settings = source.settings as { url: string; headers: { value: string }[] };
+    expect(current.open(settings.url)).toBe('https://api.example/legacy');
+    expect(current.open(settings.headers[0]!.value)).toBe('plain-key');
+    expect(storedSettings(source.settings)?.url).toBe('https://api.example/legacy');
+    const token = (await database.db.notificationSubscription.findUniqueOrThrow({ where: { id: hook.id } })).webhookToken!;
+    expect(current.open(token)).toBe('hook-token');
   });
 });

@@ -3,7 +3,7 @@ import { Snowflake } from '@bot/contracts';
 import { HttpError, type ModuleServices } from '@bot/core';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { NotificationsConfig } from './config.js';
+import { openToken, type NotificationsConfig } from './config.js';
 import { deliver } from './poll.js';
 
 // Incoming webhooks: a subscription with its own secret address. Anything that can send an HTTP request — GitHub,
@@ -109,8 +109,9 @@ export function notificationsPublicApi(app: FastifyInstance, ctx: ModuleServices
     async (request, reply) => {
       const { guildId, subscriptionId, token } = request.params as z.infer<typeof HookParams>;
       const row = await ctx.db.notificationSubscription.findUnique({ where: { id: subscriptionId }, include: { source: true } });
-      // A wrong token reads as no webhook at all.
-      if (!row || row.guildId !== guildId || !row.webhookToken || !sameToken(row.webhookToken, token)) throw HttpError.notFound('Webhook not found');
+      // A wrong token, or one no key opens, reads as no webhook at all.
+      const stored = row?.webhookToken ? openToken(row.webhookToken) : null;
+      if (!row || row.guildId !== guildId || !stored || !sameToken(stored, token)) throw HttpError.notFound('Webhook not found');
       if (!row.enabled) throw new HttpError(409, 'CONFLICT', 'The subscription is disabled');
 
       // The window starts with the first request: SET NX gives the key its TTL once, INCR keeps it.
