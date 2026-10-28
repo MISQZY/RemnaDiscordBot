@@ -153,7 +153,8 @@ Prometheus и Grafana — внешние (стек мониторинга RemnaW
 
 ### Ротация секретов
 
-- **Токен бота**: Developer Portal → Bot → Reset Token, новый `DISCORD_TOKEN` в `.env`, затем `docker compose up -d bot worker api`.
+- **Токен бота**: Developer Portal → Bot → Reset Token, новый `DISCORD_TOKEN` в `.env`, затем `docker compose up -d bot worker api`. Без `SECRETS_KEY` секреты оповещений (ключи API-источников, адреса вебхуков) запечатаны токеном и после смены не читаются — поэтому сначала задайте `SECRETS_KEY` и подождите час (воркер перезапечатает их), потом меняйте токен.
+- **`SECRETS_KEY`** (`openssl rand -base64 32`, одинаковый на всех серверах): прежний переносится в `SECRETS_KEY_OLD`, новый — в `SECRETS_KEY`, `docker compose up -d bot worker api`; через час (задача `notifications:reseal` перезапечатывает всё новым ключом) `SECRETS_KEY_OLD` убирается. Потерянный ключ — менеджерам придётся заново ввести адреса и ключи API-источников и выдать вебхукам новые адреса.
 - **`SESSION_SECRET`**: после смены все сессии панели становятся недействительными — пользователи входят заново.
 - **`METRICS_TOKEN`**: меняется одновременно в `.env` бота и в файле токена у Prometheus.
 

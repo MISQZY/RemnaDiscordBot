@@ -8,6 +8,10 @@ const WorkerEnv = z.object({
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
   DEFAULT_LOCALE: Locale.default('ru'),
+  /** Seals secrets kept in the database (notification API keys, webhook tokens); without it — the bot token. Replacing both loses them. */
+  SECRETS_KEY: z.string().min(32, 'SECRETS_KEY must be at least 32 characters').optional(),
+  /** The previous SECRETS_KEY while the values move to the new one (an hour); then remove it. */
+  SECRETS_KEY_OLD: z.string().min(32, 'SECRETS_KEY_OLD must be at least 32 characters').optional(),
   /** How often to check for due scheduled jobs. */
   WORKER_POLL_MS: z.coerce.number().int().positive().default(2_000),
   WORKER_HEALTH_PORT: z.coerce.number().int().positive().default(3002),

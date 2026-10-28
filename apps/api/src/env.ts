@@ -35,6 +35,10 @@ const ApiEnv = z.object({
   DISCORD_CLIENT_ID: z.string().min(1),
   DISCORD_CLIENT_SECRET: z.string().min(1),
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters'),
+  /** Seals secrets kept in the database (notification API keys, webhook tokens); without it — the bot token. Replacing both loses them. */
+  SECRETS_KEY: z.string().min(32, 'SECRETS_KEY must be at least 32 characters').optional(),
+  /** The previous SECRETS_KEY while the values move to the new one (an hour); then remove it. */
+  SECRETS_KEY_OLD: z.string().min(32, 'SECRETS_KEY_OLD must be at least 32 characters').optional(),
   /** External dashboards signing users in through the API: `id:secret:callbackUrl`, comma-separated. */
   LINK_CLIENTS: z
     .string()
