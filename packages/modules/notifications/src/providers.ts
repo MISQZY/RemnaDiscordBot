@@ -1,4 +1,5 @@
 import { eachLimit, HttpError } from '@bot/core';
+import type { SourceError } from './config.js';
 
 export type Fetch = typeof fetch;
 export type ProviderId = 'youtube' | 'twitch';
@@ -15,12 +16,25 @@ export interface FeedItem {
   vars: Record<string, string | number>;
 }
 
+/** Why a source could not be checked; the message is for the logs. */
+export class SourceFailure extends Error {
+  constructor(
+    readonly kind: SourceError,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/** A source's items from newest to oldest, or why they could not be fetched this time. */
+export type FeedResult = FeedItem[] | SourceFailure;
+
 export interface Provider {
   id: ProviderId;
   /** A channel or streamer by link, ID or name. */
   lookup(query: string): Promise<SourceInfo>;
-  /** Sources' items from newest to oldest; keyed by externalId. */
-  latest(externalIds: string[]): Promise<Map<string, FeedItem[]>>;
+  /** Each source's result, keyed by externalId; a failing source does not hold up the rest. */
+  latest(externalIds: string[]): Promise<Map<string, FeedResult>>;
 }
 
 const decode = (text: string) =>
@@ -70,14 +84,16 @@ export class YoutubeProvider implements Provider {
     return { externalId: channelId, name: channelName || channelId, url: `https://www.youtube.com/channel/${channelId}` };
   }
 
-  /** The channels' feeds, a few at a time; a channel whose feed fails is left out of this check, not the others. */
-  async latest(externalIds: string[]): Promise<Map<string, FeedItem[]>> {
-    const result = new Map<string, FeedItem[]>();
+  /** The channels' feeds, a few at a time; a channel whose feed fails fails alone. */
+  async latest(externalIds: string[]): Promise<Map<string, FeedResult>> {
+    const result = new Map<string, FeedResult>();
     await eachLimit(externalIds, FEED_CONCURRENCY, async (id) => {
       try {
         result.set(id, parseYoutubeFeed(await this.feed(id)).items);
-      } catch {
-        // Checked again next time; its last seen video stays as it was.
+      } catch (err) {
+        // The feed answers 404 for a deleted channel; anything else is an outage.
+        const kind = err instanceof HttpError && err.statusCode === 400 ? 'notFound' : 'unavailable';
+        result.set(id, new SourceFailure(kind, err instanceof Error ? err.message : String(err)));
       }
     });
     return result;
@@ -137,12 +153,19 @@ export class TwitchProvider implements Provider {
     return { externalId: user.id, name: user.display_name, url: `https://www.twitch.tv/${user.login}` };
   }
 
-  async latest(externalIds: string[]): Promise<Map<string, FeedItem[]>> {
-    const result = new Map<string, FeedItem[]>(externalIds.map((id) => [id, []]));
+  async latest(externalIds: string[]): Promise<Map<string, FeedResult>> {
+    const result = new Map<string, FeedResult>(externalIds.map((id) => [id, []]));
     // Helix accepts up to 100 users per request.
     for (let i = 0; i < externalIds.length; i += 100) {
-      const query = externalIds.slice(i, i + 100).map((id) => `user_id=${id}`).join('&');
-      const { data } = await this.helix<{ data: TwitchStream[] }>(`/streams?${query}`);
+      const batch = externalIds.slice(i, i + 100);
+      let data: TwitchStream[];
+      try {
+        ({ data } = await this.helix<{ data: TwitchStream[] }>(`/streams?${batch.map((id) => `user_id=${id}`).join('&')}`));
+      } catch (err) {
+        const failure = new SourceFailure('unavailable', err instanceof Error ? err.message : String(err));
+        for (const id of batch) result.set(id, failure);
+        continue;
+      }
       for (const stream of data) {
         result.set(stream.user_id, [
           {

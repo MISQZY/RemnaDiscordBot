@@ -95,8 +95,19 @@ export function notifyCommand(providers: () => Map<ProviderId, Provider>) {
 
       if (sub === 'list') {
         const subscriptions = await service.list(guild.id);
-        const line = (s: SubscriptionDto) =>
-          `${s.enabled ? '🟢' : '⚪'} ${label(s)} → ${channelMention(s.channelId)}${s.mentionRoleId ? ` · ${roleMention(s.mentionRoleId)}` : ''}`;
+        // A subscription in trouble says why: its source cannot be checked or its last announcement was not posted.
+        const problem = (s: SubscriptionDto) =>
+          s.source.error
+            ? ctx.t(`notifications.manage.sourceErrors.${s.source.error}`)
+            : s.delivery.error
+              ? ctx.t(`notifications.manage.deliveryErrors.${s.delivery.error}`)
+              : null;
+        const line = (s: SubscriptionDto) => {
+          const text = `${s.enabled ? '🟢' : '⚪'} ${label(s)} → ${channelMention(s.channelId)}${s.mentionRoleId ? ` · ${roleMention(s.mentionRoleId)}` : ''}`;
+          const why = s.enabled ? problem(s) : null;
+          return why ? `${text}
+  ⚠️ ${why}` : text;
+        };
         const embed = new EmbedBuilder()
           .setTitle(ctx.t('notifications.name'))
           .setDescription(subscriptions.length > 0 ? subscriptions.map(line).join('\n') : ctx.t('notifications.manage.empty'))

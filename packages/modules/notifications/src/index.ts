@@ -6,8 +6,8 @@ import { locales } from './locales.js';
 import { pollProvider } from './poll.js';
 import { providersFromEnv, type Provider, type ProviderId } from './providers.js';
 
-export { NotificationsConfig, SubscriptionDto } from './config.js';
-export { parseYoutubeFeed, TwitchProvider, YoutubeProvider, type Provider } from './providers.js';
+export { DeliveryError, NotificationsConfig, SourceError, SubscriptionDto } from './config.js';
+export { parseYoutubeFeed, SourceFailure, TwitchProvider, YoutubeProvider, type FeedResult, type Provider } from './providers.js';
 
 let providers: Map<ProviderId, Provider> | undefined;
 /** Providers are created lazily: the module also loads where their network is not needed. */

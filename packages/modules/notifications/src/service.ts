@@ -90,7 +90,12 @@ export class SubscriptionService {
     this.validate(entities, input.channelId, input.mentionRoleId);
     const row = await this.services.db.notificationSubscription.update({
       where: { id: existing.id },
-      data: { ...input, ...(input.message ? { message: input.message as Prisma.InputJsonValue } : {}) },
+      data: {
+        ...input,
+        ...(input.message ? { message: input.message as Prisma.InputJsonValue } : {}),
+        // The last delivery's failure was about the old channel.
+        ...(input.channelId && input.channelId !== existing.channelId ? { deliveryError: null } : {}),
+      },
       include: { source: true },
     });
     return toDto(row);

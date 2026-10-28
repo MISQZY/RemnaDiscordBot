@@ -45,6 +45,15 @@ export const locales: Record<Locale, Dictionary> = {
       added: 'Подписка на {source} добавлена — оповещения будут в {channel}.',
       updated: 'Подписка на {source} изменена.',
       removed: 'Подписка на **{source}** удалена.',
+      sourceErrors: {
+        notFound: 'канал не найден — возможно, он удалён',
+        unavailable: 'площадка не отвечает, проверки идут реже',
+      },
+      deliveryErrors: {
+        noAccess: 'последнее оповещение не отправлено: у бота нет прав в канале',
+        channelNotFound: 'последнее оповещение не отправлено: канала больше нет',
+        failed: 'последнее оповещение не отправлено',
+      },
       errors: {
         limit: 'На сервере уже {max} подписок — это максимум.',
         conflict: 'Сервер уже подписан на этот источник.',
@@ -98,6 +107,15 @@ export const locales: Record<Locale, Dictionary> = {
       added: 'Subscribed to {source} — notifications go to {channel}.',
       updated: 'Subscription to {source} updated.',
       removed: 'Unsubscribed from **{source}**.',
+      sourceErrors: {
+        notFound: 'channel not found — it may have been deleted',
+        unavailable: 'the platform is not responding, checking less often',
+      },
+      deliveryErrors: {
+        noAccess: 'the last notification was not posted: the bot lacks permissions in the channel',
+        channelNotFound: 'the last notification was not posted: the channel is gone',
+        failed: 'the last notification was not posted',
+      },
       errors: {
         limit: 'This server already has {max} subscriptions — the maximum.',
         conflict: 'This server is already subscribed to this source.',

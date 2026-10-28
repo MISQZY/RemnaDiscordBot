@@ -474,9 +474,16 @@ model NotificationSource {
   /// YouTube channel ID or Twitch user ID.
   externalId    String
   name          String
-  /// The last announced video or stream — to avoid repeats.
-  lastItemId    String?
+  /// IDs of the latest items, newest first — to avoid repeats. Null until the first check.
+  seenIds       Json?
+  /// The last check, successful or not.
   lastCheckedAt DateTime?
+  lastSuccessAt DateTime?
+  /// Why the last check failed (`notFound` | `unavailable`); null after a successful one.
+  lastError     String?
+  /// Failed checks in a row; each one after the first puts the next check off longer.
+  failures      Int       @default(0)
+  nextCheckAt   DateTime?
   createdAt     DateTime  @default(now())
 
   subscriptions NotificationSubscription[]
@@ -486,15 +493,18 @@ model NotificationSource {
 
 /// A guild's subscription to a source: where and with which message to announce (notifications module).
 model NotificationSubscription {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   guildId       String
   sourceId      String
   channelId     String
   mentionRoleId String?
   /// MessageTemplate of the announcement.
   message       Json
-  enabled       Boolean  @default(true)
-  createdAt     DateTime @default(now())
+  enabled       Boolean   @default(true)
+  /// The last announcement, and why it was not delivered (`noAccess` | `channelNotFound` | `failed`) if so.
+  deliveredAt   DateTime?
+  deliveryError String?
+  createdAt     DateTime  @default(now())
 
   source NotificationSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
