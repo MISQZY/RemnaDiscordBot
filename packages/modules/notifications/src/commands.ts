@@ -19,7 +19,7 @@ import { SubscriptionError, SubscriptionService } from './service.js';
 
 type Ctx = InteractionContext<NotificationsConfig>;
 
-const ICONS: Record<ProviderId, string> = { youtube: '📺', twitch: '🟣', feed: '📰' };
+const ICONS: Record<SubscriptionDto['provider'], string> = { youtube: '📺', twitch: '🟣', feed: '📰', webhook: '🪝' };
 const label = (s: SubscriptionDto) => `${ICONS[s.provider]} ${s.source.name}`;
 
 const subscriptionOption = (o: SlashCommandStringOption) =>

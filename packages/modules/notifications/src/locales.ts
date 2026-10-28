@@ -38,6 +38,7 @@ export const locales: Record<Locale, Dictionary> = {
       youtube: '📺 **{channel.name}** выпустил новое видео: **{video.title}**\n{video.url}',
       twitch: '🔴 **{channel.name}** в эфире: **{stream.title}** ({stream.game})\n{stream.url}',
       feed: '📰 **{feed.name}**: **{item.title}**\n{item.url}',
+      webhook: '📣 **{hook.name}**: {body.text}',
     },
     manage: {
       empty: 'Подписок пока нет — добавьте через `/notify add`.',
@@ -103,6 +104,7 @@ export const locales: Record<Locale, Dictionary> = {
       youtube: '📺 **{channel.name}** posted a new video: **{video.title}**\n{video.url}',
       twitch: '🔴 **{channel.name}** is live: **{stream.title}** ({stream.game})\n{stream.url}',
       feed: '📰 **{feed.name}**: **{item.title}**\n{item.url}',
+      webhook: '📣 **{hook.name}**: {body.text}',
     },
     manage: {
       empty: 'No subscriptions yet — add one with `/notify add`.',

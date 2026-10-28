@@ -8,7 +8,8 @@ export type NotificationsConfig = z.infer<typeof NotificationsConfig>;
 
 export const MAX_SUBSCRIPTIONS = 25;
 
-export const Provider = z.enum(['youtube', 'twitch', 'feed']);
+/** Where announcements come from: polled platforms, or `webhook` — whatever posts to the subscription's own address. */
+export const Provider = z.enum(['youtube', 'twitch', 'feed', 'webhook']);
 
 /** Why a source's last check failed: it is gone, the platform did not answer, or the address serves no readable feed. */
 export const SourceError = z.enum(['notFound', 'unavailable', 'invalid']);
@@ -44,8 +45,8 @@ export const storedFilter = (value: unknown): SubscriptionFilter => Subscription
 
 export const SubscriptionCreate = z.object({
   provider: Provider,
-  /** Channel link, ID or name (`@handle` for YouTube, login for Twitch); a feed's or a site's link. */
-  query: z.string().min(1).max(500),
+  /** Channel link, ID or name (`@handle` for YouTube, login for Twitch); a feed's or a site's link; a webhook's name. */
+  query: z.string().trim().min(1).max(500),
   channelId: Snowflake,
   mentionRoleId: Snowflake.nullable().default(null),
   message: MessageTemplate.optional(),
@@ -82,11 +83,18 @@ export const SubscriptionDto = z.object({
   enabled: z.boolean(),
   /** The last announcement: when it was posted, or why it was not. */
   delivery: z.object({ at: z.iso.datetime().nullable(), error: DeliveryError.nullable() }),
+  /** A webhook's address with its secret; null for other providers. */
+  webhook: z.object({ url: z.string() }).nullable(),
   createdAt: z.iso.datetime(),
 });
 export type SubscriptionDto = z.infer<typeof SubscriptionDto>;
 
 const iso = (date: Date | null) => date?.toISOString() ?? null;
+
+/** A webhook's address (see webhook.ts). The bot process does not know the API's public address, so there it is relative. */
+export function webhookUrl(guildId: string, subscriptionId: string, token: string, base = process.env.API_PUBLIC_URL ?? ''): string {
+  return `${base.replace(/\/+$/, '')}/v1/public/guilds/${guildId}/modules/notifications/hooks/${subscriptionId}/${token}`;
+}
 
 export function toDto(row: NotificationSubscription & { source: NotificationSource }): SubscriptionDto {
   const { source } = row;
@@ -109,6 +117,7 @@ export function toDto(row: NotificationSubscription & { source: NotificationSour
       at: iso(row.deliveredAt),
       error: row.deliveryError === null ? null : DeliveryError.catch('failed').parse(row.deliveryError),
     },
+    webhook: row.webhookToken ? { url: webhookUrl(row.guildId, row.id, row.webhookToken) } : null,
     createdAt: row.createdAt.toISOString(),
   };
 }

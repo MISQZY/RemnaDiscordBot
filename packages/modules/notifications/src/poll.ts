@@ -1,5 +1,6 @@
 import { MessageTemplate } from '@bot/contracts';
 import type { ModuleServices } from '@bot/core';
+import type { NotificationSubscription } from '@bot/db';
 import { renderMessage, toRestMessage } from '@bot/templates';
 import { DiscordAPIError, RESTJSONErrorCodes, Routes } from 'discord.js';
 import { matchesFilter, storedFilter, type DeliveryError, type NotificationsConfig } from './config.js';
@@ -63,6 +64,29 @@ function deliveryError(err: unknown): DeliveryError {
   return 'failed';
 }
 
+type Deliverable = Pick<NotificationSubscription, 'id' | 'guildId' | 'channelId' | 'mentionRoleId' | 'message' | 'filter'>;
+
+/**
+ * Announces an item to a subscription and records how it went: `posted`, `skipped` (the filter or the module said
+ * no), or why Discord refused it.
+ */
+export async function deliver(ctx: ModuleServices<NotificationsConfig>, subscription: Deliverable, item: FeedItem): Promise<'posted' | 'skipped' | DeliveryError> {
+  if (!matchesFilter(storedFilter(subscription.filter), item.text ?? '')) return 'skipped';
+  if (!(await ctx.config.isEnabled(subscription.guildId, 'notifications'))) return 'skipped';
+  let error: DeliveryError | null = null;
+  try {
+    await ctx.rest.post(Routes.channelMessages(subscription.channelId), { body: announcementBody(subscription, item.vars) });
+  } catch (err) {
+    error = deliveryError(err);
+    ctx.logger.warn({ err, subscriptionId: subscription.id }, 'Notification not delivered');
+  }
+  await ctx.db.notificationSubscription.update({
+    where: { id: subscription.id },
+    data: error ? { deliveryError: error } : { deliveredAt: new Date(), deliveryError: null },
+  });
+  return error ?? 'posted';
+}
+
 /**
  * Checks the provider's due sources that have enabled subscriptions and sends announcements.
  * Every check is recorded on the source: when it succeeded, or why it failed.
@@ -103,21 +127,7 @@ export async function pollProvider(ctx: ModuleServices<NotificationsConfig>, pro
     const seenIds = asIds(source.seenIds);
     for (const item of freshItems(result, seenIds)) {
       for (const subscription of source.subscriptions) {
-        if (!matchesFilter(storedFilter(subscription.filter), item.text ?? '')) continue;
-        if (!(await ctx.config.isEnabled(subscription.guildId, 'notifications'))) continue;
-        const body = announcementBody(subscription, item.vars);
-        let error: DeliveryError | null = null;
-        try {
-          await ctx.rest.post(Routes.channelMessages(subscription.channelId), { body });
-          announced++;
-        } catch (err) {
-          error = deliveryError(err);
-          ctx.logger.warn({ err, subscriptionId: subscription.id }, 'Notification not delivered');
-        }
-        await ctx.db.notificationSubscription.update({
-          where: { id: subscription.id },
-          data: error ? { deliveryError: error } : { deliveredAt: new Date(), deliveryError: null },
-        });
+        if ((await deliver(ctx, subscription, item)) === 'posted') announced++;
       }
     }
 

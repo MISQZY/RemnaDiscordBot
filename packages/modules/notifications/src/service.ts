@@ -2,6 +2,10 @@ import { EntityChecker, HttpError, type CoreServices, type GuildEntities } from 
 import { isUniqueViolation, type Prisma } from '@bot/db';
 import { MAX_SUBSCRIPTIONS, toDto, type SubscriptionCreate, type SubscriptionDto, type SubscriptionUpdate } from './config.js';
 import type { Provider, ProviderId, SourceInfo } from './providers.js';
+import { newWebhookSourceId, newWebhookToken } from './webhook.js';
+
+/** A webhook's name is its source's: up to this long. */
+const WEBHOOK_NAME_LENGTH = 100;
 
 /** Why a change was refused — the bot turns it into a localized reply, the API into an HTTP error. */
 export type SubscriptionProblem = 'limit' | 'conflict' | 'references' | 'notConfigured' | 'notFound' | 'sourceNotFound' | 'feedNotFound';
@@ -15,7 +19,7 @@ export class SubscriptionError extends HttpError {
   }
 }
 
-/** A guild's subscriptions to YouTube channels, Twitch streamers and feeds. Shared by the API and the bot. */
+/** A guild's subscriptions to YouTube channels, Twitch streamers, feeds and its webhooks. Shared by the API and the bot. */
 export class SubscriptionService {
   constructor(
     private readonly services: Pick<CoreServices, 'db' | 'i18n' | 'guildLocales'>,
@@ -56,12 +60,11 @@ export class SubscriptionService {
     }
     this.validate(entities, input.channelId, input.mentionRoleId);
 
-    const info = await this.lookup(input.provider, input.query);
-    const source = await db.notificationSource.upsert({
-      where: { provider_externalId: { provider: input.provider, externalId: info.externalId } },
-      create: { provider: input.provider, externalId: info.externalId, name: info.name },
-      update: { name: info.name },
-    });
+    // A webhook has a source of its own, named by the user; the others share one found on their platform.
+    const source =
+      input.provider === 'webhook'
+        ? await db.notificationSource.create({ data: { provider: 'webhook', externalId: newWebhookSourceId(), name: input.query.slice(0, WEBHOOK_NAME_LENGTH) } })
+        : await this.sharedSource(input.provider, input.query);
     try {
       const row = await db.notificationSubscription.create({
         data: {
@@ -74,6 +77,7 @@ export class SubscriptionService {
             content: i18n.raw(await guildLocales.get(guildId), `notifications.defaults.${input.provider}`),
           }) as Prisma.InputJsonValue,
           ...(input.filter ? { filter: input.filter } : {}),
+          ...(input.provider === 'webhook' ? { webhookToken: newWebhookToken() } : {}),
         },
         include: { source: true },
       });
@@ -84,6 +88,18 @@ export class SubscriptionService {
       }
       throw err;
     }
+  }
+
+  /** A webhook's new secret address; the old one stops working. */
+  async regenerateToken(guildId: string, id: string): Promise<SubscriptionDto> {
+    const existing = await this.find(guildId, id);
+    if (!existing.webhookToken) throw HttpError.badRequest('Only webhooks have an address');
+    const row = await this.services.db.notificationSubscription.update({
+      where: { id: existing.id },
+      data: { webhookToken: newWebhookToken() },
+      include: { source: true },
+    });
+    return toDto(row);
   }
 
   async update(guildId: string, id: string, input: SubscriptionUpdate, entities: GuildEntities): Promise<SubscriptionDto> {
@@ -108,6 +124,15 @@ export class SubscriptionService {
     await db.notificationSubscription.delete({ where: { id: row.id } });
     // A source without subscriptions is no longer needed — it stops being polled.
     await db.notificationSource.deleteMany({ where: { id: row.sourceId, subscriptions: { none: {} } } });
+  }
+
+  private async sharedSource(provider: ProviderId, query: string) {
+    const info = await this.lookup(provider, query);
+    return this.services.db.notificationSource.upsert({
+      where: { provider_externalId: { provider, externalId: info.externalId } },
+      create: { provider, externalId: info.externalId, name: info.name },
+      update: { name: info.name },
+    });
   }
 
   private validate(entities: GuildEntities, channelId: string | undefined, mentionRoleId: string | null | undefined): void {

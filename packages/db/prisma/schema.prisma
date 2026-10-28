@@ -466,10 +466,11 @@ model CustomCommand {
   @@unique([guildId, name])
 }
 
-/// An external notification source (YouTube channel, Twitch streamer, feed) — one for the whole platform.
+/// An external notification source (YouTube channel, Twitch streamer, feed) — one for the whole platform;
+/// a webhook's is its subscription's own (`externalId` — a random ID, `name` — the user's).
 model NotificationSource {
   id            String    @id @default(cuid())
-  /// `youtube` | `twitch` | `feed`
+  /// `youtube` | `twitch` | `feed` | `webhook`
   provider      String
   /// YouTube channel ID, Twitch user ID or the feed's address.
   externalId    String
@@ -502,6 +503,8 @@ model NotificationSubscription {
   message       Json
   /// SubscriptionFilter: words an item must or must not have; null — every item.
   filter        Json?
+  /// A webhook's secret, part of its address; null for other providers.
+  webhookToken  String?
   enabled       Boolean   @default(true)
   /// The last announcement, and why it was not delivered (`noAccess` | `channelNotFound` | `failed`) if so.
   deliveredAt   DateTime?

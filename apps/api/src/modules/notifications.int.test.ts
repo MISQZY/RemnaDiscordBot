@@ -54,6 +54,53 @@ describe('notifications API', () => {
     expect(await t.database.db.notificationSource.count()).toBe(0);
   });
 
+  it('announces what is posted to a webhook, only with its token and while it is enabled', async () => {
+    const created = await send('POST', '/subscriptions', {
+      provider: 'webhook',
+      query: 'CI',
+      channelId: CHANNEL_ID,
+      message: { content: '{hook.name} {hook.event}: {body.repository.full_name} {body.commits.count} {body.commits.first.message}' },
+    });
+    expect(created.statusCode).toBe(201);
+    const { id, webhook } = created.json() as { id: string; webhook: { url: string } };
+    const path = new URL(webhook.url, 'http://x').pathname;
+    expect(path).toMatch(new RegExp(`^/v1/public/guilds/${GUILD_ID}/modules/notifications/hooks/${id}/[\\w-]{32}$`));
+
+    const hook = (url: string, payload: object = { repository: { full_name: 'o/r' }, commits: [{ message: 'Fix' }, { message: 'Add' }] }) =>
+      t.app.inject({ method: 'POST', url, headers: { 'x-github-event': 'push' }, payload });
+
+    // The module is off until enabled: the public routes do not answer.
+    expect((await hook(path)).statusCode).toBe(404);
+    await t.app.inject({ method: 'PATCH', url: base, headers: { cookie }, payload: { enabled: true } });
+
+    t.rest.calls.length = 0;
+    expect((await hook(path)).statusCode).toBe(204);
+    expect(t.rest.calls).toEqual([
+      { method: 'post', route: `/channels/${CHANNEL_ID}/messages`, body: expect.objectContaining({ content: 'CI push: o/r 2 Fix' }) },
+    ]);
+    expect((await hook(path.replace(/[\w-]+$/, 'wrong-token'))).statusCode).toBe(404);
+
+    // A new address: the old one stops working.
+    const renewed = (await send('POST', `/subscriptions/${id}/token`)).json() as { webhook: { url: string } };
+    expect((await hook(path)).statusCode).toBe(404);
+    expect((await hook(new URL(renewed.webhook.url, 'http://x').pathname)).statusCode).toBe(204);
+
+    await send('PATCH', `/subscriptions/${id}`, { enabled: false });
+    expect((await hook(new URL(renewed.webhook.url, 'http://x').pathname)).statusCode).toBe(409);
+
+    expect((await send('DELETE', `/subscriptions/${id}`)).statusCode).toBe(204);
+    expect(await t.database.db.notificationSource.count()).toBe(0);
+  });
+
+  it('limits how often a webhook posts', async () => {
+    const { webhook } = (await send('POST', '/subscriptions', { provider: 'webhook', query: 'Spam', channelId: CHANNEL_ID })).json() as { webhook: { url: string } };
+    const url = new URL(webhook.url, 'http://x').pathname;
+    const codes: number[] = [];
+    for (let i = 0; i < 31; i++) codes.push((await t.app.inject({ method: 'POST', url, payload: { text: `#${i}` } })).statusCode);
+    expect(codes.filter((c) => c === 204)).toHaveLength(30);
+    expect(codes.at(-1)).toBe(429);
+  });
+
   it('validates the channel and reports unconfigured providers', async () => {
     const badChannel = await send('POST', '/subscriptions', { provider: 'youtube', query: YT_CHANNEL, channelId: '599999999999999999' });
     expect(badChannel.statusCode).toBe(400);

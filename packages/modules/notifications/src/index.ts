@@ -5,11 +5,13 @@ import { NotificationsConfig } from './config.js';
 import { locales } from './locales.js';
 import { pollProvider } from './poll.js';
 import { providersFromEnv, type Provider, type ProviderId } from './providers.js';
+import { notificationsPublicApi } from './webhook.js';
 
 export { DeliveryError, NotificationsConfig, SourceError, SubscriptionDto, SubscriptionFilter } from './config.js';
 export { parseFeed } from './feed.js';
 export { FeedProvider, parseYoutubeFeed, SourceFailure, TwitchProvider, YoutubeProvider, type FeedResult, type Provider } from './providers.js';
 export { createSafeFetch, isPublicAddress } from './safe-fetch.js';
+export { payloadVars } from './webhook.js';
 
 let providers: Map<ProviderId, Provider> | undefined;
 /** Providers are created lazily: the module also loads where their network is not needed. */
@@ -20,7 +22,10 @@ const poll = (id: ProviderId) => async (ctx: Parameters<typeof pollProvider>[0])
   if (provider) await pollProvider(ctx, provider);
 };
 
-/** Notifications about new YouTube videos, Twitch streams and posts in RSS, Atom and JSON feeds. The worker polls the sources. */
+/**
+ * Notifications about new YouTube videos, Twitch streams and posts in RSS, Atom and JSON feeds, which the worker polls,
+ * and about whatever is posted to a subscription's webhook.
+ */
 export default defineModule({
   id: 'notifications',
   configSchema: NotificationsConfig,
@@ -34,4 +39,5 @@ export default defineModule({
     feed: { everyMs: 10 * 60_000, run: poll('feed') },
   },
   api: notificationsApi(getProviders),
+  publicApi: notificationsPublicApi,
 });

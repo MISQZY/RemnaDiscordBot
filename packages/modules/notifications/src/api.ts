@@ -7,7 +7,7 @@ import type { Provider as FeedProvider, ProviderId } from './providers.js';
 import { SubscriptionService } from './service.js';
 
 const SubscriptionParams = z.object({ guildId: Snowflake, subscriptionId: z.string() });
-const LookupQuery = z.object({ provider: Provider, query: z.string().min(1).max(500) });
+const LookupQuery = z.object({ provider: Provider.exclude(['webhook']), query: z.string().min(1).max(500) });
 const SourceInfo = z.object({ externalId: z.string(), name: z.string(), url: z.string() });
 
 export function notificationsApi(providers: () => Map<ProviderId, FeedProvider>) {
@@ -54,6 +54,22 @@ export function notificationsApi(providers: () => Map<ProviderId, FeedProvider>)
       async (request) => {
         const { guildId, subscriptionId } = params(request);
         return service.update(guildId, subscriptionId, request.body as SubscriptionUpdate, await ctx.guildEntities(guildId));
+      },
+    );
+
+    app.post(
+      '/subscriptions/:subscriptionId/token',
+      {
+        schema: {
+          tags: ['notifications'],
+          summary: "Give a webhook a new secret address; the old one stops working",
+          params: SubscriptionParams,
+          response: { 200: SubscriptionDto },
+        },
+      },
+      async (request) => {
+        const { guildId, subscriptionId } = params(request);
+        return service.regenerateToken(guildId, subscriptionId);
       },
     );
 

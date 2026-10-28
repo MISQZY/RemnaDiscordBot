@@ -6,6 +6,7 @@ import { matchesFilter, storedFilter } from './config.js';
 import { discoverFeed, htmlToText, parseFeed } from './feed.js';
 import { FeedProvider, feedUrl, SourceFailure } from './providers.js';
 import { createSafeFetch, decodeBody, FetchRefused, isPublicAddress, type FetchedText, type FetchText } from './safe-fetch.js';
+import { payloadVars } from './webhook.js';
 
 const rss = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:atom="http://www.w3.org/2005/Atom">
@@ -281,5 +282,41 @@ describe('createSafeFetch', () => {
     const safeFetch = createSafeFetch({ isAllowed: loopbackAllowed, maxBytes: 1024 });
     await expect(safeFetch(`${base}/big`)).rejects.toBeInstanceOf(FetchRefused);
     await expect(safeFetch(`${base}/bomb`)).rejects.toBeInstanceOf(FetchRefused);
+  });
+});
+
+describe('payloadVars', () => {
+  it('turns a JSON body into placeholders, arrays into count, first, last and items', () => {
+    const { vars, text } = payloadVars({
+      title: 'Deploy',
+      'x-id': 7,
+      '2fa': 'dropped',
+      ok: true,
+      tags: ['a', 'b'],
+      commits: [{ message: 'One' }, { message: 'Two' }, { message: 'Three' }],
+      empty: null,
+    });
+    expect(vars).toEqual({
+      'body.title': 'Deploy',
+      'body.x_id': 7,
+      'body.ok': 'true',
+      'body.tags.count': 2,
+      'body.tags.items': 'a, b',
+      'body.tags.first': 'a',
+      'body.tags.last': 'b',
+      'body.commits.count': 3,
+      'body.commits.first.message': 'One',
+      'body.commits.last.message': 'Three',
+    });
+    expect(text).toContain('Deploy');
+  });
+
+  it('takes a text body as body.text and keeps deep or excess fields out', () => {
+    expect(payloadVars('plain').vars).toEqual({ 'body.text': 'plain' });
+    const deep = payloadVars({ a: { b: { c: { d: { e: { f: { g: 'too deep' } } } } } } });
+    expect(Object.keys(deep.vars)).toEqual([]);
+    const many = payloadVars(Object.fromEntries(Array.from({ length: 400 }, (_, i) => [`k${i}`, 'v'])));
+    expect(Object.keys(many.vars)).toHaveLength(300);
+    expect(String(payloadVars({ long: 'x'.repeat(5000) }).vars['body.long'])).toHaveLength(1000);
   });
 });
