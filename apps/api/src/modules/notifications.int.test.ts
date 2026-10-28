@@ -108,4 +108,27 @@ describe('notifications API', () => {
     const twitch = await send('POST', '/subscriptions', { provider: 'twitch', query: 'neo', channelId: CHANNEL_ID });
     expect(twitch.json()).toMatchObject({ error: { code: 'VALIDATION_FAILED', message: 'twitch is not configured on this platform' } });
   });
+
+  it('tells which providers the guild can use, and keeps API sources for guilds with VIP when they need it', async () => {
+    const providers = async () => Object.fromEntries(((await send('GET', '/providers')).json() as { id: string }[]).map(({ id, ...rest }) => [id, rest]));
+    expect(await providers()).toEqual({
+      youtube: { configured: true, vipRequired: false },
+      twitch: { configured: false, vipRequired: false },
+      feed: { configured: true, vipRequired: false },
+      api: { configured: true, vipRequired: false },
+      webhook: { configured: true, vipRequired: false },
+    });
+
+    t.deps.config.vip.set({ modules: [], features: ['notificationsApi'], guilds: [] });
+    expect((await providers()).api).toEqual({ configured: true, vipRequired: true });
+    const refused = await send('POST', '/subscriptions', {
+      provider: 'api',
+      query: 'Releases',
+      channelId: CHANNEL_ID,
+      api: { url: 'https://api.example/items' },
+    });
+    expect(refused.statusCode).toBe(403);
+    expect(refused.json()).toMatchObject({ error: { code: 'VIP_REQUIRED' } });
+    t.deps.config.vip.set({ modules: [], features: [], guilds: [] });
+  });
 });

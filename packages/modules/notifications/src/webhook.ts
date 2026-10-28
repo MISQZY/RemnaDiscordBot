@@ -13,8 +13,8 @@ import { deliver } from './poll.js';
 /** A secret part of a webhook's address: 192 random bits. */
 export const newWebhookToken = () => randomBytes(24).toString('base64url');
 
-/** A webhook source is the subscription's own: its ID only has to be unique. */
-export const newWebhookSourceId = () => randomUUID();
+/** A source of one subscription alone (a webhook, an API source): its ID only has to be unique. */
+export const newOwnSourceId = () => randomUUID();
 
 export const WEBHOOK_LIMITS = {
   /** Requests a webhook accepts per minute: each is a message in Discord. */
@@ -34,11 +34,11 @@ const SEGMENT = /^\p{L}[\p{L}\p{N}_]*$/u;
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 
 /**
- * The body as placeholders: `{body.a.b}` for nested fields, `{body.list.count}`, `{body.list.first.…}` and
+ * A JSON value as placeholders under `root` (`body` for a webhook, `item` for an API item): `{body.a.b}` for nested fields, `{body.list.count}`, `{body.list.first.…}` and
  * `{body.list.last.…}` for arrays, `{body.list.items}` for an array of plain values joined. A text body is `{body.text}`.
  * Keys that cannot be a placeholder (`x-id` becomes `x_id`, `2fa` is left out) and deep or excess fields are dropped.
  */
-export function payloadVars(body: unknown): { vars: Record<string, string | number>; text: string } {
+export function payloadVars(body: unknown, root = 'body'): { vars: Record<string, string | number>; text: string } {
   const vars: Record<string, string | number> = {};
   const texts: string[] = [];
   let count = 0;
@@ -68,8 +68,8 @@ export function payloadVars(body: unknown): { vars: Record<string, string | numb
     }
   };
 
-  if (typeof body === 'string') set('body.text', body);
-  else walk(body, 'body', 0);
+  if (typeof body === 'string') set(`${root}.text`, body);
+  else walk(body, root, 0);
   return { vars, text: clip(texts.join('\n'), WEBHOOK_LIMITS.text) };
 }
 

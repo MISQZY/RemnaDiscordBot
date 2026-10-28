@@ -7,13 +7,35 @@ import type { Provider as FeedProvider, ProviderId } from './providers.js';
 import { SubscriptionService } from './service.js';
 
 const SubscriptionParams = z.object({ guildId: Snowflake, subscriptionId: z.string() });
-const LookupQuery = z.object({ provider: Provider.exclude(['webhook']), query: z.string().min(1).max(500) });
+const LookupQuery = z.object({ provider: Provider.exclude(['webhook', 'api']), query: z.string().min(1).max(500) });
+const ProviderInfo = z.object({
+  id: Provider,
+  /** The platform is set up for the bot (Twitch needs its keys). */
+  configured: z.boolean(),
+  /** It needs VIP this guild does not have. */
+  vipRequired: z.boolean(),
+});
 const SourceInfo = z.object({ externalId: z.string(), name: z.string(), url: z.string() });
 
 export function notificationsApi(providers: () => Map<ProviderId, FeedProvider>) {
   return (app: FastifyInstance, ctx: ApiModuleContext<NotificationsConfig>): void => {
     const service = new SubscriptionService(ctx, providers);
     const params = (request: FastifyRequest) => request.params as { guildId: string; subscriptionId: string };
+
+    app.get(
+      '/providers',
+      { schema: { tags: ['notifications'], summary: 'Which providers a guild can subscribe with', response: { 200: z.array(ProviderInfo) } } },
+      async (request) => {
+        const { guildId } = params(request);
+        const available = providers();
+        return Provider.options.map((id) => {
+          // A webhook needs nothing of the bot's.
+          const provider = id === 'webhook' ? undefined : available.get(id);
+          const feature = provider?.vipFeature;
+          return { id, configured: id === 'webhook' || provider !== undefined, vipRequired: feature ? ctx.config.vip.featureLocked(guildId, feature) : false };
+        });
+      },
+    );
 
     app.get(
       '/lookup',

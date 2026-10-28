@@ -39,6 +39,7 @@ export const locales: Record<Locale, Dictionary> = {
       twitch: '🔴 **{channel.name}** в эфире: **{stream.title}** ({stream.game})\n{stream.url}',
       feed: '📰 **{feed.name}**: **{item.title}**\n{item.url}',
       webhook: '📣 **{hook.name}**: {body.text}',
+      api: '🔔 {item.title} {item.url}',
     },
     manage: {
       empty: 'Подписок пока нет — добавьте через `/notify add`.',
@@ -51,6 +52,7 @@ export const locales: Record<Locale, Dictionary> = {
         notFound: 'канал не найден — возможно, он удалён',
         unavailable: 'площадка не отвечает, проверки идут реже',
         invalid: 'по адресу больше нет ленты или её не прочитать',
+        denied: 'API отказывает в доступе — проверьте ключ',
       },
       deliveryErrors: {
         noAccess: 'последнее оповещение не отправлено: у бота нет прав в канале',
@@ -65,6 +67,7 @@ export const locales: Record<Locale, Dictionary> = {
         notFound: 'Подписка не найдена.',
         sourceNotFound: 'Канал или стример не найден — проверьте ссылку или имя.',
         feedNotFound: 'По этой ссылке нет ленты RSS, Atom или JSON Feed, и страница на неё не ссылается.',
+        vipRequired: 'Опрос API работает только на серверах с VIP.',
       },
     },
   },
@@ -105,6 +108,7 @@ export const locales: Record<Locale, Dictionary> = {
       twitch: '🔴 **{channel.name}** is live: **{stream.title}** ({stream.game})\n{stream.url}',
       feed: '📰 **{feed.name}**: **{item.title}**\n{item.url}',
       webhook: '📣 **{hook.name}**: {body.text}',
+      api: '🔔 {item.title} {item.url}',
     },
     manage: {
       empty: 'No subscriptions yet — add one with `/notify add`.',
@@ -117,6 +121,7 @@ export const locales: Record<Locale, Dictionary> = {
         notFound: 'channel not found — it may have been deleted',
         unavailable: 'the platform is not responding, checking less often',
         invalid: 'the address no longer serves a readable feed',
+        denied: 'the API refuses access — check the key',
       },
       deliveryErrors: {
         noAccess: 'the last notification was not posted: the bot lacks permissions in the channel',
@@ -131,6 +136,7 @@ export const locales: Record<Locale, Dictionary> = {
         notFound: 'Subscription not found.',
         sourceNotFound: 'Channel or streamer not found — check the link or the name.',
         feedNotFound: 'There is no RSS, Atom or JSON feed at this link, and the page does not point to one.',
+        vipRequired: 'API polling works only on servers with VIP.',
       },
     },
   },

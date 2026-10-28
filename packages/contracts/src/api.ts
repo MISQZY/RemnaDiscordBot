@@ -145,8 +145,11 @@ export const ModuleState = z.object({
 });
 export type ModuleState = z.infer<typeof ModuleState>;
 
-/** Parts of the bot outside modules that may need VIP: `profile` — changing the bot's profile on a server. */
-export const VipFeature = z.enum(['profile']);
+/**
+ * Parts of the bot that may need VIP apart from whole modules: `profile` — changing the bot's profile on a server,
+ * `notificationsApi` — notifications polling any JSON API.
+ */
+export const VipFeature = z.enum(['profile', 'notificationsApi']);
 export type VipFeature = z.infer<typeof VipFeature>;
 
 /**

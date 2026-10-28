@@ -1,6 +1,7 @@
 import { MessageTemplate, Snowflake } from '@bot/contracts';
 import type { NotificationSource, NotificationSubscription } from '@bot/db';
 import { z } from 'zod';
+import { ApiSettingsDto, ApiSettingsInput, storedSettings, toSettingsDto } from './api-settings.js';
 
 /** No guild-level settings yet: everything is set per subscription. */
 export const NotificationsConfig = z.object({});
@@ -8,11 +9,17 @@ export type NotificationsConfig = z.infer<typeof NotificationsConfig>;
 
 export const MAX_SUBSCRIPTIONS = 25;
 
-/** Where announcements come from: polled platforms, or `webhook` — whatever posts to the subscription's own address. */
-export const Provider = z.enum(['youtube', 'twitch', 'feed', 'webhook']);
+/**
+ * Where announcements come from: polled platforms, `api` — any JSON API polled with the subscriber's settings, or
+ * `webhook` — whatever posts to the subscription's own address.
+ */
+export const Provider = z.enum(['youtube', 'twitch', 'feed', 'api', 'webhook']);
 
-/** Why a source's last check failed: it is gone, the platform did not answer, or the address serves no readable feed. */
-export const SourceError = z.enum(['notFound', 'unavailable', 'invalid']);
+/**
+ * Why a source's last check failed: it is gone, the platform did not answer, the address serves nothing readable, or
+ * the API refused access (a wrong key).
+ */
+export const SourceError = z.enum(['notFound', 'unavailable', 'invalid', 'denied']);
 export type SourceError = z.infer<typeof SourceError>;
 
 /** Why the last announcement was not posted: no rights in the channel, no channel, or anything else. */
@@ -51,6 +58,8 @@ export const SubscriptionCreate = z.object({
   mentionRoleId: Snowflake.nullable().default(null),
   message: MessageTemplate.optional(),
   filter: SubscriptionFilter.optional(),
+  /** An API source's settings: required for `api`, ignored otherwise. `query` is then its name. */
+  api: ApiSettingsInput.optional(),
 });
 export type SubscriptionCreate = z.infer<typeof SubscriptionCreate>;
 
@@ -61,6 +70,8 @@ export const SubscriptionUpdate = z
     message: MessageTemplate,
     filter: SubscriptionFilter,
     enabled: z.boolean(),
+    /** An API source's new settings, checked by requesting the API; other sources refuse it. */
+    api: ApiSettingsInput,
   })
   .partial();
 export type SubscriptionUpdate = z.infer<typeof SubscriptionUpdate>;
@@ -85,11 +96,18 @@ export const SubscriptionDto = z.object({
   delivery: z.object({ at: z.iso.datetime().nullable(), error: DeliveryError.nullable() }),
   /** A webhook's address with its secret; null for other providers. */
   webhook: z.object({ url: z.string() }).nullable(),
+  /** An API source's settings, header values left out; null for other providers. */
+  api: ApiSettingsDto.nullable(),
   createdAt: z.iso.datetime(),
 });
 export type SubscriptionDto = z.infer<typeof SubscriptionDto>;
 
 const iso = (date: Date | null) => date?.toISOString() ?? null;
+
+const apiDto = (value: unknown) => {
+  const settings = storedSettings(value);
+  return settings ? toSettingsDto(settings) : null;
+};
 
 /** A webhook's address (see webhook.ts). The bot process does not know the API's public address, so there it is relative. */
 export function webhookUrl(guildId: string, subscriptionId: string, token: string, base = process.env.API_PUBLIC_URL ?? ''): string {
@@ -118,6 +136,7 @@ export function toDto(row: NotificationSubscription & { source: NotificationSour
       error: row.deliveryError === null ? null : DeliveryError.catch('failed').parse(row.deliveryError),
     },
     webhook: row.webhookToken ? { url: webhookUrl(row.guildId, row.id, row.webhookToken) } : null,
+    api: source.provider === 'api' ? apiDto(source.settings) : null,
     createdAt: row.createdAt.toISOString(),
   };
 }

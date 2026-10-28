@@ -93,7 +93,7 @@ export async function deliver(ctx: ModuleServices<NotificationsConfig>, subscrip
  */
 export async function pollProvider(ctx: ModuleServices<NotificationsConfig>, provider: Provider): Promise<number> {
   const now = new Date();
-  const sources = await ctx.db.notificationSource.findMany({
+  const found = await ctx.db.notificationSource.findMany({
     where: {
       provider: provider.id,
       subscriptions: { some: { enabled: true } },
@@ -101,11 +101,17 @@ export async function pollProvider(ctx: ModuleServices<NotificationsConfig>, pro
     },
     include: { subscriptions: { where: { enabled: true } } },
   });
+  // A VIP feature is not polled for guilds without VIP; its sources are each one subscription's.
+  const feature = provider.vipFeature;
+  const sources = feature ? found.filter((s) => s.subscriptions.some((sub) => !ctx.config.vip.featureLocked(sub.guildId, feature))) : found;
   if (sources.length === 0) return 0;
 
   let results: Map<string, FeedResult>;
   try {
-    results = await provider.latest(sources.map((s) => s.externalId));
+    results = await provider.latest(
+      sources.map((s) => s.externalId),
+      new Map(sources.map((s) => [s.externalId, s.settings])),
+    );
   } catch (err) {
     const failure = new SourceFailure('unavailable', err instanceof Error ? err.message : String(err));
     results = new Map(sources.map((s) => [s.externalId, failure]));

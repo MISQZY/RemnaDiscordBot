@@ -467,20 +467,22 @@ model CustomCommand {
 }
 
 /// An external notification source (YouTube channel, Twitch streamer, feed) — one for the whole platform;
-/// a webhook's is its subscription's own (`externalId` — a random ID, `name` — the user's).
+/// a webhook's or an API source's is its subscription's own (`externalId` — a random ID, `name` — the user's).
 model NotificationSource {
   id            String    @id @default(cuid())
-  /// `youtube` | `twitch` | `feed` | `webhook`
+  /// `youtube` | `twitch` | `feed` | `api` | `webhook`
   provider      String
   /// YouTube channel ID, Twitch user ID or the feed's address.
   externalId    String
   name          String
   /// IDs of the latest items, newest first — to avoid repeats. Null until the first check.
   seenIds       Json?
+  /// An API source's ApiSettings (address, headers with secrets, paths); null for other providers.
+  settings      Json?
   /// The last check, successful or not.
   lastCheckedAt DateTime?
   lastSuccessAt DateTime?
-  /// Why the last check failed (`notFound` | `unavailable` | `invalid`); null after a successful one.
+  /// Why the last check failed (`notFound` | `unavailable` | `invalid` | `denied`); null after a successful one.
   lastError     String?
   /// Failed checks in a row; each one after the first puts the next check off longer.
   failures      Int       @default(0)

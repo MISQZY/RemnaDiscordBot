@@ -1,10 +1,11 @@
+import type { VipFeature } from '@bot/contracts';
 import { eachLimit, HttpError } from '@bot/core';
 import type { SourceError } from './config.js';
 import { discoverFeed, parseFeed, type ParsedFeed } from './feed.js';
 import { createSafeFetch, FetchRefused, type FetchText } from './safe-fetch.js';
 
 export type Fetch = typeof fetch;
-export type ProviderId = 'youtube' | 'twitch' | 'feed';
+export type ProviderId = 'youtube' | 'twitch' | 'feed' | 'api';
 
 export interface SourceInfo {
   externalId: string;
@@ -35,10 +36,12 @@ export type FeedResult = FeedItem[] | SourceFailure;
 
 export interface Provider {
   id: ProviderId;
+  /** Works only in guilds with VIP when the dashboard says this feature needs it. */
+  vipFeature?: VipFeature;
   /** A channel or streamer by link, ID or name. */
   lookup(query: string): Promise<SourceInfo>;
-  /** Each source's result, keyed by externalId; a failing source does not hold up the rest. */
-  latest(externalIds: string[]): Promise<Map<string, FeedResult>>;
+  /** Each source's result, keyed by externalId; a failing source does not hold up the rest. `settings` — the sources' own. */
+  latest(externalIds: string[], settings?: Map<string, unknown>): Promise<Map<string, FeedResult>>;
 }
 
 const decode = (text: string) =>
