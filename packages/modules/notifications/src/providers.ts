@@ -68,6 +68,7 @@ export function parseYoutubeFeed(xml: string): { channelName: string; items: Fee
         'video.id': videoId,
         'video.title': tag(entry!, 'title'),
         'video.url': `https://www.youtube.com/watch?v=${videoId}`,
+        'video.published': tag(entry!, 'published'),
         'channel.name': tag(entry!, 'name') || channelName,
       },
       text: tag(entry!, 'title'),
@@ -86,10 +87,17 @@ export class YoutubeProvider implements Provider {
 
   constructor(private readonly fetchImpl: Fetch = fetch) {}
 
+  /**
+   * A channel by its ID, link (/channel/UC…, /@handle, /c/…, /user/…) or @handle: the ID and the name come from the
+   * channel's page. Not from its feed: YouTube answers 404 for every feed for hours at times, and a channel that exists
+   * must still be found then.
+   */
   async lookup(query: string): Promise<SourceInfo> {
-    const channelId = YOUTUBE_CHANNEL_ID.test(query) ? query : await this.resolveChannelId(query);
-    const { channelName } = parseYoutubeFeed(await this.feed(channelId));
-    return { externalId: channelId, name: channelName || channelId, url: `https://www.youtube.com/channel/${channelId}` };
+    const html = await this.channelPage(query);
+    const channelId = YOUTUBE_CHANNEL_ID.test(query.trim()) ? query.trim() : (/channel\/(UC[\w-]{22})/.exec(query)?.[1] ?? channelIdOf(html));
+    if (!channelId) throw HttpError.badRequest('YouTube channel not found');
+    const name = channelNameOf(html) || (await this.feedTitle(channelId)) || channelId;
+    return { externalId: channelId, name, url: `https://www.youtube.com/channel/${channelId}` };
   }
 
   /** The channels' feeds, a few at a time; a channel whose feed fails fails alone. */
@@ -99,9 +107,9 @@ export class YoutubeProvider implements Provider {
       try {
         result.set(id, parseYoutubeFeed(await this.feed(id)).items);
       } catch (err) {
-        // The feed answers 404 for a deleted channel; anything else is an outage.
-        const kind = err instanceof HttpError && err.statusCode === 400 ? 'notFound' : 'unavailable';
-        result.set(id, new SourceFailure(kind, err instanceof Error ? err.message : String(err)));
+        // A 404 too: YouTube answers it for every feed during its outages, which come far more often than a channel
+        // is deleted. Checks go on, less and less often, as for any outage.
+        result.set(id, new SourceFailure('unavailable', err instanceof Error ? err.message : String(err)));
       }
     });
     return result;
@@ -109,22 +117,55 @@ export class YoutubeProvider implements Provider {
 
   private async feed(channelId: string): Promise<string> {
     const response = await this.fetchImpl(`https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`, { signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
-    if (response.status === 404) throw HttpError.badRequest('YouTube channel not found');
     if (!response.ok) throw new Error(`YouTube feed responded with ${response.status}`);
     return response.text();
   }
 
-  /** A /channel/UC… or /@handle link, or just @handle → the channel ID from the page. */
-  private async resolveChannelId(query: string): Promise<string> {
-    const fromUrl = /channel\/(UC[\w-]{22})/.exec(query)?.[1];
-    if (fromUrl) return fromUrl;
-    const handle = /@([\w.-]+)/.exec(query)?.[1] ?? query.replace(/^.*youtube\.com\//, '');
-    const response = await this.fetchImpl(`https://www.youtube.com/@${encodeURIComponent(handle)}`, { signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
-    const html = response.ok ? await response.text() : '';
-    const channelId = /"(?:channelId|externalId)":"(UC[\w-]{22})"/.exec(html)?.[1];
-    if (!channelId) throw HttpError.badRequest('YouTube channel not found');
-    return channelId;
+  /** The channel's name from its feed, when its page did not give one; empty if the feed is down. */
+  private async feedTitle(channelId: string): Promise<string> {
+    try {
+      return parseYoutubeFeed(await this.feed(channelId)).channelName;
+    } catch {
+      return '';
+    }
   }
+
+  /** The page of a channel given by ID, link or @handle; a page YouTube does not have means no such channel. */
+  private async channelPage(query: string): Promise<string> {
+    const response = await this.fetchImpl(channelPageUrl(query), { signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
+    if (response.status === 404) throw HttpError.badRequest('YouTube channel not found');
+    if (!response.ok) throw new Error(`YouTube responded with ${response.status}`);
+    return response.text();
+  }
+}
+
+/** Where a channel's page is: /channel/UC…, /@handle, /c/name or /user/name, from an ID, a link or a handle. */
+export function channelPageUrl(query: string): string {
+  const q = query.trim();
+  if (YOUTUBE_CHANNEL_ID.test(q)) return `https://www.youtube.com/channel/${q}`;
+  const path = /youtube\.com\/((?:channel\/UC[\w-]{22})|@[^/?#\s]+|(?:c|user)\/[^/?#\s]+)/i.exec(q)?.[1];
+  if (path) return `https://www.youtube.com/${path}`;
+  return `https://www.youtube.com/@${encodeURIComponent(q.replace(/^@/, ''))}`;
+}
+
+/**
+ * The channel's own ID on its page. Not the first "channelId" there: the page lists other channels (recommended,
+ * featured) too, and one of them may come first. The canonical link, the identifier meta and "externalId" are its own.
+ */
+export function channelIdOf(html: string): string | null {
+  return (
+    /<link rel="canonical" href="https:\/\/www\.youtube\.com\/channel\/(UC[\w-]{22})"/.exec(html)?.[1] ??
+    /<meta itemprop="identifier" content="(UC[\w-]{22})"/.exec(html)?.[1] ??
+    /"externalId":"(UC[\w-]{22})"/.exec(html)?.[1] ??
+    null
+  );
+}
+
+/** The channel's name on its page: og:title, else the title without " - YouTube". */
+export function channelNameOf(html: string): string {
+  const og = /<meta property="og:title" content="([^"]*)"/.exec(html)?.[1];
+  const title = og ?? /<title>([^<]*)<\/title>/.exec(html)?.[1]?.replace(/\s*-\s*YouTube\s*$/, '');
+  return title ? decode(title.trim()) : '';
 }
 
 interface TwitchUser {
@@ -134,6 +175,7 @@ interface TwitchUser {
 }
 
 interface TwitchStream {
+  started_at: string;
   id: string;
   user_id: string;
   user_login: string;
@@ -183,6 +225,7 @@ export class TwitchProvider implements Provider {
               'stream.game': stream.game_name,
               'stream.viewers': stream.viewer_count,
               'stream.url': `https://www.twitch.tv/${stream.user_login}`,
+              'stream.startedAt': stream.started_at,
               'channel.name': stream.user_name,
             },
             text: `${stream.title}

@@ -34,6 +34,7 @@ describe('pollProvider', () => {
     ctx = {
       db: database.db,
       rest: { post },
+      guildLocales: { get: async () => 'en' },
       logger: createLogger({ service: 'test', level: 'silent', pretty: false }),
       // The module is enabled in every guild except the third one.
       config: { isEnabled: async (guildId: string) => guildId !== '3' },

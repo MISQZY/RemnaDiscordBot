@@ -1,11 +1,11 @@
 import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import { createServer as createNetServer, type AddressInfo, type Socket } from 'node:net';
 import { gzipSync } from 'node:zlib';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { matchesFilter, storedFilter } from './config.js';
 import { discoverFeed, htmlToText, parseFeed } from './feed.js';
 import { FeedProvider, feedUrl, SourceFailure } from './providers.js';
-import { createSafeFetch, decodeBody, FetchRefused, isPublicAddress, type FetchedText, type FetchText } from './safe-fetch.js';
+import { allowedNetworks, createSafeFetch, decodeBody, FetchRefused, isPublicAddress, type FetchedText, type FetchText } from './safe-fetch.js';
 import { payloadVars } from './webhook.js';
 
 const rss = `<?xml version="1.0" encoding="UTF-8"?>
@@ -69,6 +69,7 @@ describe('parseFeed', () => {
       'item.summary': 'Full text',
       'item.author': 'Tom',
       'item.image': 'https://blog.example/img/2.png',
+      'item.date': '2026-10-27T10:00:00.000Z',
       'feed.name': 'Tom & Jerry blog',
       'feed.url': 'https://blog.example/',
     });
@@ -278,6 +279,28 @@ describe('createSafeFetch', () => {
     await expect(safeFetch(`${base}/loop`)).rejects.toThrow('Too many redirects');
   });
 
+  it('drops a connection whose TLS handshake hangs and tries once more on a new one', async () => {
+    // Takes TCP connections and never answers the handshake, as a VPN waking up after idle did.
+    const sockets: Socket[] = [];
+    const silent = createNetServer((socket) => {
+      sockets.push(socket);
+      socket.on('error', () => {});
+    });
+    await new Promise<void>((resolve) => silent.listen(0, '127.0.0.1', resolve));
+    try {
+      const safeFetch = createSafeFetch({ isAllowed: loopbackAllowed, connectTimeoutMs: 200, timeoutMs: 5_000 });
+      const started = Date.now();
+      await expect(safeFetch(`https://127.0.0.1:${(silent.address() as AddressInfo).port}/feed`)).rejects.toThrow('No connection in 200 ms');
+      expect(sockets).toHaveLength(2);
+      // Two short tries, not the whole request time.
+      expect(Date.now() - started).toBeLessThan(2_000);
+    } finally {
+      // close() waits for the connections it holds.
+      for (const socket of sockets) socket.destroy();
+      await new Promise<void>((resolve) => silent.close(() => resolve()));
+    }
+  });
+
   it('stops reading a body past the limit, counting it unpacked', async () => {
     const safeFetch = createSafeFetch({ isAllowed: loopbackAllowed, maxBytes: 1024 });
     await expect(safeFetch(`${base}/big`)).rejects.toBeInstanceOf(FetchRefused);
@@ -318,5 +341,21 @@ describe('payloadVars', () => {
     const many = payloadVars(Object.fromEntries(Array.from({ length: 400 }, (_, i) => [`k${i}`, 'v'])));
     expect(Object.keys(many.vars)).toHaveLength(300);
     expect(String(payloadVars({ long: 'x'.repeat(5000) }).vars['body.long'])).toHaveLength(1000);
+  });
+});
+
+describe('allowedNetworks', () => {
+  it('lets through the networks it lists, besides the public internet', () => {
+    const allowed = allowedNetworks('198.18.0.0/15, fd00::/8');
+    expect(allowed.check('198.18.0.119', 'ipv4')).toBe(true);
+    expect(allowed.check('198.20.0.1', 'ipv4')).toBe(false);
+    expect(allowed.check('fd00::1', 'ipv6')).toBe(true);
+    expect(allowedNetworks('').check('198.18.0.1', 'ipv4')).toBe(false);
+  });
+
+  it('fails on an entry that is not a network', () => {
+    expect(() => allowedNetworks('198.18.0.0')).toThrow('FETCH_ALLOW_NETWORKS');
+    expect(() => allowedNetworks('example.com/8')).toThrow('FETCH_ALLOW_NETWORKS');
+    expect(() => allowedNetworks('10.0.0.0/40')).toThrow('FETCH_ALLOW_NETWORKS');
   });
 });

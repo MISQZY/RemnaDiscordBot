@@ -2,9 +2,11 @@ import { Snowflake } from '@bot/contracts';
 import type { ApiModuleContext } from '@bot/core';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { Provider, SubscriptionCreate, SubscriptionDto, SubscriptionUpdate, type NotificationsConfig } from './config.js';
+import { HttpError } from '@bot/core';
+import { DeliveryError, Provider, SourceError, SubscriptionCreate, SubscriptionDto, SubscriptionUpdate, toDto, type NotificationsConfig } from './config.js';
+import { checkNow } from './poll.js';
 import type { Provider as FeedProvider, ProviderId } from './providers.js';
-import { SubscriptionService } from './service.js';
+import { SubscriptionError, SubscriptionService } from './service.js';
 
 const SubscriptionParams = z.object({ guildId: Snowflake, subscriptionId: z.string() });
 const LookupQuery = z.object({ provider: Provider.exclude(['webhook', 'api']), query: z.string().min(1).max(500) });
@@ -16,6 +18,16 @@ const ProviderInfo = z.object({
   vipRequired: z.boolean(),
 });
 const SourceInfo = z.object({ externalId: z.string(), name: z.string(), url: z.string() });
+/** Optional: without a body the source is only checked. */
+const CheckBody = z.object({ sendLatest: z.boolean().default(false) }).nullish();
+const CheckResult = z.object({
+  error: SourceError.nullable(),
+  items: z.number().int(),
+  fresh: z.number().int(),
+  posted: z.number().int(),
+  latest: z.union([z.literal('posted'), z.literal('skipped'), DeliveryError]).nullable(),
+  subscription: SubscriptionDto,
+});
 
 export function notificationsApi(providers: () => Map<ProviderId, FeedProvider>) {
   return (app: FastifyInstance, ctx: ApiModuleContext<NotificationsConfig>): void => {
@@ -92,6 +104,35 @@ export function notificationsApi(providers: () => Map<ProviderId, FeedProvider>)
       async (request) => {
         const { guildId, subscriptionId } = params(request);
         return service.regenerateToken(guildId, subscriptionId);
+      },
+    );
+
+    app.post(
+      '/subscriptions/:subscriptionId/check',
+      {
+        schema: {
+          tags: ['notifications'],
+          summary: 'Check the source now; with sendLatest, also post its newest item to this subscription',
+          description: 'New items go out as on schedule. Not for webhooks: they are called, not checked.',
+          params: SubscriptionParams,
+          body: CheckBody,
+          response: { 200: CheckResult },
+        },
+      },
+      async (request) => {
+        const { guildId, subscriptionId } = params(request);
+        // It may post in Discord: only while the module is on.
+        await ctx.requireEnabled(guildId);
+        const row = await service.find(guildId, subscriptionId);
+        const id = Provider.parse(row.source.provider);
+        if (id === 'webhook') throw HttpError.badRequest('A webhook is called, not checked');
+        const provider = service.provider(id);
+        if (provider.vipFeature && ctx.config.vip.featureLocked(guildId, provider.vipFeature)) {
+          throw new SubscriptionError('vipRequired', new HttpError(403, 'VIP_REQUIRED', `"${provider.vipFeature}" needs VIP in this guild`));
+        }
+        const sendLatest = (request.body as z.infer<typeof CheckBody>)?.sendLatest ?? false;
+        const report = await checkNow(ctx, provider, row, { sendLatest });
+        return { ...report, subscription: toDto(await service.find(guildId, subscriptionId)) };
       },
     );
 

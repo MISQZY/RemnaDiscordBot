@@ -139,6 +139,8 @@ function toItem(raw: Raw, feed: { title: string; link: string | null }, base: st
       'item.summary': truncate(summary, SUMMARY_LENGTH),
       'item.author': raw.author,
       'item.image': absolute(raw.image || firstImage(raw.html), base),
+      // ISO, so {item.date:dd.mm.yyyy} and the other date formats read it; empty when the feed gives none.
+      'item.date': Number.isFinite(Date.parse(raw.date)) ? new Date(Date.parse(raw.date)).toISOString() : '',
       'feed.name': feed.title,
       'feed.url': feed.link ?? '',
     },

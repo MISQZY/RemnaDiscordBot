@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ApiSettings, sealSettings, storedSettings, storedSettingsDto } from './api-settings.js';
 import { ApiProvider } from './api-source.js';
 import type { NotificationsConfig } from './config.js';
-import { pollProvider } from './poll.js';
+import { checkNow, pollProvider } from './poll.js';
 import { resealSecrets } from './reseal.js';
 import type { ProviderId, Provider } from './providers.js';
 import type { FetchText } from './safe-fetch.js';
@@ -33,6 +33,7 @@ describe('API sources', () => {
     ctx = {
       db: database.db,
       rest: { post },
+      guildLocales: { get: async () => 'en' },
       config,
       logger: createLogger({ service: 'test', level: 'silent', pretty: false }),
     } as unknown as ModuleServices<NotificationsConfig>;
@@ -142,5 +143,26 @@ describe('API sources', () => {
     expect(storedSettings(source.settings)?.url).toBe('https://api.example/legacy');
     const token = (await database.db.notificationSubscription.findUniqueOrThrow({ where: { id: hook.id } })).webhookToken!;
     expect(current.open(token)).toBe('hook-token');
+  });
+
+  it('checks a source on demand and sends its newest item when asked, even if seen', async () => {
+    vip.set({ modules: [], features: [], guilds: [] });
+    const subscription = await database.db.notificationSubscription.findFirstOrThrow({ where: { guildId: GUILD, webhookToken: null } });
+    answer = [{ id: 9, title: 'Nine' }];
+    post.mockClear();
+
+    // A new address was set before: the first check only remembers.
+    expect(await checkNow(ctx, provider, subscription)).toEqual({ error: null, items: 1, fresh: 0, posted: 0, latest: null });
+    expect(post).not.toHaveBeenCalled();
+
+    // Nothing new, but the newest item goes out on request.
+    expect(await checkNow(ctx, provider, subscription, { sendLatest: true })).toMatchObject({ fresh: 0, posted: 0, latest: 'posted' });
+    expect(post).toHaveBeenLastCalledWith(`/channels/${CHANNEL}/messages`, { body: expect.objectContaining({ content: 'Nine' }) });
+
+    // Something new: it goes out once, not twice.
+    answer = [{ id: 10, title: 'Ten' }, { id: 9, title: 'Nine' }];
+    post.mockClear();
+    expect(await checkNow(ctx, provider, subscription, { sendLatest: true })).toMatchObject({ fresh: 1, posted: 1, latest: null });
+    expect(post).toHaveBeenCalledTimes(1);
   });
 });

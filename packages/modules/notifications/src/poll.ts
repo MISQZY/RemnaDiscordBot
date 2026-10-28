@@ -1,17 +1,21 @@
 import { MessageTemplate } from '@bot/contracts';
 import type { ModuleServices } from '@bot/core';
-import type { NotificationSubscription } from '@bot/db';
+import type { NotificationSource, NotificationSubscription } from '@bot/db';
 import { renderMessage, toRestMessage } from '@bot/templates';
 import { DiscordAPIError, RESTJSONErrorCodes, Routes } from 'discord.js';
-import { matchesFilter, storedFilter, type DeliveryError, type NotificationsConfig } from './config.js';
+import { matchesFilter, storedFilter, type DeliveryError, type NotificationsConfig, type SourceError } from './config.js';
 import { SourceFailure, type FeedItem, type FeedResult, type Provider } from './providers.js';
 
-/** Announcement body; only the subscription's role is pinged, not any role from the template. */
+/**
+ * Announcement body; only the subscription's role is pinged, not any role from the template. `locale` — the guild's,
+ * for numbers with a format (`{item.price:number}`).
+ */
 export function announcementBody(
   subscription: { message: unknown; mentionRoleId: string | null },
   vars: Record<string, string | number>,
+  locale?: string,
 ) {
-  const { content, embeds, allowed_mentions } = toRestMessage(renderMessage(MessageTemplate.parse(subscription.message), vars));
+  const { content, embeds, allowed_mentions } = toRestMessage(renderMessage(MessageTemplate.parse(subscription.message), vars, { locale }));
   const role = subscription.mentionRoleId;
   return {
     content: role ? `<@&${role}> ${content ?? ''}`.trim() : content,
@@ -75,7 +79,8 @@ export async function deliver(ctx: ModuleServices<NotificationsConfig>, subscrip
   if (!(await ctx.config.isEnabled(subscription.guildId, 'notifications'))) return 'skipped';
   let error: DeliveryError | null = null;
   try {
-    await ctx.rest.post(Routes.channelMessages(subscription.channelId), { body: announcementBody(subscription, item.vars) });
+    const locale = await ctx.guildLocales.get(subscription.guildId);
+    await ctx.rest.post(Routes.channelMessages(subscription.channelId), { body: announcementBody(subscription, item.vars, locale) });
   } catch (err) {
     error = deliveryError(err);
     ctx.logger.warn({ err, subscriptionId: subscription.id }, 'Notification not delivered');
@@ -117,37 +122,93 @@ export async function pollProvider(ctx: ModuleServices<NotificationsConfig>, pro
     results = new Map(sources.map((s) => [s.externalId, failure]));
   }
   let announced = 0;
-
   for (const source of sources) {
     const result = results.get(source.externalId) ?? new SourceFailure('unavailable', 'No result from the provider');
-    if (result instanceof SourceFailure) {
-      const failures = source.failures + 1;
-      ctx.logger.warn({ sourceId: source.id, provider: provider.id, kind: result.kind, failures, err: result.message }, 'Notification source check failed');
-      await ctx.db.notificationSource.update({
-        where: { id: source.id },
-        data: { lastCheckedAt: now, lastError: result.kind, failures, nextCheckAt: new Date(now.getTime() + backoffMs(failures)) },
-      });
-      continue;
-    }
-
-    const seenIds = asIds(source.seenIds);
-    for (const item of freshItems(result, seenIds)) {
-      for (const subscription of source.subscriptions) {
-        if ((await deliver(ctx, subscription, item)) === 'posted') announced++;
-      }
-    }
-
-    await ctx.db.notificationSource.update({
-      where: { id: source.id },
-      data: {
-        seenIds: rememberItems(result, seenIds),
-        lastCheckedAt: now,
-        lastSuccessAt: now,
-        lastError: null,
-        failures: 0,
-        nextCheckAt: null,
-      },
-    });
+    announced += (await applyResult(ctx, provider, source, result, now)).posted;
   }
   return announced;
+}
+
+type CheckedSource = NotificationSource & { subscriptions: Deliverable[] };
+
+/**
+ * Records a source's check and announces its new items to its enabled subscriptions: the items the check found, how
+ * many were new and how many messages went out. A failed check is recorded and puts the next one off.
+ */
+async function applyResult(ctx: ModuleServices<NotificationsConfig>, provider: Provider, source: CheckedSource, result: FeedResult, now: Date) {
+  if (result instanceof SourceFailure) {
+    const failures = source.failures + 1;
+    ctx.logger.warn({ sourceId: source.id, provider: provider.id, kind: result.kind, failures, err: result.message }, 'Notification source check failed');
+    await ctx.db.notificationSource.update({
+      where: { id: source.id },
+      data: { lastCheckedAt: now, lastError: result.kind, failures, nextCheckAt: new Date(now.getTime() + backoffMs(failures)) },
+    });
+    return { items: [] as FeedItem[], fresh: 0, posted: 0, error: result.kind };
+  }
+
+  const seenIds = asIds(source.seenIds);
+  const fresh = freshItems(result, seenIds);
+  let posted = 0;
+  for (const item of fresh) {
+    for (const subscription of source.subscriptions) {
+      if ((await deliver(ctx, subscription, item)) === 'posted') posted++;
+    }
+  }
+
+  await ctx.db.notificationSource.update({
+    where: { id: source.id },
+    data: {
+      seenIds: rememberItems(result, seenIds),
+      lastCheckedAt: now,
+      lastSuccessAt: now,
+      lastError: null,
+      failures: 0,
+      nextCheckAt: null,
+    },
+  });
+  return { items: result, fresh: fresh.length, posted, error: null };
+}
+
+/** What a check on demand did: see `checkNow`. */
+export interface CheckReport {
+  /** Why the source could not be checked; null when it was. */
+  error: SourceError | null;
+  /** Items the source has now, and how many of them were new. */
+  items: number;
+  fresh: number;
+  /** Messages the new items made, in every subscription of the source. */
+  posted: number;
+  /** The newest item sent to this subscription on request: posted, skipped by its filter, or why Discord refused it. */
+  latest: 'posted' | 'skipped' | DeliveryError | null;
+}
+
+/**
+ * Checks a subscription's source now, whatever its schedule: new items are announced as a scheduled check would (to
+ * every enabled subscription of the source). With `sendLatest`, the newest item also goes to this subscription when
+ * the check did not post it already — to see the template at work without waiting for something new.
+ */
+export async function checkNow(
+  ctx: ModuleServices<NotificationsConfig>,
+  provider: Provider,
+  subscription: Deliverable & { sourceId: string; enabled: boolean },
+  { sendLatest = false }: { sendLatest?: boolean } = {},
+): Promise<CheckReport> {
+  const source = await ctx.db.notificationSource.findUniqueOrThrow({
+    where: { id: subscription.sourceId },
+    include: { subscriptions: { where: { enabled: true } } },
+  });
+  let result: FeedResult;
+  try {
+    result = (await provider.latest([source.externalId], new Map([[source.externalId, source.settings]]))).get(source.externalId) ?? new SourceFailure('unavailable', 'No result from the provider');
+  } catch (err) {
+    result = new SourceFailure('unavailable', err instanceof Error ? err.message : String(err));
+  }
+  const report = await applyResult(ctx, provider, source, result, new Date());
+
+  let latest: CheckReport['latest'] = null;
+  const newest = report.items[0];
+  // A new newest item went to the subscription already if it is enabled.
+  const alreadySent = report.fresh > 0 && subscription.enabled;
+  if (sendLatest && newest && !alreadySent) latest = await deliver(ctx, subscription, newest);
+  return { error: report.error, items: report.items.length, fresh: report.fresh, posted: report.posted, latest };
 }

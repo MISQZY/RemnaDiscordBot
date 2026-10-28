@@ -105,6 +105,26 @@ describe('notifications API', () => {
     expect(codes.at(-1)).toBe(429);
   });
 
+  it('checks a source on demand and sends its newest item, but not for a webhook', async () => {
+    // The module is on since the webhook test.
+    const { id } = (await send('POST', '/subscriptions', { provider: 'youtube', query: YT_CHANNEL, channelId: CHANNEL_ID, message: { content: '{video.title}' } })).json() as {
+      id: string;
+    };
+    t.rest.calls.length = 0;
+
+    const checked = await send('POST', `/subscriptions/${id}/check`, { sendLatest: true });
+    expect(checked.statusCode).toBe(200);
+    expect(checked.json()).toMatchObject({ error: null, items: 1, fresh: 0, posted: 0, latest: 'posted', subscription: { id, source: { checkedAt: expect.any(String) } } });
+    expect(t.rest.calls).toEqual([{ method: 'post', route: `/channels/${CHANNEL_ID}/messages`, body: expect.objectContaining({ content: 'Hi' }) }]);
+
+    expect((await send('POST', `/subscriptions/${id}/check`)).json()).toMatchObject({ fresh: 0, latest: null });
+    await send('DELETE', `/subscriptions/${id}`);
+
+    const hook = (await send('POST', '/subscriptions', { provider: 'webhook', query: 'Hook', channelId: CHANNEL_ID })).json() as { id: string };
+    expect((await send('POST', `/subscriptions/${hook.id}/check`)).statusCode).toBe(400);
+    await send('DELETE', `/subscriptions/${hook.id}`);
+  });
+
   it('validates the channel and reports unconfigured providers', async () => {
     const badChannel = await send('POST', '/subscriptions', { provider: 'youtube', query: YT_CHANNEL, channelId: '599999999999999999' });
     expect(badChannel.statusCode).toBe(400);

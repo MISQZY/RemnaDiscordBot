@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { announcementBody, backoffMs, freshItems, rememberItems } from './poll.js';
-import { parseYoutubeFeed, SourceFailure, TwitchProvider, YoutubeProvider, type Fetch, type FeedItem } from './providers.js';
+import { channelPageUrl, parseYoutubeFeed, SourceFailure, TwitchProvider, YoutubeProvider, type Fetch, type FeedItem } from './providers.js';
 
 const CHANNEL_ID = 'UC_x5XG1OV2P6uZZ5FSM9Ttw';
 
@@ -32,33 +32,56 @@ describe('parseYoutubeFeed', () => {
       'video.id': 'new123',
       'video.title': 'Second "video"',
       'video.url': 'https://www.youtube.com/watch?v=new123',
+      'video.published': '',
       'channel.name': 'Google & Friends',
     });
   });
 });
 
 describe('YoutubeProvider', () => {
-  it('looks up channels by ID or @handle', async () => {
-    const fetchImpl = vi.fn(async (url: string | URL | Request) =>
-      String(url).includes('/@google') ? response(`<meta itemprop="x"> "channelId":"${CHANNEL_ID}"`) : response(feed),
-    ) as unknown as Fetch;
+  // A channel page lists other channels too, and one of them may come first (as on @thefaser's).
+  const page = `<html><head><title>Google &amp; Friends - YouTube</title><meta property="og:title" content="Google &amp; Friends">
+    <link rel="canonical" href="https://www.youtube.com/channel/${CHANNEL_ID}"></head>
+    <body>{"channelId":"UCmf8kCHCiuX8lWzLRoUq-Bw","externalId":"${CHANNEL_ID}"}</body></html>`;
+
+  it('looks up channels by ID, link or @handle, taking the page own ID and name', async () => {
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => (String(url).includes('/feeds/') ? response('', 404) : response(page))) as unknown as Fetch;
     const provider = new YoutubeProvider(fetchImpl);
 
-    expect(await provider.lookup(CHANNEL_ID)).toMatchObject({ externalId: CHANNEL_ID, name: 'Google & Friends' });
-    expect(await provider.lookup('https://www.youtube.com/@google')).toMatchObject({ externalId: CHANNEL_ID });
+    for (const query of [CHANNEL_ID, '@google', 'google', 'https://www.youtube.com/@google/videos', `https://youtube.com/channel/${CHANNEL_ID}`]) {
+      expect(await provider.lookup(query), query).toEqual({ externalId: CHANNEL_ID, name: 'Google & Friends', url: `https://www.youtube.com/channel/${CHANNEL_ID}` });
+    }
+    // The feed is not needed, and it was down.
+    expect(vi.mocked(fetchImpl).mock.calls.map(([url]) => String(url)).filter((u) => u.includes('/feeds/'))).toEqual([]);
   });
 
-  it('reports unknown channels as a bad request', async () => {
+  it('finds the page of every kind of link', () => {
+    expect(channelPageUrl(CHANNEL_ID)).toBe(`https://www.youtube.com/channel/${CHANNEL_ID}`);
+    expect(channelPageUrl('@thefaser')).toBe('https://www.youtube.com/@thefaser');
+    expect(channelPageUrl('https://www.youtube.com/@thefaser/featured')).toBe('https://www.youtube.com/@thefaser');
+    expect(channelPageUrl('https://www.youtube.com/c/SomeName')).toBe('https://www.youtube.com/c/SomeName');
+    expect(channelPageUrl('https://m.youtube.com/user/Old?x=1')).toBe('https://www.youtube.com/user/Old');
+  });
+
+  it('takes the name from the feed when the page has none', async () => {
+    const bare = `<link rel="canonical" href="https://www.youtube.com/channel/${CHANNEL_ID}">`;
+    const provider = new YoutubeProvider((async (url: string | URL | Request) => response(String(url).includes('/feeds/') ? feed : bare)) as unknown as Fetch);
+    expect(await provider.lookup('@google')).toMatchObject({ name: 'Google & Friends' });
+  });
+
+  it('reports channels YouTube has no page for as a bad request', async () => {
     const provider = new YoutubeProvider((async () => response('', 404)) as unknown as Fetch);
-    await expect(provider.lookup(CHANNEL_ID)).rejects.toMatchObject({ statusCode: 400 });
+    await expect(provider.lookup('@nobody')).rejects.toMatchObject({ statusCode: 400 });
+    const noId = new YoutubeProvider((async () => response('<html></html>')) as unknown as Fetch);
+    await expect(noId.lookup('@nobody')).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('tells a deleted channel from an outage, per channel', async () => {
+  it('takes a failing feed as an outage, per channel', async () => {
     const fetchImpl = (async (url: string | URL | Request) =>
       String(url).includes('UCgone') ? response('', 404) : String(url).includes('UCdown') ? response('', 503) : response(feed)) as unknown as Fetch;
     const result = await new YoutubeProvider(fetchImpl).latest(['UCgone', 'UCdown', CHANNEL_ID]);
 
-    expect(result.get('UCgone')).toMatchObject({ kind: 'notFound' });
+    expect(result.get('UCgone')).toMatchObject({ kind: 'unavailable' });
     expect(result.get('UCdown')).toMatchObject({ kind: 'unavailable' });
     expect(result.get(CHANNEL_ID)).toHaveLength(2);
   });
@@ -139,6 +162,11 @@ describe('backoffMs', () => {
 });
 
 describe('announcementBody', () => {
+  it('writes numbers with a format in the guild language', () => {
+    const body = announcementBody({ message: { content: '{item.price:number}' }, mentionRoleId: null }, { 'item.price': 538270 }, 'ru');
+    expect(body.content?.replace(/\s/g, ' ')).toBe('538 270');
+  });
+
   it('prepends the subscription role and allows mentioning only it', () => {
     const body = announcementBody(
       { message: { content: 'New: {video.title}', allowedMentions: { users: true, roles: true, everyone: true } }, mentionRoleId: '9' },
