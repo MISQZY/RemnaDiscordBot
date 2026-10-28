@@ -1,5 +1,6 @@
 import type { EmbedTemplate, MessageTemplate } from '@bot/contracts';
 import type { APIEmbed } from 'discord-api-types/v10';
+import { formatValue } from './format.js';
 
 /** Placeholder values: `{ 'user.mention': '<@1>', level: 5 }`. */
 export type TemplateVars = Record<string, string | number | null | undefined>;
@@ -11,8 +12,12 @@ export interface RenderedMessage {
   allowedMentions: { parse: ('users' | 'roles' | 'everyone')[] };
 }
 
-/** `{key}` or `{key.sub}`: keys of letters (any script), digits and `_`, starting with a letter. */
-const PLACEHOLDER = /\{(\p{L}[\p{L}\p{N}_]*(?:\.\p{L}[\p{L}\p{N}_]*)*)\}/gu;
+/**
+ * `{key}` or `{key.sub}`: keys of letters (any script), digits and `_`, starting with a letter; then any formats of
+ * the value, each after a `:` (`{price:number}`, `{change:fixed1:signed}`, `{day:dd.mm.yyyy}`, see format.ts). A date mask
+ * may hold `.` `/` `-` `_` and spaces.
+ */
+const PLACEHOLDER = /\{(\p{L}[\p{L}\p{N}_]*(?:\.\p{L}[\p{L}\p{N}_]*)*)((?::[a-z][a-z0-9./_ -]*)*)\}/gu;
 
 const LIMITS = {
   content: 2000,
@@ -26,12 +31,22 @@ const LIMITS = {
   embedsTotal: 6000,
 };
 
-/** Substitutes values; unknown placeholders stay as they are. No code is executed. */
-export function renderText(text: string, vars: TemplateVars, value: (key: string, value: string) => string = (_, v) => v): string {
-  return text.replace(PLACEHOLDER, (match, key: string) => {
+/**
+ * Substitutes values; unknown placeholders, and ones with a format the bot does not know, stay as they are. No code is
+ * executed. Numbers are formatted the `locale`'s way (English without one).
+ */
+export function renderText(
+  text: string,
+  vars: TemplateVars,
+  value: (key: string, value: string) => string = (_, v) => v,
+  locale?: string,
+): string {
+  return text.replace(PLACEHOLDER, (match, key: string, formats: string) => {
     // Own keys only: `{constructor}` must not reach prototype properties.
     const raw = Object.hasOwn(vars, key) ? vars[key] : undefined;
-    return raw === undefined || raw === null ? match : value(key, String(raw));
+    if (raw === undefined || raw === null) return match;
+    const shown = formats ? formatValue(raw, formats.slice(1).split(':'), locale) : String(raw);
+    return shown === null ? match : value(key, shown);
   });
 }
 
@@ -51,10 +66,11 @@ function truncate(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
 
-function renderEmbed(embed: EmbedTemplate, vars: TemplateVars): APIEmbed {
-  const text = (value: string | undefined, max: number) => (value === undefined ? undefined : truncate(renderText(value, vars), max));
+function renderEmbed(embed: EmbedTemplate, vars: TemplateVars, locale?: string): APIEmbed {
+  const render = (value: string) => renderText(value, vars, undefined, locale);
+  const text = (value: string | undefined, max: number) => (value === undefined ? undefined : truncate(render(value), max));
   const url = (value: string | undefined) => {
-    const rendered = value === undefined ? undefined : renderText(value, vars);
+    const rendered = value === undefined ? undefined : render(value);
     return rendered && /^https?:\/\//.test(rendered) ? rendered : undefined;
   };
 
@@ -93,21 +109,25 @@ function embedLength(embed: APIEmbed): number {
  *
  * Only the template's own text and the bot's mention values ping: the other values are made inert
  * (`inertMentions`). `mentionKeys` — more keys whose values are mentions the bot resolved (a command's user or role
- * options).
+ * options). `locale` — how numbers with a format are written (the guild's language).
  */
-export function renderMessage(template: MessageTemplate, vars: TemplateVars, { mentionKeys = [] }: { mentionKeys?: readonly string[] } = {}): RenderedMessage {
+export function renderMessage(
+  template: MessageTemplate,
+  vars: TemplateVars,
+  { mentionKeys = [], locale }: { mentionKeys?: readonly string[]; locale?: string } = {},
+): RenderedMessage {
   const mentions = template.allowedMentions ?? { users: true, roles: false, everyone: false };
   const everyone = mentions.everyone;
   const here = mentions.here ?? mentions.everyone;
   const value = (key: string, text: string) => (MENTION_KEY.test(key) || mentionKeys.includes(key) ? text : inertMentions(text));
   const content = template.content
-    ? truncate(defuseMentions(renderText(template.content, vars, value), { everyone, here }), LIMITS.content)
+    ? truncate(defuseMentions(renderText(template.content, vars, value, locale), { everyone, here }), LIMITS.content)
     : undefined;
 
   const embeds: APIEmbed[] = [];
   let total = 0;
   for (const embed of template.embeds ?? []) {
-    const rendered = renderEmbed(embed, vars);
+    const rendered = renderEmbed(embed, vars, locale);
     total += embedLength(rendered);
     if (total > LIMITS.embedsTotal) break;
     embeds.push(rendered);
