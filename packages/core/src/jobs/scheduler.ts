@@ -35,7 +35,19 @@ export class Scheduler {
       lastError: null,
     };
     if (!key) return this.db.scheduledAction.create({ data });
-    return this.db.scheduledAction.upsert({ where: { key }, create: { ...data, key }, update: data });
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await this.db.$transaction(async (tx) => {
+          // Always retire the old ID: a worker may claim a pending row while it is being replaced.
+          await tx.scheduledAction.updateMany({ where: { key }, data: { key: null, doneAt: new Date() } });
+          return tx.scheduledAction.create({ data: { ...data, key } });
+        });
+      } catch (err) {
+        // Two first schedules can race on the unique key. Retry the entire replacement transaction.
+        const retry = typeof err === 'object' && err !== null && 'code' in err && (err.code === 'P2002' || err.code === 'P2034');
+        if (!retry || attempt >= 3) throw err;
+      }
+    }
   }
 
   /** Cancels a job that has not run yet. Returns whether it existed. */

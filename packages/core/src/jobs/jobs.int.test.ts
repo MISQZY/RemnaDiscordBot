@@ -120,13 +120,32 @@ describe('scheduler and job runner', () => {
     await services.config.update(GUILD, 'giveaways', { enabled: false });
   });
 
+  it('keeps a repeating job pending after the previous invocation completes', async () => {
+    const key = 'messages:scheduled:regression';
+    const repeating = defineModule({
+      id: 'messages', configSchema: z.object({}), defaultConfig: {}, configVersion: 1,
+      jobs: { scheduled: { whenDisabled: 'run', run: async (_payload, ctx) => {
+        await ctx.scheduler.schedule({ guildId: GUILD, moduleId: 'messages', job: 'scheduled', payload: {}, runAt: new Date(Date.now() + 3_600_000), key });
+      } } },
+    });
+    const runner = new JobRunner(services, new ModuleRegistry([repeating]));
+    const first = await services.scheduler.schedule({ guildId: GUILD, moduleId: 'messages', job: 'scheduled', payload: {}, runAt: past(), key });
+    expect(await runner.tick()).toBe(1);
+    const next = await database.db.scheduledAction.findUniqueOrThrow({ where: { key } });
+    expect(next.id).not.toBe(first.id);
+    expect(next.doneAt).toBeNull();
+    expect(next.lockedUntil).toBeNull();
+    expect((await database.db.scheduledAction.findUniqueOrThrow({ where: { id: first.id } })).doneAt).not.toBeNull();
+    expect(await runner.tick()).toBe(0);
+  });
+
   it('replaces and cancels jobs by key', async () => {
     const schedule = (userId: string) =>
       services.scheduler.schedule({ guildId: GUILD, moduleId: 'moderation', job: 'unban', payload: { userId }, runAt: past(), key: 'unban:5' });
     await schedule('first');
     await schedule('second');
 
-    expect(await database.db.scheduledAction.count()).toBe(1);
+    expect(await database.db.scheduledAction.count({ where: { key: 'unban:5', doneAt: null } })).toBe(1);
     expect(await services.scheduler.cancel('unban:5')).toBe(true);
     expect(await services.scheduler.cancel('unban:5')).toBe(false);
   });
