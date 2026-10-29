@@ -1,5 +1,5 @@
 import { ModuleConfigPatch, ModuleConfigReplace, ModuleId, ModuleInfo, ModuleState, Snowflake } from '@bot/contracts';
-import { HttpError, moduleServices, UnknownModuleError, type AnyModule, type ConfigPatch, type ResolvedConfig } from '@bot/core';
+import { ConfigConflictError, HttpError, moduleServices, UnknownModuleError, type AnyModule, type ConfigPatch, type ResolvedConfig } from '@bot/core';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod, ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -70,7 +70,14 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
     }
 
     const userId = requireSession(request).userId;
-    const updated = await config.update(guildId, moduleId, patch, userId);
+    let updated: ResolvedConfig;
+    try {
+      // Validate the version used for merge and reference checks at the database write, too.
+      updated = await config.update(guildId, moduleId, patch, userId, current.updatedAt);
+    } catch (err) {
+      if (err instanceof ConfigConflictError) throw ApiError.preconditionFailed();
+      throw err;
+    }
     const diff = {
       before: { enabled: current.enabled, config: current.config },
       after: { enabled: updated.enabled, config: updated.config },

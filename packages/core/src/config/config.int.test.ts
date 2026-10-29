@@ -32,6 +32,19 @@ describe('ConfigService with database and Redis', () => {
     await database.cleanup();
   });
 
+  it('rejects a stale snapshot from another process at the database write', async () => {
+    const first = createService(database, createTestRedis());
+    const second = createService(database, createTestRedis());
+    const guildId = '333333333333333333';
+    await first.update(guildId, 'leveling', { config: { xpPerMessage: 10, announce: true } });
+    const snapshot = await second.get(guildId, 'leveling');
+    await first.update(guildId, 'leveling', { config: { xpPerMessage: 20, announce: true } });
+    await expect(second.update(guildId, 'leveling', { config: { xpPerMessage: 30, announce: true } }, 'admin', snapshot.updatedAt))
+      .rejects.toThrow('Module config changed');
+    const row = await database.db.guildModuleConfig.findUniqueOrThrow({ where: { guildId_moduleId: { guildId, moduleId: 'leveling' } } });
+    expect(row.config).toEqual({ xpPerMessage: 20, announce: true });
+  });
+
   it('persists updates and creates the guild row', async () => {
     const service = createService(database, createTestRedis());
 

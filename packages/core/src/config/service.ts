@@ -104,6 +104,7 @@ export class ConfigService {
     moduleId: string,
     patch: ConfigPatch,
     updatedBy?: string,
+    expectedUpdatedAt?: string | null,
   ): Promise<ResolvedConfig<T>> {
     const module = this.requireModule(moduleId);
     // Saving the config of a module locked for want of VIP keeps it on for when VIP is back.
@@ -118,6 +119,7 @@ export class ConfigService {
       moduleId,
       { enabled, config, version: module.configVersion },
       updatedBy,
+      expectedUpdatedAt === undefined ? current.updatedAt : expectedUpdatedAt,
     );
     await this.options.sharedCache?.delete(guildId, moduleId);
     this.invalidate({ guildId, moduleId });
