@@ -50,6 +50,44 @@ describe('guild routes', () => {
     expect(t.oauth.guildRequests - before).toBe(1);
   });
 
+  it('manually refreshes guilds and permissions despite a fresh cached list', async () => {
+    await get('/v1/me/guilds');
+    const before = t.oauth.guildRequests;
+    const original = t.oauth.guilds;
+    t.oauth.guilds = original.map((guild) => guild.id === GUILD_ID ? { ...guild, name: 'Renamed', permissions: '0' } : guild);
+    try {
+      expect((await get('/v1/me/guilds')).json().find((g: { id: string }) => g.id === GUILD_ID)).toMatchObject({ name: 'Managed', canManage: true });
+      const refreshed = await get('/v1/me/guilds?refresh=1');
+      expect(refreshed.statusCode).toBe(200);
+      expect(refreshed.json().find((g: { id: string }) => g.id === GUILD_ID)).toMatchObject({ name: 'Renamed', canManage: false });
+      expect(t.oauth.guildRequests - before).toBe(1);
+      expect((await get('/v1/me/guilds')).json().find((g: { id: string }) => g.id === GUILD_ID)).toMatchObject({ name: 'Renamed', canManage: false });
+    } finally {
+      t.oauth.guilds = original;
+    }
+  });
+
+  it('shares simultaneous forced refreshes', async () => {
+    await get('/v1/me/guilds');
+    const before = t.oauth.guildRequests;
+    const responses = await Promise.all([get('/v1/me/guilds?refresh=1'), get('/v1/me/guilds?refresh=1')]);
+    expect(responses.map((r) => r.statusCode)).toEqual([200, 200]);
+    expect(t.oauth.guildRequests - before).toBe(1);
+  });
+
+  it('reports a failed manual refresh and preserves the last cached list for normal reads', async () => {
+    const cached = (await get('/v1/me/guilds')).json();
+    t.oauth.guildsRateLimited = true;
+    try {
+      const refreshed = await get('/v1/me/guilds?refresh=1');
+      expect(refreshed.statusCode).toBe(429);
+      expect(refreshed.json()).toMatchObject({ error: { code: 'RATE_LIMITED' } });
+      expect((await get('/v1/me/guilds')).json()).toEqual(cached);
+    } finally {
+      t.oauth.guildsRateLimited = false;
+    }
+  });
+
   it('asks Discord once for requests at the same time', async () => {
     const before = t.oauth.guildRequests;
     const responses = await Promise.all(

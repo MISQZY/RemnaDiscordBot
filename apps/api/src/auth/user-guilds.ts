@@ -55,8 +55,8 @@ export class UserGuildService {
     }
   }
 
-  async list(session: Session): Promise<UserGuild[]> {
-    const guilds = await this.discordGuilds(session, { stale: true });
+  async list(session: Session, { refresh = false } = {}): Promise<UserGuild[]> {
+    const guilds = await this.discordGuilds(session, { stale: !refresh, refresh });
     const present = await this.snapshots.presentMany(guilds.map((guild) => guild.id));
     const result = guilds.map((guild, i) => toUserGuild(guild, present[i]!));
     // Manageable guilds first, then by name.
@@ -69,8 +69,8 @@ export class UserGuildService {
     return guild && toUserGuild(guild, await this.snapshots.isPresent(guildId));
   }
 
-  private async discordGuilds(session: Session, { stale }: { stale: boolean }): Promise<DiscordPartialGuild[]> {
-    const cached = await this.redis.get(RedisKeys.userGuilds(session.userId));
+  private async discordGuilds(session: Session, { stale, refresh = false }: { stale: boolean; refresh?: boolean }): Promise<DiscordPartialGuild[]> {
+    const cached = refresh ? null : await this.redis.get(RedisKeys.userGuilds(session.userId));
     if (cached) return JSON.parse(cached) as DiscordPartialGuild[];
 
     let pending = this.fetching.get(session.userId);

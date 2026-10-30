@@ -26,11 +26,12 @@ export function meRoutes(userGuilds: UserGuildService): FastifyPluginAsyncZod {
         schema: {
           tags: ['me'],
           summary: "User's guilds",
-          description: 'Guilds the user can manage come first. Cached for a minute.',
+          description: 'Guilds the user can manage come first. Cached for a minute; ?refresh=1 asks Discord again.',
+          querystring: z.object({ refresh: z.literal('1').optional() }),
           response: { 200: z.array(UserGuild) },
         },
       },
-      async (request) => userGuilds.list(requireSession(request)),
+      async (request) => userGuilds.list(requireSession(request), { refresh: request.query.refresh === '1' }),
     );
   };
 }
