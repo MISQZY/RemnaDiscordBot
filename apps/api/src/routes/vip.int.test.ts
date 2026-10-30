@@ -1,4 +1,4 @@
-import { defineModule } from '@bot/core';
+import { defineModule, RedisKeys } from '@bot/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createTestApp, GUILD_ID, login, seedGuildSnapshot, TEST_CLIENT, type TestApp } from '../testing/app.js';
@@ -30,6 +30,33 @@ describe('VIP routes', () => {
   it('takes the state only from a known client', async () => {
     expect((await putVip({ modules: [], guilds: [] }, basic('x'.repeat(40)))).statusCode).toBe(401);
     expect((await putVip({ modules: [], guilds: [] })).statusCode).toBe(204);
+  });
+
+  it('keeps the complete guild list private to authenticated dashboard clients', async () => {
+    const url = '/v1/vip/guilds';
+    expect((await t.app.inject(url)).statusCode).toBe(401);
+    expect((await t.app.inject({ url, headers: { cookie } })).statusCode).toBe(401);
+    expect((await t.app.inject({ url, headers: { authorization: basic('wrong') } })).statusCode).toBe(401);
+    expect((await t.app.inject({ url: `${url}/${GUILD_ID}`, headers: { cookie } })).statusCode).toBe(401);
+  });
+
+  it('lists connected guilds even without VIP, and verifies a binding target', async () => {
+    await t.deps.db.guild.upsert({ where: { id: GUILD_ID }, create: { id: GUILD_ID }, update: { leftAt: null } });
+    const gone = '400000000000000004';
+    const missing = '500000000000000005';
+    await t.deps.db.guild.createMany({ data: [{ id: gone, leftAt: new Date() }, { id: missing }] });
+    await seedGuildSnapshot(t, gone);
+    const headers = { authorization: basic() };
+    const list = await t.app.inject({ url: '/v1/vip/guilds', headers });
+    expect(list.statusCode).toBe(200);
+    expect(list.json()).toEqual([{ id: GUILD_ID, name: 'Test guild', icon: null, memberCount: 10 }]);
+    const detail = await t.app.inject({ url: `/v1/vip/guilds/${GUILD_ID}`, headers });
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json()).toEqual(list.json()[0]);
+    expect((await t.app.inject({ url: `/v1/vip/guilds/${gone}`, headers })).statusCode).toBe(403);
+    expect((await t.app.inject({ url: `/v1/vip/guilds/${missing}`, headers })).statusCode).toBe(403);
+    await t.redis.del(RedisKeys.guildMeta(gone));
+    await t.deps.db.guild.deleteMany({ where: { id: { in: [gone, missing] } } });
   });
 
   it('locks VIP modules until the guild has VIP', async () => {
