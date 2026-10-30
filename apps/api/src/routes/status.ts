@@ -25,7 +25,13 @@ export function statusRoutes({ redis }: ApiDeps): FastifyPluginAsyncZod {
         const keys = await scanKeys(redis, RedisKeys.clusterHeartbeatPattern);
         const values = keys.length > 0 ? await redis.mget(...keys) : [];
         const clusters = values
-          .map((raw) => (raw ? ClusterHeartbeat.safeParse(JSON.parse(raw)) : null))
+          .map((raw) => {
+            try {
+              return raw ? ClusterHeartbeat.safeParse(JSON.parse(raw)) : null;
+            } catch {
+              return null;
+            }
+          })
           .filter((parsed) => parsed?.success)
           .map((parsed) => parsed!.data!)
           .sort((a, b) => a.clusterId - b.clusterId);
