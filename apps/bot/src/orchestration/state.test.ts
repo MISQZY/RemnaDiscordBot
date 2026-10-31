@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { control } from './control.js';
+import { control, statusReport } from './control.js';
 import { assertTopology, COOLDOWN_MS, LEASE_MS, newState, NODE_TTL_MS, plan, reportNode, shardsFor, type NodeReport, type State } from './state.js';
 
 const topology = { totalShards: 4, shardsPerCluster: 1 };
@@ -15,6 +15,21 @@ function fixture(): State {
 }
 
 describe('dynamic cluster ownership', () => {
+  it('whitelists topology fields at creation, repair and CLI output', () => {
+    const runtimeOptions = { ...topology, redisUrl: 'redis://:test-secret@localhost:6379', nodeId: 'private-node' };
+    const state = newState(runtimeOptions, now);
+    expect(state.topology).toEqual(topology);
+    // Simulate state created by the previous release, including a still-active lease.
+    state.topology = runtimeOptions;
+    state.leases['0'] = { node: 'a', session: 'session', token: 'ownership-token', expiresAt: now + LEASE_MS };
+    const output = JSON.stringify(statusReport(state, now));
+    expect(output).not.toContain('test-secret');
+    expect(output).not.toContain('redisUrl');
+    expect(output).not.toContain('ownership-token');
+    assertTopology(state, topology);
+    expect(state.topology).toEqual(topology);
+    expect(state.leases['0']!.token).toBe('ownership-token');
+  });
   it('waits out old leases when Redis state is lost', () => {
     const state = newState(topology, now);
     reportNode(state, 'a', node('a1'), now);

@@ -63,6 +63,18 @@ describe.skipIf(!url)('orchestration on real Redis and OS processes', () => {
     expect(await redis.pttl(STATE_KEY)).toBe(-1);
   });
 
+  it('scrubs legacy topology credentials on write without losing ownership', async () => {
+    const state = newState(topology, Date.now());
+    state.topology = { ...topology, redisUrl: 'redis://:test-secret@localhost:6379' } as typeof topology;
+    state.leases['0'] = { node: 'a', session: 'session', token: 'ownership-token', expiresAt: Date.now() + LEASE_MS };
+    await redis.set(STATE_KEY, JSON.stringify(state));
+    await updateState(redis, (existing) => existing!);
+    const stored = await readState(redis);
+    expect(stored.state!.topology).toEqual(topology);
+    expect(stored.raw).not.toContain('test-secret');
+    expect(stored.state!.leases['0']!.token).toBe('ownership-token');
+  });
+
   it('moves only after the old OS process exits, and guards the new child on lost ownership', async () => {
     const options = { ...topology, redisUrl: url!, memoryBytes: 1024 * 1024 * 1024, cpuCores: 2, maxClusters: 8 };
     const firstManager = manager();

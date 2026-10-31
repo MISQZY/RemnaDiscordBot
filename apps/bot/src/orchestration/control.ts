@@ -1,5 +1,5 @@
 import { Redis } from 'ioredis';
-import { canAssign, NODE_TTL_MS, type State } from './state.js';
+import { canAssign, NODE_TTL_MS, topologyOf, type State } from './state.js';
 import { coordinationRedisOptions, readState, updateState } from './store.js';
 
 export function control(state: State, now: number, command: string, id?: string, target?: string): State {
@@ -28,6 +28,27 @@ export function control(state: State, now: number, command: string, id?: string,
   return state;
 }
 
+export function statusReport(state: State, now: number) {
+  return {
+    topology: topologyOf(state.topology), leader: state.leader?.node,
+    nodes: Object.entries(state.nodes).map(([node, report]) => ({
+      node, online: report.seenAt + NODE_TTL_MS > now, drained: state.drained.includes(node),
+      seenAgoMs: Math.max(0, now - report.seenAt),
+      memoryBudgetMb: report.memoryBytes / 1024 / 1024,
+      managerMemoryMb: report.overheadBytes / 1024 / 1024,
+      cpuBudgetCores: report.cpuCores, hostPressure: report.hostPressure,
+      maxClusters: report.maxClusters, clusters: report.clusters,
+      blockedClusters: Object.entries(report.blocked).filter(([, until]) => until > now).map(([cluster, until]) => ({ cluster: Number(cluster), remainingMs: until - now })),
+    })),
+    clusters: Array.from({ length: Math.ceil(state.topology.totalShards / state.topology.shardsPerCluster) }, (_, cluster) => ({
+      cluster, target: state.targets[String(cluster)] ?? null,
+      owner: state.leases[String(cluster)]?.node ?? null,
+      leaseRemainingMs: Math.max(0, (state.leases[String(cluster)]?.expiresAt ?? 0) - now),
+      eligibleNodes: Object.keys(state.nodes).filter((node) => canAssign(state, node, String(cluster), now)),
+    })),
+  };
+}
+
 async function main(): Promise<void> {
   const [command = 'status', id, target] = process.argv.slice(2);
   const url = process.env.REDIS_URL;
@@ -39,18 +60,7 @@ async function main(): Promise<void> {
     if (command === 'status') {
       const { state, now } = await readState(redis);
       if (!state) throw new Error('Dynamic orchestration has not started');
-      process.stdout.write(`${JSON.stringify({
-        topology: state.topology, leader: state.leader?.node,
-        nodes: Object.entries(state.nodes).map(([node, report]) => ({
-          node, online: report.seenAt + NODE_TTL_MS > now, drained: state.drained.includes(node),
-          memoryBudgetMb: report.memoryBytes / 1024 / 1024, maxClusters: report.maxClusters, clusters: report.clusters,
-        })),
-        clusters: Array.from({ length: Math.ceil(state.topology.totalShards / state.topology.shardsPerCluster) }, (_, cluster) => ({
-          cluster, target: state.targets[String(cluster)] ?? null,
-          owner: state.leases[String(cluster)]?.node ?? null,
-          leaseRemainingMs: Math.max(0, (state.leases[String(cluster)]?.expiresAt ?? 0) - now),
-        })),
-      }, null, 2)}\n`);
+      process.stdout.write(`${JSON.stringify(statusReport(state, now), null, 2)}\n`);
     } else {
       await updateState(redis, (state, now) => {
         if (!state) throw new Error('Dynamic orchestration has not started');

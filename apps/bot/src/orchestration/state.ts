@@ -44,6 +44,11 @@ export interface Topology {
   shardsPerCluster: number;
 }
 
+/** Runtime options can include credentials; only these two fields may enter shared topology. */
+export function topologyOf({ totalShards, shardsPerCluster }: Topology): Topology {
+  return { totalShards, shardsPerCluster };
+}
+
 export interface State {
   topology: Topology;
   /** A missing Redis state waits out every lease before allowing a new owner. */
@@ -57,13 +62,15 @@ export interface State {
 }
 
 export function newState(topology: Topology, now: number): State {
-  return { topology, notBefore: now + LEASE_MS, nodes: {}, drained: [], targets: {}, leases: {}, lastMoveAt: now };
+  return { topology: topologyOf(topology), notBefore: now + LEASE_MS, nodes: {}, drained: [], targets: {}, leases: {}, lastMoveAt: now };
 }
 
 export function assertTopology(state: State, topology: Topology): void {
   if (state.topology.totalShards !== topology.totalShards || state.topology.shardsPerCluster !== topology.shardsPerCluster) {
     throw new Error('Sharding topology differs from Redis. Stop every bot before resetting orchestration state.');
   }
+  // Repair legacy state in place without discarding live ownership or restarting clusters.
+  state.topology = topologyOf(state.topology);
 }
 
 export function shardsFor(cluster: number, topology: Topology): number[] {

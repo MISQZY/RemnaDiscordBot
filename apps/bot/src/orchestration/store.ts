@@ -1,5 +1,5 @@
 import type { Redis } from 'ioredis';
-import { STATE_KEY, type State } from './state.js';
+import { STATE_KEY, topologyOf, type State } from './state.js';
 
 const READ = `
 local clock = redis.call('TIME')
@@ -24,6 +24,7 @@ export async function updateState(redis: Redis, mutate: (state: State | null, no
   for (let attempt = 0; attempt < 20; attempt++) {
     const { raw, state, now } = await readState(redis);
     const next = mutate(state, now);
+    next.topology = topologyOf(next.topology);
     if (await redis.eval(CAS, 1, STATE_KEY, raw, JSON.stringify(next), String(now))) return next;
   }
   throw new Error('Orchestration state contention or slow Redis; retry next tick');
