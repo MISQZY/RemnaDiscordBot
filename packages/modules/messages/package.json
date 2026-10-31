@@ -21,7 +21,6 @@
     "@bot/contracts": "workspace:*",
     "@bot/core": "workspace:*",
     "@bot/db": "workspace:*",
-    "@bot/discord": "workspace:*",
     "@bot/i18n": "workspace:*",
     "@bot/templates": "workspace:*",
     "discord.js": "14.27.0",

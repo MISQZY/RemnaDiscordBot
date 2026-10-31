@@ -438,12 +438,6 @@ importers:
       '@bot/core':
         specifier: workspace:*
         version: link:../../core
-      '@bot/db':
-        specifier: workspace:*
-        version: link:../../db
-      '@bot/discord':
-        specifier: workspace:*
-        version: link:../../discord
       '@bot/i18n':
         specifier: workspace:*
         version: link:../../i18n
@@ -586,9 +580,6 @@ importers:
       '@bot/db':
         specifier: workspace:*
         version: link:../../db
-      '@bot/discord':
-        specifier: workspace:*
-        version: link:../../discord
       '@bot/i18n':
         specifier: workspace:*
         version: link:../../i18n
@@ -623,9 +614,6 @@ importers:
       '@bot/core':
         specifier: workspace:*
         version: link:../../core
-      '@bot/db':
-        specifier: workspace:*
-        version: link:../../db
       '@bot/discord':
         specifier: workspace:*
         version: link:../../discord
@@ -706,9 +694,6 @@ importers:
       '@bot/db':
         specifier: workspace:*
         version: link:../../db
-      '@bot/discord':
-        specifier: workspace:*
-        version: link:../../discord
       '@bot/i18n':
         specifier: workspace:*
         version: link:../../i18n
@@ -860,12 +845,6 @@ importers:
       '@bot/core':
         specifier: workspace:*
         version: link:../../core
-      '@bot/db':
-        specifier: workspace:*
-        version: link:../../db
-      '@bot/discord':
-        specifier: workspace:*
-        version: link:../../discord
       '@bot/i18n':
         specifier: workspace:*
         version: link:../../i18n
@@ -900,9 +879,6 @@ importers:
       '@bot/core':
         specifier: workspace:*
         version: link:../../core
-      '@bot/db':
-        specifier: workspace:*
-        version: link:../../db
       '@bot/discord':
         specifier: workspace:*
         version: link:../../discord
@@ -980,12 +956,6 @@ importers:
       '@bot/core':
         specifier: workspace:*
         version: link:../../core
-      '@bot/db':
-        specifier: workspace:*
-        version: link:../../db
-      '@bot/discord':
-        specifier: workspace:*
-        version: link:../../discord
       '@bot/i18n':
         specifier: workspace:*
         version: link:../../i18n
@@ -1060,9 +1030,6 @@ importers:
       '@bot/core':
         specifier: workspace:*
         version: link:../../core
-      '@bot/db':
-        specifier: workspace:*
-        version: link:../../db
       '@bot/discord':
         specifier: workspace:*
         version: link:../../discord
