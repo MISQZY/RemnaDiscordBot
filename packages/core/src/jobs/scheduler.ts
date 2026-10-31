@@ -39,7 +39,7 @@ export class Scheduler {
       try {
         return await this.db.$transaction(async (tx) => {
           // Always retire the old ID: a worker may claim a pending row while it is being replaced.
-          await tx.scheduledAction.updateMany({ where: { key }, data: { key: null, doneAt: new Date() } });
+          await tx.scheduledAction.updateMany({ where: { key }, data: { key: null, doneAt: new Date(), lastError: null } });
           return tx.scheduledAction.create({ data: { ...data, key } });
         });
       } catch (err) {
@@ -91,17 +91,18 @@ export class Scheduler {
 
   /** Retries a failed job: clears doneAt and lastError, resets attempts and schedules for now. */
   async retry(id: string): Promise<ScheduledAction | null> {
-    const existing = await this.db.scheduledAction.findUnique({ where: { id } });
-    if (!existing) return null;
-    return this.db.scheduledAction.update({
-      where: { id },
-      data: {
-        doneAt: null,
-        lastError: null,
-        attempts: 0,
-        runAt: new Date(),
-        lockedUntil: null,
-      },
+    return this.db.$transaction(async (tx) => {
+      const { count } = await tx.scheduledAction.updateMany({
+        where: { id, doneAt: { not: null }, lastError: { not: null }, lockedUntil: null },
+        data: {
+          doneAt: null,
+          lastError: null,
+          attempts: 0,
+          runAt: new Date(),
+          lockedUntil: null,
+        },
+      });
+      return count === 1 ? tx.scheduledAction.findUnique({ where: { id } }) : null;
     });
   }
 

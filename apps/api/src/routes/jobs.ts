@@ -2,6 +2,7 @@ import { FailedJobItem, FailedJobsPage, Snowflake } from '@bot/contracts';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { authenticateClient } from '../auth/link-clients.js';
+import type { Session } from '../auth/sessions.js';
 import type { UserGuildService } from '../auth/user-guilds.js';
 import type { ApiDeps } from '../deps.js';
 import { ApiError } from '../errors.js';
@@ -11,7 +12,7 @@ export function jobsRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fastify
     const isClient = (authorization: string | undefined) =>
       Boolean(authenticateClient(deps.options.linkClients, authorization));
 
-    const checkAccess = async (authorization: string | undefined, session: any, guildId?: string) => {
+    const checkAccess = async (authorization: string | undefined, session: Session | null | undefined, guildId?: string) => {
       if (isClient(authorization)) return;
       if (!session) throw ApiError.unauthorized();
       if (!guildId) throw ApiError.forbidden('Global failed jobs list requires client authentication');
@@ -85,7 +86,7 @@ export function jobsRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fastify
         await checkAccess(request.headers.authorization, request.session, existing.guildId);
 
         const retried = await deps.scheduler.retry(existing.id);
-        if (!retried) throw ApiError.notFound('Job not found');
+        if (!retried) throw ApiError.conflict('Only permanently failed jobs can be retried');
 
         const meta = await deps.snapshots.getMeta(retried.guildId);
         return {

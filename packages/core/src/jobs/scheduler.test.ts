@@ -17,9 +17,15 @@ function setup() {
       rows.push(made);
       return made;
     },
-    updateMany: async ({ where }: { where: { key: string } }) => {
-      const matching = rows.filter((r) => r.key === where.key);
-      for (const row of matching) { row.key = null; row.doneAt = new Date(); }
+    updateMany: async ({ where, data }: { where: { key?: string; id?: string; doneAt?: { not: null }; lastError?: { not: null }; lockedUntil?: null }; data: object }) => {
+      const matching = rows.filter((r) =>
+        (where.key === undefined || r.key === where.key) &&
+        (where.id === undefined || r.id === where.id) &&
+        (!where.doneAt || r.doneAt !== null) &&
+        (!where.lastError || r.lastError != null) &&
+        (where.lockedUntil === undefined || r.lockedUntil === null),
+      );
+      for (const row of matching) Object.assign(row, data);
       return { count: matching.length };
     },
     update: async ({ where, data }: { where: { id: string }; data: object }) => Object.assign(rows.find((r) => r.id === where.id)!, data),
@@ -130,6 +136,17 @@ describe('keyed job successors', () => {
 });
 
 describe('failed jobs management', () => {
+  it('does not retry pending, completed or already retried jobs', async () => {
+    const { scheduler, schedule } = setup();
+    const action = await schedule();
+    expect(await scheduler.retry(action.id)).toBeNull();
+    await scheduler.complete(action.id);
+    expect(await scheduler.retry(action.id)).toBeNull();
+    await scheduler.fail(action.id, 'Failed', null);
+    expect(await scheduler.retry(action.id)).not.toBeNull();
+    expect(await scheduler.retry(action.id)).toBeNull();
+  });
+
   it('finds failed jobs, retries and cancels them', async () => {
     const { rows, scheduler, schedule } = setup();
     const action = await schedule();
