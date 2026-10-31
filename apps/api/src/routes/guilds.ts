@@ -22,13 +22,22 @@ import { requireSession } from '../plugins/session.js';
 
 const GuildParams = z.object({ guildId: Snowflake });
 
-async function readSettings(db: PrismaClient, guildId: string): Promise<GuildSettings> {
+export function guildSettingsEtag(updatedAt: Date | string | null | undefined): string {
+  if (!updatedAt) return '"default"';
+  return `"${typeof updatedAt === 'string' ? updatedAt : updatedAt.toISOString()}"`;
+}
+
+async function readSettings(db: PrismaClient, guildId: string): Promise<{ settings: GuildSettings; updatedAt: Date | null }> {
   const guild = await db.guild.findUnique({ where: { id: guildId } });
   const modRoleIds = z.array(Snowflake).safeParse(guild?.modRoleIds);
   return {
-    locale: guild?.locale === 'en' ? 'en' : 'ru',
-    timezone: guild?.timezone ?? 'Europe/Moscow',
-    modRoleIds: modRoleIds.success ? modRoleIds.data : [],
+    settings: {
+      locale: guild?.locale === 'en' ? 'en' : 'ru',
+      timezone: guild?.timezone ?? 'Europe/Moscow',
+      modRoleIds: modRoleIds.success ? modRoleIds.data : [],
+      updatedAt: guild?.updatedAt?.toISOString() ?? null,
+    },
+    updatedAt: guild?.updatedAt ?? null,
   };
 }
 
@@ -40,11 +49,13 @@ export function guildRoutes({ db, redis, snapshots, guildLocales, config, option
     app.get(
       '/v1/guilds/:guildId',
       { schema: { tags: ['guilds'], summary: 'Guild and its general settings', params: GuildParams, response: { 200: GuildOverview } } },
-      async (request) => {
+      async (request, reply) => {
         const { guildId } = request.params;
         const meta = await snapshots.getMeta(guildId);
         if (!meta) throw ApiError.botNotInGuild();
-        return { meta, settings: await readSettings(db, guildId), vip: config.vip.of(guildId) };
+        const { settings, updatedAt } = await readSettings(db, guildId);
+        reply.header('etag', guildSettingsEtag(updatedAt));
+        return { meta, settings, vip: config.vip.of(guildId) };
       },
     );
 
@@ -60,9 +71,10 @@ export function guildRoutes({ db, redis, snapshots, guildLocales, config, option
         },
         config: { rateLimit: GUILD_WRITE_LIMIT },
       },
-      async (request) => {
+      async (request, reply) => {
         const { guildId } = request.params;
         const patch = request.body;
+        const ifMatch = request.headers['if-match'];
 
         if (patch.modRoleIds) {
           const roles = new Set((await snapshots.getRoles(guildId))?.map((role) => role.id));
@@ -75,13 +87,44 @@ export function guildRoutes({ db, redis, snapshots, guildLocales, config, option
           }
         }
 
-        const before = await readSettings(db, guildId);
-        const after = { ...before, ...patch };
-        await db.guild.upsert({
-          where: { id: guildId },
-          create: { id: guildId, ...after },
-          update: after,
+        const { settings: before, updatedAt: currentUpdatedAt } = await readSettings(db, guildId);
+        const currentEtag = guildSettingsEtag(currentUpdatedAt);
+        if (ifMatch && ifMatch !== '*' && ifMatch !== currentEtag) {
+          throw ApiError.preconditionFailed();
+        }
+
+        const after = {
+          locale: patch.locale ?? before.locale,
+          timezone: patch.timezone ?? before.timezone,
+          modRoleIds: patch.modRoleIds ?? before.modRoleIds,
+        };
+
+        const updatedGuild = await db.$transaction(async (tx) => {
+          const newUpdatedAt = new Date(Math.max(Date.now(), currentUpdatedAt ? currentUpdatedAt.getTime() + 1 : 0));
+          if (currentUpdatedAt === null) {
+            return await tx.guild.upsert({
+              where: { id: guildId },
+              create: { id: guildId, ...after, updatedAt: newUpdatedAt },
+              update: { ...after, updatedAt: newUpdatedAt },
+            });
+          }
+
+          const { count } = await tx.guild.updateMany({
+            where: { id: guildId, updatedAt: currentUpdatedAt },
+            data: { ...after, updatedAt: newUpdatedAt },
+          });
+          if (count !== 1) throw ApiError.preconditionFailed();
+
+          return await tx.guild.findUniqueOrThrow({ where: { id: guildId } });
         });
+
+        const resultSettings: GuildSettings = {
+          locale: updatedGuild.locale === 'en' ? 'en' : 'ru',
+          timezone: updatedGuild.timezone,
+          modRoleIds: z.array(Snowflake).safeParse(updatedGuild.modRoleIds).data ?? [],
+          updatedAt: updatedGuild.updatedAt.toISOString(),
+        };
+
         // All processes read the language and other general settings — invalidate their caches.
         guildLocales.invalidate(guildId);
         await publishConfigInvalidation(redis, { guildId });
@@ -89,9 +132,11 @@ export function guildRoutes({ db, redis, snapshots, guildLocales, config, option
           guildId,
           userId: requireSession(request).userId,
           action: 'guild.update',
-          diff: { before, after },
+          diff: { before, after: resultSettings },
         });
-        return after;
+
+        reply.header('etag', guildSettingsEtag(updatedGuild.updatedAt));
+        return resultSettings;
       },
     );
 

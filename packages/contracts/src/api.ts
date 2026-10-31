@@ -68,6 +68,7 @@ export const GuildSettings = z.object({
   locale: Locale,
   timezone: z.string(),
   modRoleIds: z.array(Snowflake),
+  updatedAt: z.string().nullable().optional(),
 });
 export type GuildSettings = z.infer<typeof GuildSettings>;
 

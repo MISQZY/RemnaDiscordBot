@@ -153,9 +153,11 @@ describe('guild routes', () => {
   });
 
   it('returns the guild overview and snapshots', async () => {
-    expect((await get(`/v1/guilds/${GUILD_ID}`)).json()).toEqual({
+    const res = await get(`/v1/guilds/${GUILD_ID}`);
+    expect(res.headers.etag).toBe('"default"');
+    expect(res.json()).toEqual({
       meta: expect.objectContaining({ id: GUILD_ID, name: 'Test guild' }),
-      settings: { locale: 'ru', timezone: 'Europe/Moscow', modRoleIds: [] },
+      settings: { locale: 'ru', timezone: 'Europe/Moscow', modRoleIds: [], updatedAt: null },
       vip: null,
     });
     expect((await get(`/v1/guilds/${GUILD_ID}/channels`)).json()).toEqual([expect.objectContaining({ id: CHANNEL_ID })]);
@@ -176,7 +178,13 @@ describe('guild routes', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ locale: 'en', timezone: 'Europe/Moscow', modRoleIds: [ROLE_ID] });
+    expect(response.headers.etag).toBeDefined();
+    expect(response.json()).toEqual({
+      locale: 'en',
+      timezone: 'Europe/Moscow',
+      modRoleIds: [ROLE_ID],
+      updatedAt: expect.any(String),
+    });
     expect((await get(`/v1/guilds/${GUILD_ID}`)).json()).toMatchObject({ settings: { locale: 'en' } });
     expect(await t.deps.guildLocales.get(GUILD_ID)).toBe('en');
     await vi.waitFor(() => expect(invalidated).toHaveBeenCalledWith({ guildId: GUILD_ID }));
@@ -184,6 +192,32 @@ describe('guild routes', () => {
 
     const audit = (await get(`/v1/guilds/${GUILD_ID}/audit`)).json();
     expect(audit.items[0]).toMatchObject({ action: 'guild.update', userId: TEST_USER.id });
+  });
+
+  it('enforces optimistic locking via If-Match / ETag', async () => {
+    const overview = await get(`/v1/guilds/${GUILD_ID}`);
+    const etag = overview.headers.etag as string;
+    expect(etag).toBeDefined();
+
+    // Outdated ETag returns 412
+    const conflict = await t.app.inject({
+      method: 'PATCH',
+      url: `/v1/guilds/${GUILD_ID}`,
+      headers: { cookie, 'if-match': '"2020-01-01T00:00:00.000Z"' },
+      payload: { locale: 'ru' },
+    });
+    expect(conflict.statusCode).toBe(412);
+    expect(conflict.json()).toMatchObject({ error: { code: 'PRECONDITION_FAILED' } });
+
+    // Matching ETag succeeds
+    const success = await t.app.inject({
+      method: 'PATCH',
+      url: `/v1/guilds/${GUILD_ID}`,
+      headers: { cookie, 'if-match': etag },
+      payload: { locale: 'ru' },
+    });
+    expect(success.statusCode).toBe(200);
+    expect(success.headers.etag).not.toBe(etag);
   });
 
   it('validates settings', async () => {

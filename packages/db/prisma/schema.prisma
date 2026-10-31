@@ -20,6 +20,7 @@ model Guild {
   joinedAt    DateTime  @default(now())
   /// The bot was removed from the server; data is cleaned up later by a maintenance job.
   leftAt      DateTime?
+  updatedAt   DateTime  @default(now()) @updatedAt
 
   modules GuildModuleConfig[]
 
