@@ -25,7 +25,7 @@ export interface ConfigStore {
   find(guildId: string, moduleId: string): Promise<StoredConfig | null>;
   findMany?(guildId: string, moduleIds?: string[]): Promise<Map<string, StoredConfig>>;
   save(guildId: string, moduleId: string, value: ConfigWrite, updatedBy?: string, expectedUpdatedAt?: string | null): Promise<StoredConfig>;
-  setApplied?(guildId: string, moduleId: string, applied: boolean, applyError: string | null): Promise<void>;
+  setApplied?(guildId: string, moduleId: string, applied: boolean, applyError: string | null, expectedUpdatedAt?: string | null): Promise<void>;
 }
 
 const SELECT = { enabled: true, config: true, version: true, updatedAt: true, applied: true, applyError: true } as const;
@@ -113,10 +113,14 @@ export class PrismaConfigStore implements ConfigStore {
     return toStored(row);
   }
 
-  async setApplied(guildId: string, moduleId: string, applied: boolean, applyError: string | null): Promise<void> {
-    await this.db.guildModuleConfig.update({
-      where: { guildId_moduleId: { guildId, moduleId } },
-      data: { applied, applyError },
+  async setApplied(guildId: string, moduleId: string, applied: boolean, applyError: string | null, expectedUpdatedAt?: string | null): Promise<void> {
+    const revision = expectedUpdatedAt === undefined ? (await this.find(guildId, moduleId))?.updatedAt : expectedUpdatedAt;
+    if (!revision) return;
+    const updatedAt = new Date(revision);
+    await this.db.guildModuleConfig.updateMany({
+      where: { guildId, moduleId, updatedAt },
+      // Applying a revision must neither change its ETag nor mark a newer config as applied.
+      data: { applied, applyError, updatedAt },
     });
   }
 }

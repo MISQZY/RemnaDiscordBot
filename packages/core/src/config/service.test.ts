@@ -89,7 +89,7 @@ describe('ConfigService', () => {
 
   it('falls back to defaults when stored config is invalid', async () => {
     const { service, store } = setup();
-    store.rows.set(`${GUILD}:leveling`, { enabled: true, config: { broken: true }, version: 1, updatedAt: STORED_AT });
+    store.rows.set(`${GUILD}:leveling`, { enabled: true, config: { broken: true }, version: 1, updatedAt: STORED_AT, applied: true, applyError: null });
 
     expect(await service.get(GUILD, 'leveling')).toEqual({
       enabled: true,
@@ -106,7 +106,7 @@ describe('ConfigService', () => {
       migrateConfig: (raw) => ({ ...(raw as object), announce: false }),
     });
     const { service, store } = setup([module]);
-    store.rows.set(`${GUILD}:leveling`, { enabled: true, config: { xpPerMessage: 5 }, version: 1, updatedAt: STORED_AT });
+    store.rows.set(`${GUILD}:leveling`, { enabled: true, config: { xpPerMessage: 5 }, version: 1, updatedAt: STORED_AT, applied: true, applyError: null });
 
     expect((await service.get(GUILD, 'leveling')).config).toEqual({ xpPerMessage: 5, announce: false });
   });
@@ -114,7 +114,7 @@ describe('ConfigService', () => {
   it('drops local cache on invalidation', async () => {
     const { service, store, sharedCache } = setup();
     await service.get(GUILD, 'leveling');
-    store.rows.set(`${GUILD}:leveling`, { enabled: true, config: { xpPerMessage: 15, announce: true }, version: 1, updatedAt: STORED_AT });
+    store.rows.set(`${GUILD}:leveling`, { enabled: true, config: { xpPerMessage: 15, announce: true }, version: 1, updatedAt: STORED_AT, applied: true, applyError: null });
     sharedCache.entries.clear();
 
     service.invalidate({ guildId: GUILD });
@@ -161,8 +161,8 @@ describe('ConfigService', () => {
       createTestModule('mod2'),
       createTestModule('mod3'),
     ]);
-    store.rows.set(`${GUILD}:mod1`, { enabled: true, config: { xpPerMessage: 1, announce: false }, version: 1, updatedAt: STORED_AT });
-    store.rows.set(`${GUILD}:mod2`, { enabled: true, config: { xpPerMessage: 2, announce: true }, version: 1, updatedAt: STORED_AT });
+    store.rows.set(`${GUILD}:mod1`, { enabled: true, config: { xpPerMessage: 1, announce: false }, version: 1, updatedAt: STORED_AT, applied: true, applyError: null });
+    store.rows.set(`${GUILD}:mod2`, { enabled: true, config: { xpPerMessage: 2, announce: true }, version: 1, updatedAt: STORED_AT, applied: true, applyError: null });
 
     const all = await service.getAll(GUILD);
     expect(all.size).toBe(3);
@@ -175,7 +175,7 @@ describe('ConfigService', () => {
 
   it('does not cache a batch selected before invalidation', async () => {
     const { service, store, sharedCache } = setup();
-    const old: StoredConfig = { enabled: true, config: { xpPerMessage: 10, announce: true }, version: 1, updatedAt: STORED_AT };
+    const old: StoredConfig = { enabled: true, config: { xpPerMessage: 10, announce: true }, version: 1, updatedAt: STORED_AT, applied: true, applyError: null };
     const fresh = { ...old, config: { xpPerMessage: 99, announce: true } };
     let release!: (rows: Map<string, StoredConfig>) => void;
     const selected = new Promise<Map<string, StoredConfig>>((resolve) => { release = resolve; });
@@ -194,7 +194,7 @@ describe('ConfigService', () => {
 
   it('removes a stale batch invalidated while writing Redis', async () => {
     const { service, store, sharedCache } = setup();
-    const old: StoredConfig = { enabled: true, config: { xpPerMessage: 10, announce: true }, version: 1, updatedAt: STORED_AT };
+    const old: StoredConfig = { enabled: true, config: { xpPerMessage: 10, announce: true }, version: 1, updatedAt: STORED_AT, applied: true, applyError: null };
     const fresh = { ...old, config: { xpPerMessage: 99, announce: true } };
     store.rows.set(`${GUILD}:leveling`, old);
     const write = sharedCache.setMany.bind(sharedCache);

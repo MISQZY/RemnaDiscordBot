@@ -194,7 +194,7 @@ export class ConfigService {
     const saved = await this.options.store.save(
       guildId,
       moduleId,
-      { enabled, config, version: module.configVersion },
+      { enabled, config, version: module.configVersion, applied: !module.onSaved, applyError: null },
       updatedBy,
       expectedUpdatedAt === undefined ? current.updatedAt : expectedUpdatedAt,
     );
@@ -212,8 +212,8 @@ export class ConfigService {
   }
 
   /** Updates the onSaved application status for a module in the database and clears caches. */
-  async setApplied(guildId: string, moduleId: string, applied: boolean, applyError: string | null): Promise<void> {
-    await this.options.store.setApplied?.(guildId, moduleId, applied, applyError);
+  async setApplied(guildId: string, moduleId: string, applied: boolean, applyError: string | null, expectedUpdatedAt?: string | null): Promise<void> {
+    await this.options.store.setApplied?.(guildId, moduleId, applied, applyError, expectedUpdatedAt);
     await this.options.sharedCache?.delete(guildId, moduleId);
     this.invalidate({ guildId, moduleId });
     await this.options.publish?.({ guildId, moduleId });

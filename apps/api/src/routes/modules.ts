@@ -1,8 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import {
   ModuleCatalogItem,
   ModuleConfigPatch,
   ModuleConfigReplace,
-  ModuleDiagnosticIssue,
+  type ModuleDiagnosticIssue,
   ModuleDiagnosticResult,
   ModuleId,
   ModuleInfo,
@@ -65,8 +66,42 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
     roles: (await snapshots.getRoles(guildId)) ?? [],
   });
 
+  async function withApplyLock<T>(guildId: string, moduleId: string, run: () => Promise<T>): Promise<T> {
+    const key = `lock:apply:${guildId}:${moduleId}`;
+    const token = randomUUID();
+    if (!(await deps.redis.set(key, token, 'EX', 60, 'NX'))) {
+      throw ApiError.conflict('Apply operation is already in progress');
+    }
+    const renew = setInterval(() => {
+      void deps.redis.eval(
+        'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("expire", KEYS[1], 60) end return 0',
+        1, key, token,
+      ).catch((err: unknown) => deps.logger.warn({ err, guildId, moduleId }, 'Failed to renew module apply lock'));
+    }, 20_000);
+    renew.unref();
+    try {
+      return await run();
+    } finally {
+      clearInterval(renew);
+      await deps.redis.eval(
+        'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) end return 0',
+        1, key, token,
+      );
+    }
+  }
+
   /** Common write path: If-Match → validation and save → audit → new ETag. */
   async function applyUpdate(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    params: { guildId: string; moduleId: string },
+    buildPatch: (current: ResolvedConfig) => ConfigPatch,
+    action: string,
+  ): Promise<ModuleState> {
+    return withApplyLock(params.guildId, params.moduleId, () => applyUpdateUnlocked(request, reply, params, buildPatch, action));
+  }
+
+  async function applyUpdateUnlocked(
     request: FastifyRequest,
     reply: FastifyReply,
     { guildId, moduleId }: { guildId: string; moduleId: string },
@@ -123,8 +158,8 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
         applyError = err instanceof Error ? err.message : String(err);
       }
     }
-    if (!applied || current.applyError) {
-      await config.setApplied(guildId, moduleId, applied, applyError);
+    if (module.onSaved || !current.applied || current.applyError) {
+      await config.setApplied(guildId, moduleId, applied, applyError, updated.updatedAt);
     }
     updated.applied = applied;
     updated.applyError = applyError;
@@ -142,7 +177,7 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
           summary: 'Module catalog',
           description: 'Names follow `Accept-Language`; `configSchema` is a JSON Schema for forms (omitted when compact=true).',
           security: [],
-          querystring: z.object({ compact: z.coerce.boolean().optional() }),
+          querystring: z.object({ compact: z.enum(['true', 'false']).transform((v) => v === 'true').optional() }),
           response: { 200: z.union([z.array(ModuleInfo), z.array(ModuleCatalogItem)]) },
         },
       },
@@ -196,7 +231,7 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
             tags: ['modules'],
             summary: 'State of all guild modules',
             params: GuildParams,
-            querystring: z.object({ compact: z.coerce.boolean().optional() }),
+            querystring: z.object({ compact: z.enum(['true', 'false']).transform((v) => v === 'true').optional() }),
             response: { 200: z.union([z.array(ModuleState), z.array(ModuleSummaryState)]) },
           },
         },
@@ -294,20 +329,10 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
           if (!request.guild?.canManage) throw ApiError.forbidden('You cannot manage this guild');
           const { guildId, moduleId } = request.params;
           const module = requireModule(moduleId);
-          const current = await config.get(guildId, moduleId);
-
-          if (!module.onSaved) {
-            return toState(moduleId, current);
-          }
-
-          // Protect against duplicate execution with Redis lock
-          const lockKey = `lock:apply:${guildId}:${moduleId}`;
-          const acquired = await deps.redis.set(lockKey, '1', 'EX', 10, 'NX');
-          if (!acquired) {
-            throw ApiError.conflict('Apply operation is already in progress');
-          }
-
-          try {
+          return withApplyLock(guildId, moduleId, async () => {
+            const current = await config.get(guildId, moduleId);
+            reply.header('etag', configEtag(current));
+            if (!module.onSaved) return toState(moduleId, current);
             // If already applied and no error, avoid re-running
             if (current.applied && !current.applyError) {
               return toState(moduleId, current);
@@ -315,8 +340,8 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
 
             const userId = requireSession(request).userId;
             const lastAudit = await db.dashboardAuditLog.findFirst({
-              where: { guildId, moduleId },
-              orderBy: { createdAt: 'desc' },
+              where: { guildId, moduleId, action: { in: ['module.update', 'module.reset'] } },
+              orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
             });
             const diff = (lastAudit?.diff as { before: { enabled: boolean; config: unknown }; after: { enabled: boolean; config: unknown } } | null) ?? {
               before: { enabled: false, config: {} },
@@ -333,7 +358,7 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
               applyError = err instanceof Error ? err.message : String(err);
             }
 
-            await config.setApplied(guildId, moduleId, applied, applyError);
+            await config.setApplied(guildId, moduleId, applied, applyError, current.updatedAt);
             await recordAudit(db, {
               guildId,
               userId,
@@ -348,9 +373,7 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
             const fresh = await config.get(guildId, moduleId);
             reply.header('etag', configEtag(fresh));
             return toState(moduleId, fresh);
-          } finally {
-            await deps.redis.del(lockKey);
-          }
+          });
         },
       );
 
@@ -369,7 +392,7 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
 
         // 2. Validate current or custom config against guild snapshot
         const current = await config.get(guildId, moduleId);
-        const configToValidate = customConfig !== undefined ? customConfig : current.config;
+        const configToValidate = module.configSchema.parse(customConfig !== undefined ? customConfig : current.config);
         const entities = await guildEntities(guildId);
         if (module.validateConfig) {
           const rawIssues = module.validateConfig(configToValidate, entities);
@@ -424,6 +447,12 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
         const register = module.api;
         await guildScope.register(
           async (moduleScope) => {
+            moduleScope.addHook('preHandler', async (request) => {
+              const reading = request.method === 'GET' || request.method === 'HEAD';
+              if (!reading && module.id !== 'moderation' && !request.guild?.canManage) {
+                throw ApiError.forbidden('You cannot manage this guild');
+              }
+            });
             await register(moduleScope, {
               ...moduleServices(deps, module),
               currentUserId: (request) => requireSession(request).userId,

@@ -2,6 +2,7 @@ import { defineModule, EntityChecker, subscribeConfigInvalidation } from '@bot/c
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { CHANNEL_ID, createTestApp, GUILD_ID, login, ROLE_ID, seedGuildSnapshot, type TestApp } from '../testing/app.js';
+import { TEST_USER } from '../testing/fake-oauth.js';
 
 const LevelingConfig = z.object({
   xpPerMessage: z.number().int().min(1).default(10),
@@ -15,6 +16,7 @@ const leveling = defineModule({
   configVersion: 1,
   locales: { ru: { name: 'Уровни' }, en: { name: 'Leveling' } },
   api: (app, ctx) => {
+    app.post('/stats', async () => ({ written: true }));
     app.get('/stats', async (request) => {
       const { guildId } = request.params as { guildId: string };
       return { guildId, xpPerMessage: (await ctx.getConfig(guildId)).xpPerMessage };
@@ -44,13 +46,15 @@ const announcer = defineModule({
 
 let hookShouldFail = false;
 let hookCallCount = 0;
+const hookDiffs: unknown[] = [];
 
 const hooked = defineModule({
   id: 'hooked',
   configSchema: z.object({ value: z.string().default('init') }),
   defaultConfig: { value: 'init' },
   configVersion: 1,
-  onSaved: async () => {
+  onSaved: async (_ctx, diff) => {
+    hookDiffs.push(diff);
     hookCallCount++;
     if (hookShouldFail) throw new Error('External service unreachable');
   },
@@ -179,12 +183,16 @@ describe('module routes', () => {
     const fullCatalog = await t.app.inject('/v1/modules');
     expect(fullCatalog.statusCode).toBe(200);
     expect(fullCatalog.json()[0]).toHaveProperty('configSchema');
+    const explicitFull = await t.app.inject('/v1/modules?compact=false');
+    expect(explicitFull.json()[0]).toHaveProperty('configSchema');
 
     // 2. Guild modules without heavy configs
     const compactModules = await t.app.inject({ url: `${url()}?compact=true`, headers: { cookie } });
     expect(compactModules.statusCode).toBe(200);
     expect(compactModules.json()[0]).toMatchObject({ id: expect.any(String), enabled: expect.any(Boolean), applied: expect.any(Boolean) });
     expect(compactModules.json()[0]).not.toHaveProperty('config');
+    const fullModules = await t.app.inject({ url: `${url()}?compact=false`, headers: { cookie } });
+    expect(fullModules.json()[0]).toHaveProperty('config');
   });
 
   it('validates channel and role references against the guild snapshot', async () => {
@@ -231,6 +239,9 @@ describe('module routes', () => {
         }),
       ]),
     );
+
+    const malformed = await t.app.inject({ method: 'POST', url: url('/announcer/diagnose'), headers: { cookie }, payload: { config: { roleIds: 12 } } });
+    expect(malformed.statusCode).toBe(400);
 
     // 3. Stored diagnose when channel was deleted afterwards
     await t.deps.config.update(GUILD_ID, 'announcer', { config: { channelId: '599999999999999999', roleIds: [] } });
@@ -282,6 +293,7 @@ describe('module routes', () => {
 
   it('distinguishes saved from applied when onSaved hook fails and allows retry', async () => {
     hookCallCount = 0;
+    hookDiffs.length = 0;
     hookShouldFail = true;
 
     // 1. Save succeeds, but onSaved fails -> applied: false, applyError is returned
@@ -297,6 +309,7 @@ describe('module routes', () => {
 
     // 2. Subsequent GET returns applied: false
     const getRes = await t.app.inject({ url: url('/hooked'), headers: { cookie } });
+    expect(getRes.headers.etag).toBe(failRes.headers.etag);
     expect(getRes.json()).toMatchObject({
       applied: false,
       applyError: 'External service unreachable',
@@ -320,6 +333,9 @@ describe('module routes', () => {
       applyError: null,
     });
     expect(hookCallCount).toBe(3);
+    expect(retryOk.headers.etag).toBe(failRes.headers.etag);
+    expect(hookDiffs[1]).toEqual(hookDiffs[0]);
+    expect(hookDiffs[2]).toEqual(hookDiffs[0]);
 
     // 5. Duplicate retry does not re-run hook
     const noopRetry = await send('POST', url('/hooked/retry-apply'));
@@ -346,6 +362,31 @@ describe('module routes', () => {
       expect(res.json()).toMatchObject({ error: { code: 'CONFLICT' } });
     } finally {
       await t.deps.redis.del(`lock:apply:${GUILD_ID}:hooked`);
+    }
+  });
+
+  it('does not mark a newer configuration applied when an older hook finishes', async () => {
+    const old = await t.deps.config.update(GUILD_ID, 'hooked', { config: { value: 'old' } });
+    const fresh = await t.deps.config.update(GUILD_ID, 'hooked', { config: { value: 'fresh' } });
+    await t.deps.config.setApplied(GUILD_ID, 'hooked', true, null, old.updatedAt);
+    const state = await t.deps.config.get(GUILD_ID, 'hooked');
+    expect(state).toMatchObject({ config: { value: 'fresh' }, applied: false, updatedAt: fresh.updatedAt });
+  });
+
+  it('lets moderators read module data without changing non-moderation resources', async () => {
+    const isolated = await createTestApp({ modules: [leveling] });
+    try {
+      isolated.oauth.guilds = [{ id: GUILD_ID, name: 'Moderated', icon: null, owner: false, permissions: '0' }];
+      await seedGuildSnapshot(isolated);
+      await isolated.deps.db.guild.create({ data: { id: GUILD_ID, modRoleIds: [ROLE_ID] } });
+      isolated.rest.responses.set(`/guilds/${GUILD_ID}/members/${TEST_USER.id}`, { roles: [ROLE_ID] });
+      const moderatorCookie = await login(isolated);
+      const read = await isolated.app.inject({ url: url('/leveling/stats'), headers: { cookie: moderatorCookie } });
+      expect(read.statusCode).toBe(200);
+      const write = await isolated.app.inject({ method: 'POST', url: url('/leveling/stats'), headers: { cookie: moderatorCookie } });
+      expect(write.statusCode).toBe(403);
+    } finally {
+      await isolated.close();
     }
   });
 });

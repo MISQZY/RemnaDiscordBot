@@ -28,16 +28,16 @@ export class MemoryConfigStore implements ConfigStore {
     const stored: StoredConfig = {
       ...value,
       updatedAt: new Date(Math.max(Date.now(), previous ? Date.parse(previous.updatedAt) + 1 : 0)).toISOString(),
-      applied: previous?.applied ?? true,
-      applyError: previous?.applyError ?? null,
+      applied: value.applied ?? previous?.applied ?? true,
+      applyError: value.applyError === undefined ? previous?.applyError ?? null : value.applyError,
     };
     this.rows.set(`${guildId}:${moduleId}`, stored);
     return stored;
   }
 
-  async setApplied(guildId: string, moduleId: string, applied: boolean, applyError: string | null): Promise<void> {
+  async setApplied(guildId: string, moduleId: string, applied: boolean, applyError: string | null, expectedUpdatedAt?: string | null): Promise<void> {
     const previous = this.rows.get(`${guildId}:${moduleId}`);
-    if (previous) {
+    if (previous && (expectedUpdatedAt === undefined || previous.updatedAt === expectedUpdatedAt)) {
       this.rows.set(`${guildId}:${moduleId}`, { ...previous, applied, applyError });
     }
   }
