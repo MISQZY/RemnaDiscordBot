@@ -18,7 +18,6 @@ import { CommandInput, MatchMode, MAX_COMMANDS, toDto, type CommandDto, type Cus
 import { CommandError, CustomCommandService } from './service.js';
 
 type Ctx = InteractionContext<CustomCommandsConfig>;
-type Repliable = { reply: (options: { content: string; flags: MessageFlags.Ephemeral; allowedMentions: { parse: [] } }) => Promise<unknown> };
 
 /** customIds: `cc:add:<pending id>` and `cc:edit:<command id>`. */
 export const COMPONENT_PREFIX = 'cc';

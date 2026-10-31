@@ -1,6 +1,8 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import type { BotModuleContext } from '@bot/core';
+import type { Message } from 'discord.js';
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
 import { clearStickyTimers, onMessage } from './bot.js';
-import { defaultMessagesConfig, ScheduledInput } from './config.js';
+import { defaultMessagesConfig, ScheduledInput, type MessagesConfig } from './config.js';
 import { nextRun } from './service.js';
 
 describe('nextRun', () => {
@@ -30,16 +32,17 @@ describe('onMessage', () => {
   beforeEach(() => {
     clearStickyTimers();
   });
+  afterEach(() => clearStickyTimers());
 
   it('ignores messages from the bot itself or outside guilds', async () => {
     const exists = vi.fn();
     const ctx = {
       client: { user: { id: 'bot-1' } },
       redis: { exists },
-    } as any;
+    } as unknown as BotModuleContext<MessagesConfig>;
 
-    await onMessage(ctx, { inGuild: () => false, author: { id: 'user-1' }, channelId: 'c1' } as any);
-    await onMessage(ctx, { inGuild: () => true, author: { id: 'bot-1' }, channelId: 'c1' } as any);
+    await onMessage(ctx, { inGuild: () => false, author: { id: 'user-1' }, channelId: 'c1' } as unknown as Message);
+    await onMessage(ctx, { inGuild: () => true, author: { id: 'bot-1' }, channelId: 'c1' } as unknown as Message);
 
     expect(exists).not.toHaveBeenCalled();
   });
@@ -49,9 +52,9 @@ describe('onMessage', () => {
     const ctx = {
       client: { user: { id: 'bot-1' } },
       redis: { exists },
-    } as any;
+    } as unknown as BotModuleContext<MessagesConfig>;
 
-    const msg = { inGuild: () => true, author: { id: 'user-1' }, channelId: 'c1', guildId: 'g1' } as any;
+    const msg = { inGuild: () => true, author: { id: 'user-1' }, channelId: 'c1', guildId: 'g1' } as unknown as Message;
 
     await onMessage(ctx, msg);
     await onMessage(ctx, msg);
@@ -69,9 +72,9 @@ describe('onMessage', () => {
       redis: { exists },
       getConfig,
       logger: { warn: vi.fn() },
-    } as any;
+    } as unknown as BotModuleContext<MessagesConfig>;
 
-    const msg = { inGuild: () => true, author: { id: 'user-1' }, channelId: 'c2', guildId: 'g1' } as any;
+    const msg = { inGuild: () => true, author: { id: 'user-1' }, channelId: 'c2', guildId: 'g1' } as unknown as Message;
 
     await onMessage(ctx, msg);
     expect(getConfig).toHaveBeenCalledWith('g1');

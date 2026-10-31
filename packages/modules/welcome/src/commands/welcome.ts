@@ -14,7 +14,6 @@ import {
   SlashCommandBuilder,
   TextInputBuilder,
   TextInputStyle,
-  type ChatInputCommandInteraction,
   type GuildMember,
   type GuildTextBasedChannel,
   type SlashCommandStringOption,
