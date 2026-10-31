@@ -94,6 +94,7 @@ export class ConfigService {
   }
 
   async getAll(guildId: string): Promise<Map<string, ResolvedConfig>> {
+    const generation = this.generation;
     const modules = this.options.registry.all();
     const result = new Map<string, ResolvedConfig>();
     const missingModuleIds: string[] = [];
@@ -133,16 +134,20 @@ export class ConfigService {
           toCacheInShared.set(id, stored);
           fromShared.set(id, stored);
         }
-        if (this.options.sharedCache?.setMany) {
-          await this.options.sharedCache.setMany(guildId, toCacheInShared);
-        } else if (this.options.sharedCache) {
-          await Promise.all(
-            [...toCacheInShared.entries()].map(([id, val]) => this.options.sharedCache!.set(guildId, id, val)),
-          );
+        const sharedCache = this.options.sharedCache;
+        if (sharedCache && generation === this.generation) {
+          if (sharedCache.setMany) {
+            await sharedCache.setMany(guildId, toCacheInShared);
+          } else {
+            await Promise.all([...toCacheInShared].map(([id, val]) => sharedCache.set(guildId, id, val)));
+          }
+          // An invalidation during the Redis write must also remove that stale write.
+          if (generation !== this.generation) {
+            await Promise.all(stillMissingIds.map((id) => sharedCache.delete(guildId, id)));
+          }
         }
       }
 
-      const generation = this.generation;
       for (const id of missingModuleIds) {
         const module = this.requireModule(id);
         const stored = fromShared.get(id) ?? fromStore.get(id) ?? null;

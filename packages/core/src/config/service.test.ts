@@ -6,6 +6,7 @@ import { ModuleRegistry } from '../registry.js';
 import { createTestModule, testLogger } from '../testing/fixtures.js';
 import { MemoryConfigStore, MemorySharedCache } from '../testing/memory-config.js';
 import { ConfigService, UnknownModuleError } from './service.js';
+import type { StoredConfig } from './store.js';
 
 const GUILD = '111111111111111111';
 const STORED_AT = '2026-10-01T00:00:00.000Z';
@@ -156,5 +157,42 @@ describe('ConfigService', () => {
     expect(all.get('mod3')?.enabled).toBe(false);
     expect(store.finds).toBe(1);
     expect(sharedCache.entries.get(`${GUILD}:mod3`)).toBeNull();
+  });
+
+  it('does not cache a batch selected before invalidation', async () => {
+    const { service, store, sharedCache } = setup();
+    const old: StoredConfig = { enabled: true, config: { xpPerMessage: 10, announce: true }, version: 1, updatedAt: STORED_AT };
+    const fresh = { ...old, config: { xpPerMessage: 99, announce: true } };
+    let release!: (rows: Map<string, StoredConfig>) => void;
+    const selected = new Promise<Map<string, StoredConfig>>((resolve) => { release = resolve; });
+    const findMany = vi.spyOn(store, 'findMany').mockReturnValueOnce(selected);
+    const pending = service.getAll(GUILD);
+    await vi.waitFor(() => expect(findMany).toHaveBeenCalledOnce());
+
+    store.rows.set(`${GUILD}:leveling`, fresh);
+    service.invalidate({ guildId: GUILD, moduleId: 'leveling' });
+    release(new Map([['leveling', old]]));
+    await pending;
+
+    expect(sharedCache.entries.has(`${GUILD}:leveling`)).toBe(false);
+    expect((await service.get(GUILD, 'leveling')).config).toEqual(fresh.config);
+  });
+
+  it('removes a stale batch invalidated while writing Redis', async () => {
+    const { service, store, sharedCache } = setup();
+    const old: StoredConfig = { enabled: true, config: { xpPerMessage: 10, announce: true }, version: 1, updatedAt: STORED_AT };
+    const fresh = { ...old, config: { xpPerMessage: 99, announce: true } };
+    store.rows.set(`${GUILD}:leveling`, old);
+    const write = sharedCache.setMany.bind(sharedCache);
+    vi.spyOn(sharedCache, 'setMany').mockImplementationOnce(async (guildId, entries) => {
+      store.rows.set(`${GUILD}:leveling`, fresh);
+      service.invalidate({ guildId: GUILD, moduleId: 'leveling' });
+      await write(guildId, entries);
+    });
+
+    await service.getAll(GUILD);
+
+    expect(sharedCache.entries.has(`${GUILD}:leveling`)).toBe(false);
+    expect((await service.get(GUILD, 'leveling')).config).toEqual(fresh.config);
   });
 });
