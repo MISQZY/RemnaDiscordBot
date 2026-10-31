@@ -5,17 +5,17 @@ const HexColor = z.number().int().min(0).max(0xffffff);
 export const EmbedTemplate = z.object({
   title: z.string().max(256).optional(),
   description: z.string().max(4096).optional(),
-  url: z.url().optional(),
-  color: HexColor.optional(),
+  url: z.string().max(2048).optional(),
+  color: z.union([HexColor, z.string().max(32)]).optional(),
   author: z
     .object({
       name: z.string().max(256),
-      url: z.url().optional(),
-      iconUrl: z.string().optional(),
+      url: z.string().max(2048).optional(),
+      iconUrl: z.string().max(2048).optional(),
     })
     .optional(),
-  thumbnailUrl: z.string().optional(),
-  imageUrl: z.string().optional(),
+  thumbnailUrl: z.string().max(2048).optional(),
+  imageUrl: z.string().max(2048).optional(),
   fields: z
     .array(
       z.object({
@@ -29,10 +29,10 @@ export const EmbedTemplate = z.object({
   footer: z
     .object({
       text: z.string().max(2048),
-      iconUrl: z.string().optional(),
+      iconUrl: z.string().max(2048).optional(),
     })
     .optional(),
-  timestamp: z.boolean().optional(),
+  timestamp: z.union([z.boolean(), z.string().max(64)]).optional(),
 });
 export type EmbedTemplate = z.infer<typeof EmbedTemplate>;
 

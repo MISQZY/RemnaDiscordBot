@@ -46,6 +46,58 @@ describe('renderMessage', () => {
     });
   });
 
+  it('renders all embed fields with placeholders including URLs, colors, and timestamps', () => {
+    const customVars = {
+      ...vars,
+      'video.url': 'https://youtube.com/watch?v=123',
+      'user.avatar': 'https://cdn.test/user.png',
+      'item.image': 'https://cdn.test/item.png',
+      'guild.icon': 'https://cdn.test/guild.png',
+      accentColor: '#5865f2',
+      eventDate: '2026-10-31T20:00:00.000Z',
+    };
+
+    const message = renderMessage(
+      {
+        embeds: [
+          {
+            title: 'Title: {guild.name}',
+            description: 'Hello {user.name}',
+            url: '{video.url}',
+            color: '{accentColor}',
+            author: { name: '{user.name}', url: '{video.url}', iconUrl: '{user.avatar}' },
+            thumbnailUrl: '{item.image}',
+            imageUrl: '{item.image}',
+            footer: { text: 'Server: {guild.name}', iconUrl: '{guild.icon}' },
+            timestamp: '{eventDate}',
+            fields: [{ name: 'Field {level}', value: 'Value {user.displayName}', inline: true }],
+          },
+        ],
+      },
+      customVars,
+    );
+
+    expect(message.embeds?.[0]).toEqual({
+      title: 'Title: Zion',
+      description: 'Hello neo',
+      url: 'https://youtube.com/watch?v=123',
+      color: 0x5865f2,
+      author: {
+        name: 'neo',
+        url: 'https://youtube.com/watch?v=123',
+        icon_url: 'https://cdn.test/user.png',
+      },
+      thumbnail: { url: 'https://cdn.test/item.png' },
+      image: { url: 'https://cdn.test/item.png' },
+      footer: {
+        text: 'Server: Zion',
+        icon_url: 'https://cdn.test/guild.png',
+      },
+      timestamp: '2026-10-31T20:00:00.000Z',
+      fields: [{ name: 'Field 5', value: 'Value Neo', inline: true }],
+    });
+  });
+
   it('truncates long fields to Discord limits', () => {
     const message = renderMessage({ content: 'x'.repeat(3000), embeds: [{ title: 't'.repeat(300) }] }, vars);
 

@@ -74,21 +74,73 @@ function renderEmbed(embed: EmbedTemplate, vars: TemplateVars, locale?: string):
     return rendered && /^https?:\/\//.test(rendered) ? rendered : undefined;
   };
 
+  let color: number | undefined;
+  if (typeof embed.color === 'number') {
+    color = embed.color;
+  } else if (typeof embed.color === 'string') {
+    const renderedColor = render(embed.color).trim();
+    const parsedHex = renderedColor.startsWith('#')
+      ? parseInt(renderedColor.slice(1), 16)
+      : renderedColor.startsWith('0x')
+        ? parseInt(renderedColor.slice(2), 16)
+        : parseInt(renderedColor, 10);
+    if (!Number.isNaN(parsedHex) && parsedHex >= 0 && parsedHex <= 0xffffff) {
+      color = parsedHex;
+    }
+  }
+
+  let timestamp: string | undefined;
+  if (typeof embed.timestamp === 'boolean') {
+    timestamp = embed.timestamp ? new Date().toISOString() : undefined;
+  } else if (typeof embed.timestamp === 'string') {
+    const renderedTs = render(embed.timestamp).trim();
+    if (renderedTs === 'true' || renderedTs.toLowerCase() === 'now') {
+      timestamp = new Date().toISOString();
+    } else if (renderedTs) {
+      const parsed = new Date(renderedTs);
+      if (!Number.isNaN(parsed.getTime())) {
+        timestamp = parsed.toISOString();
+      }
+    }
+  }
+
+  const authorName = embed.author?.name ? text(embed.author.name, LIMITS.author) : undefined;
+  const author = authorName
+    ? {
+        name: authorName,
+        url: url(embed.author?.url),
+        icon_url: url(embed.author?.iconUrl),
+      }
+    : undefined;
+
+  const footerText = embed.footer?.text ? text(embed.footer.text, LIMITS.footer) : undefined;
+  const footer = footerText
+    ? {
+        text: footerText,
+        icon_url: url(embed.footer?.iconUrl),
+      }
+    : undefined;
+
+  const thumbUrl = url(embed.thumbnailUrl);
+  const imgUrl = url(embed.imageUrl);
+
+  const fields = embed.fields?.map((field) => ({
+    name: text(field.name, LIMITS.fieldName) || '\u200b',
+    value: text(field.value, LIMITS.fieldValue) || '\u200b',
+    inline: field.inline,
+  }));
+
   const result: APIEmbed = {
     title: text(embed.title, LIMITS.title),
     description: text(embed.description, LIMITS.description),
     url: url(embed.url),
-    color: embed.color,
-    author: embed.author && { name: text(embed.author.name, LIMITS.author)!, url: url(embed.author.url), icon_url: url(embed.author.iconUrl) },
-    thumbnail: url(embed.thumbnailUrl) ? { url: url(embed.thumbnailUrl)! } : undefined,
-    image: url(embed.imageUrl) ? { url: url(embed.imageUrl)! } : undefined,
-    fields: embed.fields?.map((field) => ({
-      name: text(field.name, LIMITS.fieldName)!,
-      value: text(field.value, LIMITS.fieldValue)!,
-      inline: field.inline,
-    })),
-    footer: embed.footer && { text: text(embed.footer.text, LIMITS.footer)!, icon_url: url(embed.footer.iconUrl) },
-    timestamp: embed.timestamp ? new Date().toISOString() : undefined,
+    color,
+    author,
+    thumbnail: thumbUrl ? { url: thumbUrl } : undefined,
+    image: imgUrl ? { url: imgUrl } : undefined,
+    fields,
+    footer,
+    timestamp,
   };
   return JSON.parse(JSON.stringify(result)) as APIEmbed;
 }
