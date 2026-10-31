@@ -31,12 +31,35 @@ export class PrismaVipStore implements VipStore {
   async replace(state: VipState): Promise<void> {
     const modules = state.modules as Prisma.InputJsonValue;
     const features = state.features as Prisma.InputJsonValue;
-    await this.db.$transaction([
-      this.db.vipSettings.upsert({ where: { id: SETTINGS_ID }, create: { id: SETTINGS_ID, modules, features }, update: { modules, features } }),
-      this.db.guildVip.deleteMany(),
-      this.db.guildVip.createMany({
-        data: state.guilds.map((g) => ({ guildId: g.guildId, expiresAt: g.expiresAt ? new Date(g.expiresAt) : null })),
-      }),
-    ]);
+    const currentGuilds = await this.db.guildVip.findMany();
+    const currentMap = new Map(currentGuilds.map((g) => [g.guildId, g.expiresAt?.getTime() ?? null]));
+
+    const targetGuildIds = new Set(state.guilds.map((g) => g.guildId));
+    const toDelete = currentGuilds.filter((g) => !targetGuildIds.has(g.guildId)).map((g) => g.guildId);
+
+    const toUpsert = state.guilds.filter((g) => {
+      const targetTime = g.expiresAt ? new Date(g.expiresAt).getTime() : null;
+      if (!currentMap.has(g.guildId)) return true;
+      return currentMap.get(g.guildId) !== targetTime;
+    });
+
+    await this.db.$transaction(async (tx) => {
+      await tx.vipSettings.upsert({
+        where: { id: SETTINGS_ID },
+        create: { id: SETTINGS_ID, modules, features },
+        update: { modules, features },
+      });
+      if (toDelete.length > 0) {
+        await tx.guildVip.deleteMany({ where: { guildId: { in: toDelete } } });
+      }
+      for (const g of toUpsert) {
+        const expiresAt = g.expiresAt ? new Date(g.expiresAt) : null;
+        await tx.guildVip.upsert({
+          where: { guildId: g.guildId },
+          create: { guildId: g.guildId, expiresAt },
+          update: { expiresAt },
+        });
+      }
+    });
   }
 }
