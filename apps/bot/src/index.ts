@@ -81,6 +81,13 @@ function shutdown(signal: string): void {
 }
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('unhandledRejection', (reason) => {
+  logger.error({ err: reason }, 'Unhandled promise rejection');
+});
+process.on('uncaughtException', (err) => {
+  logger.fatal({ err }, 'Uncaught exception');
+  shutdown('uncaughtException');
+});
 
 if (env.AUTO_DEPLOY_COMMANDS && env.SHARD_HOST_INDEX === 0) {
   // Once in the first server's manager, not in every cluster. A sync failure does not block startup.
