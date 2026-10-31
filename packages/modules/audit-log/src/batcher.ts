@@ -56,6 +56,7 @@ export class AuditLogBatcher {
   readonly maxChars: number;
 
   private readonly queues = new Map<string, ChannelQueue>();
+  private readonly inFlight = new Map<string, Promise<void>>();
 
   constructor(options: AuditLogBatcherOptions = {}) {
     this.waitMs = options.waitMs ?? (process.env.NODE_ENV === 'test' ? 5 : 500);
@@ -108,7 +109,15 @@ export class AuditLogBatcher {
     });
   }
 
-  async flush(channelId: string): Promise<void> {
+  flush(channelId: string): Promise<void> {
+    const running = this.inFlight.get(channelId);
+    if (running) return running;
+    const task = this.flushQueue(channelId).finally(() => this.inFlight.delete(channelId));
+    this.inFlight.set(channelId, task);
+    return task;
+  }
+
+  private async flushQueue(channelId: string): Promise<void> {
     const queue = this.queues.get(channelId);
     if (!queue || queue.flushing || queue.items.length === 0) return;
 
@@ -183,7 +192,7 @@ export class AuditLogBatcher {
           clearTimeout(queue.timer);
           queue.timer = null;
         }
-        while (this.queues.has(channelId) && (this.queues.get(channelId)?.items.length ?? 0) > 0) {
+        while (this.queues.has(channelId) || this.inFlight.has(channelId)) {
           await this.flush(channelId);
         }
       }),

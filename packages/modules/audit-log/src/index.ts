@@ -2,7 +2,7 @@ import { defineModule, EntityChecker } from '@bot/core';
 import { GatewayIntentBits, Partials } from 'discord.js';
 import { commands } from './commands.js';
 import { AuditLogConfig, defaultAuditLogConfig, LogCategory } from './config.js';
-import { createHandlers, onCaseCreated } from './handlers.js';
+import { createHandlers, defaultBatcher, onCaseCreated } from './handlers.js';
 import { locales } from './locales.js';
 
 export { AuditLogConfig } from './config.js';
@@ -37,6 +37,13 @@ export default defineModule({
     commands,
     events: createHandlers(),
     // Cases of the moderation commands arrive over the in-process bus, not from the gateway.
-    setup: (ctx) => ctx.bus.on('moderation.caseCreated', (payload) => onCaseCreated(ctx, payload)),
+    setup: (ctx) => {
+      const unsubscribe = ctx.bus.on('moderation.caseCreated', (payload) => onCaseCreated(ctx, payload));
+      return async () => {
+        unsubscribe();
+        await defaultBatcher.flushAll();
+        defaultBatcher.destroy();
+      };
+    },
   },
 });

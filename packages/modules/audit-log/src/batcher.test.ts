@@ -5,7 +5,7 @@ import { AuditLogBatcher, embedLength } from './batcher.js';
 
 describe('AuditLogBatcher', () => {
   const logger = createLogger({ service: 'test', level: 'silent', pretty: false });
-  const sendMock = vi.fn(async () => {});
+  const sendMock = vi.fn<(payload: { embeds: APIEmbed[] }) => Promise<void>>(async () => {});
   const sendableChannel = { isSendable: () => true, send: sendMock };
   const guild = {
     id: 'guild-1',
@@ -145,5 +145,21 @@ describe('AuditLogBatcher', () => {
       expect.objectContaining({ channelId: 'channel-broken' }),
       'Audit log channel is missing or not writable',
     );
+  });
+
+  it('drains pending items while another send is in flight', async () => {
+    let release!: () => void;
+    const sending = new Promise<void>((resolve) => { release = resolve; });
+    const send = vi.fn().mockReturnValueOnce(sending).mockResolvedValue(undefined);
+    const channel = { isSendable: () => true, send };
+    const slowGuild = { id: 'slow', channels: { cache: new Map([['slow', channel]]) } } as unknown as Guild;
+    const batcher = new AuditLogBatcher({ waitMs: 1000, maxBatchSize: 1 });
+    const first = batcher.enqueue({ guild: slowGuild, channelId: 'slow', category: 'messages', embed: createEmbed('first'), logger });
+    const second = batcher.enqueue({ guild: slowGuild, channelId: 'slow', category: 'messages', embed: createEmbed('second'), logger });
+    const drained = batcher.flushAll();
+    setTimeout(release, 0);
+    await Promise.all([first, second, drained]);
+    expect(send).toHaveBeenCalledTimes(2);
+    batcher.destroy();
   });
 });
