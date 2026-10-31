@@ -6,6 +6,8 @@ import { createHandlers, onCaseCreated } from './handlers.js';
 import { locales } from './locales.js';
 
 export { AuditLogConfig } from './config.js';
+export { AuditLogBatcher, type AuditLogBatcherOptions } from './batcher.js';
+export { defaultBatcher } from './handlers.js';
 
 /** Server event log to chosen channels: messages, members, voice, server, bans. */
 export default defineModule({

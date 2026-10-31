@@ -138,6 +138,23 @@ describe('message logging', () => {
 
     expect(await ctx.redis.keys('audit:msg:*')).toEqual([]);
   });
+
+  it('groups multiple rapid audit log events to the same channel into a single message', async () => {
+    const { ctx, logChannel, message } = setup();
+    await auditLog.bot!.events!.messageCreate!(ctx, message({ id: '101', content: 'msg 1' }));
+    await auditLog.bot!.events!.messageCreate!(ctx, message({ id: '102', content: 'msg 2' }));
+    await auditLog.bot!.events!.messageCreate!(ctx, message({ id: '103', content: 'msg 3' }));
+
+    const p1 = auditLog.bot!.events!.messageDelete!(ctx, message({ id: '101', content: null, author: null }));
+    const p2 = auditLog.bot!.events!.messageDelete!(ctx, message({ id: '102', content: null, author: null }));
+    const p3 = auditLog.bot!.events!.messageDelete!(ctx, message({ id: '103', content: null, author: null }));
+
+    await Promise.all([p1, p2, p3]);
+
+    expect(logChannel.send).toHaveBeenCalledOnce();
+    const [[payload]] = logChannel.send.mock.calls as unknown as [[{ embeds: unknown[] }]];
+    expect(payload.embeds).toHaveLength(3);
+  });
 });
 
 describe('moderation cases', () => {

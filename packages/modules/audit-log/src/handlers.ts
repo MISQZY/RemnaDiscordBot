@@ -1,11 +1,14 @@
 import type { BotModuleContext, EventHandlers } from '@bot/core';
 import type { ModCaseDto } from '@bot/module-moderation';
 import type { APIEmbed, Guild, GuildMember, PartialGuildMember } from 'discord.js';
+import { AuditLogBatcher } from './batcher.js';
 import type { AuditLogConfig, LogCategory } from './config.js';
 import * as embeds from './embeds.js';
 import { MessageCache } from './message-cache.js';
 
 type Ctx = BotModuleContext<AuditLogConfig>;
+
+export const defaultBatcher = new AuditLogBatcher();
 
 async function translator(ctx: Ctx, guildId: string): Promise<embeds.Translate> {
   const locale = await ctx.guildLocales.get(guildId);
@@ -19,7 +22,7 @@ function isIgnored(config: AuditLogConfig, { channelId, member, bot }: { channel
 }
 
 /** Prepares config, translation and sending for a category; `null` — the category is not configured. */
-async function prepare(ctx: Ctx, guild: Guild, category: LogCategory) {
+async function prepare(ctx: Ctx, guild: Guild, category: LogCategory, batcher: AuditLogBatcher = defaultBatcher) {
   const config = await ctx.getConfig(guild.id);
   const channelId = config.channels[category];
   if (!channelId) return null;
@@ -27,12 +30,13 @@ async function prepare(ctx: Ctx, guild: Guild, category: LogCategory) {
   const t = await translator(ctx, guild.id);
   const send = async (embed: APIEmbed | null) => {
     if (!embed) return;
-    const channel = guild.channels.cache.get(channelId) ?? (await guild.channels.fetch(channelId).catch(() => null));
-    if (!channel?.isSendable()) {
-      ctx.logger.warn({ guildId: guild.id, channelId, category }, 'Audit log channel is missing or not writable');
-      return;
-    }
-    await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
+    await batcher.enqueue({
+      guild,
+      channelId,
+      category,
+      embed,
+      logger: ctx.logger,
+    });
   };
   return { config, t, send };
 }
@@ -68,17 +72,22 @@ function diff<T extends Record<string, string>>(before: T, after: T): { field: s
  * Cases of the bot's own moderation commands. Bans are already logged from `guildBanAdd`;
  * kicks, mutes and warnings have no event of their own in this category.
  */
-export async function onCaseCreated(ctx: Ctx, { guildId, case: modCase }: { guildId: string; case: ModCaseDto }): Promise<void> {
+export async function onCaseCreated(
+  ctx: Ctx,
+  { guildId, case: modCase }: { guildId: string; case: ModCaseDto },
+  batcher: AuditLogBatcher = defaultBatcher,
+): Promise<void> {
   // Notes are the moderators' own; bans come from guildBanAdd.
   if (modCase.type === 'ban' || modCase.type === 'unban' || modCase.type === 'note') return;
   if (!(await ctx.config.isEnabled(guildId, ctx.moduleId))) return;
   const guild = ctx.client.guilds.cache.get(guildId);
   if (!guild) return;
-  const log = await prepare(ctx, guild, 'moderation');
+  const log = await prepare(ctx, guild, 'moderation', batcher);
   await log?.send(embeds.caseCreated(log.t, modCase));
 }
 
-export function createHandlers(): EventHandlers<AuditLogConfig> {
+export function createHandlers(batcher: AuditLogBatcher = defaultBatcher): EventHandlers<AuditLogConfig> {
+  const prep = (ctx: Ctx, guild: Guild, category: LogCategory) => prepare(ctx, guild, category, batcher);
   return {
     messageCreate: async (ctx, message) => {
       if (!message.inGuild()) return;
@@ -95,7 +104,7 @@ export function createHandlers(): EventHandlers<AuditLogConfig> {
 
     messageDelete: async (ctx, message) => {
       if (!message.guild) return;
-      const log = await prepare(ctx, message.guild, 'messages');
+      const log = await prep(ctx, message.guild, 'messages');
       if (!log) return;
       const cache = new MessageCache(ctx.redis);
       const cached = await cache.get(message.id);
@@ -114,14 +123,14 @@ export function createHandlers(): EventHandlers<AuditLogConfig> {
     },
 
     messageDeleteBulk: async (ctx, messages, channel) => {
-      const log = await prepare(ctx, channel.guild, 'messages');
+      const log = await prep(ctx, channel.guild, 'messages');
       if (!log || isIgnored(log.config, { channelId: channel.id })) return;
       await log.send(embeds.messagesPurged(log.t, { channelId: channel.id, count: messages.size }));
     },
 
     messageUpdate: async (ctx, oldMessage, newMessage) => {
       if (!newMessage.guild || newMessage.content === null) return;
-      const log = await prepare(ctx, newMessage.guild, 'messages');
+      const log = await prep(ctx, newMessage.guild, 'messages');
       if (!log) return;
       const authorId = newMessage.author?.id;
       if (!authorId || isIgnored(log.config, { channelId: newMessage.channelId, member: newMessage.member, bot: newMessage.author?.bot })) return;
@@ -139,13 +148,13 @@ export function createHandlers(): EventHandlers<AuditLogConfig> {
     },
 
     guildMemberAdd: async (ctx, member) => {
-      const log = await prepare(ctx, member.guild, 'members');
+      const log = await prep(ctx, member.guild, 'members');
       if (!log || isIgnored(log.config, { bot: member.user.bot })) return;
       await log.send(embeds.memberJoined(log.t, { userId: member.id, username: member.user.username, createdAt: member.user.createdTimestamp }));
     },
 
     guildMemberRemove: async (ctx, member) => {
-      const log = await prepare(ctx, member.guild, 'members');
+      const log = await prep(ctx, member.guild, 'members');
       if (!log || isIgnored(log.config, { bot: member.user.bot })) return;
       await log.send(
         embeds.memberLeft(log.t, {
@@ -158,7 +167,7 @@ export function createHandlers(): EventHandlers<AuditLogConfig> {
     },
 
     guildMemberUpdate: async (ctx, oldMember, newMember) => {
-      const log = await prepare(ctx, newMember.guild, 'members');
+      const log = await prep(ctx, newMember.guild, 'members');
       if (!log || isIgnored(log.config, { member: newMember, bot: newMember.user.bot })) return;
       // Without the old state (partial) changes cannot be computed.
       if (oldMember.partial) return;
@@ -182,25 +191,25 @@ export function createHandlers(): EventHandlers<AuditLogConfig> {
     },
 
     voiceStateUpdate: async (ctx, oldState, newState) => {
-      const log = await prepare(ctx, newState.guild, 'voice');
+      const log = await prep(ctx, newState.guild, 'voice');
       if (!log || isIgnored(log.config, { member: newState.member, bot: newState.member?.user.bot })) return;
       await log.send(embeds.voiceChanged(log.t, { userId: newState.id, from: oldState.channelId, to: newState.channelId }));
     },
 
     channelCreate: async (ctx, channel) => {
-      const log = await prepare(ctx, channel.guild, 'server');
+      const log = await prep(ctx, channel.guild, 'server');
       await log?.send(embeds.serverChanged(log.t, { kind: 'channelCreated', name: channel.name, id: channel.id }));
     },
 
     channelDelete: async (ctx, channel) => {
       if (channel.isDMBased()) return;
-      const log = await prepare(ctx, channel.guild, 'server');
+      const log = await prep(ctx, channel.guild, 'server');
       await log?.send(embeds.serverChanged(log.t, { kind: 'channelDeleted', name: channel.name, id: channel.id }));
     },
 
     channelUpdate: async (ctx, oldChannel, newChannel) => {
       if (oldChannel.isDMBased() || newChannel.isDMBased()) return;
-      const log = await prepare(ctx, newChannel.guild, 'server');
+      const log = await prep(ctx, newChannel.guild, 'server');
       if (!log || isIgnored(log.config, { channelId: newChannel.id })) return;
       const yesNo = (value: boolean) => log.t(value ? 'audit-log.yes' : 'audit-log.no');
       const read = (channel: typeof newChannel) => ({
@@ -216,19 +225,19 @@ export function createHandlers(): EventHandlers<AuditLogConfig> {
 
     threadCreate: async (ctx, thread, newlyCreated) => {
       if (!newlyCreated) return;
-      const log = await prepare(ctx, thread.guild, 'server');
+      const log = await prep(ctx, thread.guild, 'server');
       if (!log || isIgnored(log.config, { channelId: thread.parentId })) return;
       await log.send(embeds.serverChanged(log.t, { kind: 'threadCreated', name: thread.name, id: thread.id, parentId: thread.parentId, authorId: thread.ownerId }));
     },
 
     threadDelete: async (ctx, thread) => {
-      const log = await prepare(ctx, thread.guild, 'server');
+      const log = await prep(ctx, thread.guild, 'server');
       if (!log || isIgnored(log.config, { channelId: thread.parentId })) return;
       await log.send(embeds.serverChanged(log.t, { kind: 'threadDeleted', name: thread.name, id: thread.id, parentId: thread.parentId }));
     },
 
     threadUpdate: async (ctx, oldThread, newThread) => {
-      const log = await prepare(ctx, newThread.guild, 'server');
+      const log = await prep(ctx, newThread.guild, 'server');
       if (!log || isIgnored(log.config, { channelId: newThread.parentId })) return;
       const yesNo = (value: boolean | null) => log.t(value ? 'audit-log.yes' : 'audit-log.no');
       const read = (thread: typeof newThread) => ({ name: thread.name, archived: yesNo(thread.archived), locked: yesNo(thread.locked) });
@@ -236,47 +245,47 @@ export function createHandlers(): EventHandlers<AuditLogConfig> {
     },
 
     emojiCreate: async (ctx, emoji) => {
-      const log = await prepare(ctx, emoji.guild, 'server');
+      const log = await prep(ctx, emoji.guild, 'server');
       await log?.send(embeds.serverChanged(log.t, { kind: 'emojiCreated', name: `${emoji.toString()} :${emoji.name}:`, id: emoji.id }));
     },
 
     emojiDelete: async (ctx, emoji) => {
-      const log = await prepare(ctx, emoji.guild, 'server');
+      const log = await prep(ctx, emoji.guild, 'server');
       await log?.send(embeds.serverChanged(log.t, { kind: 'emojiDeleted', name: `:${emoji.name}:`, id: emoji.id }));
     },
 
     emojiUpdate: async (ctx, oldEmoji, newEmoji) => {
-      const log = await prepare(ctx, newEmoji.guild, 'server');
+      const log = await prep(ctx, newEmoji.guild, 'server');
       await log?.send(embeds.entityUpdated(log.t, { kind: 'emoji', id: newEmoji.id, name: newEmoji.toString(), changes: diff({ name: oldEmoji.name ?? '' }, { name: newEmoji.name ?? '' }) }));
     },
 
     stickerCreate: async (ctx, sticker) => {
       if (!sticker.guild) return;
-      const log = await prepare(ctx, sticker.guild, 'server');
+      const log = await prep(ctx, sticker.guild, 'server');
       await log?.send(embeds.serverChanged(log.t, { kind: 'stickerCreated', name: sticker.name, id: sticker.id }));
     },
 
     stickerDelete: async (ctx, sticker) => {
       if (!sticker.guild) return;
-      const log = await prepare(ctx, sticker.guild, 'server');
+      const log = await prep(ctx, sticker.guild, 'server');
       await log?.send(embeds.serverChanged(log.t, { kind: 'stickerDeleted', name: sticker.name, id: sticker.id }));
     },
 
     stickerUpdate: async (ctx, oldSticker, newSticker) => {
       if (!newSticker.guild) return;
-      const log = await prepare(ctx, newSticker.guild, 'server');
+      const log = await prep(ctx, newSticker.guild, 'server');
       const read = (s: typeof newSticker) => ({ name: s.name, description: s.description ?? '', tags: s.tags ?? '' });
       await log?.send(embeds.entityUpdated(log.t, { kind: 'sticker', id: newSticker.id, name: newSticker.name, changes: diff(read(oldSticker), read(newSticker)) }));
     },
 
     webhooksUpdate: async (ctx, channel) => {
-      const log = await prepare(ctx, channel.guild, 'server');
+      const log = await prep(ctx, channel.guild, 'server');
       if (!log || isIgnored(log.config, { channelId: channel.id })) return;
       await log.send(embeds.webhooksUpdated(log.t, { channelId: channel.id }));
     },
 
     guildUpdate: async (ctx, oldGuild, newGuild) => {
-      const log = await prepare(ctx, newGuild, 'server');
+      const log = await prep(ctx, newGuild, 'server');
       if (!log) return;
       const channelOf = (id: string | null) => (id ? `<#${id}>` : '');
       const read = (guild: typeof newGuild) => ({
@@ -295,17 +304,17 @@ export function createHandlers(): EventHandlers<AuditLogConfig> {
     },
 
     roleCreate: async (ctx, role) => {
-      const log = await prepare(ctx, role.guild, 'server');
+      const log = await prep(ctx, role.guild, 'server');
       await log?.send(embeds.serverChanged(log.t, { kind: 'roleCreated', name: role.name, id: role.id }));
     },
 
     roleDelete: async (ctx, role) => {
-      const log = await prepare(ctx, role.guild, 'server');
+      const log = await prep(ctx, role.guild, 'server');
       await log?.send(embeds.serverChanged(log.t, { kind: 'roleDeleted', name: role.name, id: role.id }));
     },
 
     roleUpdate: async (ctx, oldRole, newRole) => {
-      const log = await prepare(ctx, newRole.guild, 'server');
+      const log = await prep(ctx, newRole.guild, 'server');
       if (!log) return;
       const yesNo = (value: boolean) => log.t(value ? 'audit-log.yes' : 'audit-log.no');
       const hex = (color: number) => (color ? `#${color.toString(16).padStart(6, '0')}` : '');
@@ -323,7 +332,7 @@ export function createHandlers(): EventHandlers<AuditLogConfig> {
     inviteCreate: async (ctx, invite) => {
       const guild = invite.guild && 'channels' in invite.guild ? invite.guild : null;
       if (!guild) return;
-      const log = await prepare(ctx, guild, 'server');
+      const log = await prep(ctx, guild, 'server');
       if (!log || isIgnored(log.config, { channelId: invite.channelId, bot: invite.inviter?.bot })) return;
       await log.send(
         embeds.inviteCreated(log.t, {
@@ -339,18 +348,18 @@ export function createHandlers(): EventHandlers<AuditLogConfig> {
     inviteDelete: async (ctx, invite) => {
       const guild = invite.guild && 'channels' in invite.guild ? invite.guild : null;
       if (!guild) return;
-      const log = await prepare(ctx, guild, 'server');
+      const log = await prep(ctx, guild, 'server');
       if (!log || isIgnored(log.config, { channelId: invite.channelId })) return;
       await log.send(embeds.serverChanged(log.t, { kind: 'inviteDeleted', name: `discord.gg/${invite.code}`, id: invite.code, parentId: invite.channelId }));
     },
 
     guildBanAdd: async (ctx, ban) => {
-      const log = await prepare(ctx, ban.guild, 'moderation');
+      const log = await prep(ctx, ban.guild, 'moderation');
       await log?.send(embeds.banChanged(log.t, { userId: ban.user.id, username: ban.user.username, banned: true, reason: ban.reason ?? null }));
     },
 
     guildBanRemove: async (ctx, ban) => {
-      const log = await prepare(ctx, ban.guild, 'moderation');
+      const log = await prep(ctx, ban.guild, 'moderation');
       await log?.send(embeds.banChanged(log.t, { userId: ban.user.id, username: ban.user.username, banned: false, reason: null }));
     },
   };
