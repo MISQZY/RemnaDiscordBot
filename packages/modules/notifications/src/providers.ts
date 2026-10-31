@@ -71,7 +71,7 @@ export function parseYoutubeFeed(xml: string): { channelName: string; items: Fee
         'video.published': tag(entry!, 'published'),
         'channel.name': tag(entry!, 'name') || channelName,
       },
-      text: tag(entry!, 'title'),
+      text: [tag(entry!, 'title'), tag(entry!, 'media:description')].filter(Boolean).join('\n'),
     };
   });
   return { channelName, items };

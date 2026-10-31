@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { matchesFilter } from './config.js';
 import { announcementBody, backoffMs, freshItems, rememberItems } from './poll.js';
 import { channelPageUrl, parseYoutubeFeed, SourceFailure, TwitchProvider, YoutubeProvider, type Fetch, type FeedItem } from './providers.js';
 
@@ -23,6 +24,19 @@ const response = (body: string | object, status = 200) =>
   new Response(typeof body === 'string' ? body : JSON.stringify(body), { status });
 
 describe('parseYoutubeFeed', () => {
+  it('filters hashtags and phrases in the video description as well as the title', () => {
+    const xml = feed.replace('</author>', '</author><media:group><media:description>Новое видео &amp; обзор #ФЕРМА</media:description></media:group>');
+    const { items } = parseYoutubeFeed(xml);
+    const video = items[0]!;
+
+    expect(video.text).toBe('Second "video"\nНовое видео & обзор #ФЕРМА');
+    expect(matchesFilter({ include: [], exclude: ['#ферма'] }, video.text!)).toBe(false);
+    expect(matchesFilter({ include: ['видео & обзор'], exclude: [] }, video.text!)).toBe(true);
+    expect(matchesFilter({ include: ['Second'], exclude: ['#ферма'] }, video.text!)).toBe(false);
+    expect(matchesFilter({ include: [], exclude: ['#ферма'] }, items[1]!.text!)).toBe(true);
+    expect(matchesFilter({ include: ['#ферма'], exclude: [] }, items[1]!.text!)).toBe(false);
+  });
+
   it('extracts videos newest first with decoded titles', () => {
     const { channelName, items } = parseYoutubeFeed(feed);
 
