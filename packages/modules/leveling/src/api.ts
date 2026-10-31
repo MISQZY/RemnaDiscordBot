@@ -16,7 +16,13 @@ const MemberParams = z.object({ guildId: Snowflake, userId: Snowflake });
 
 const guildId = (request: FastifyRequest) => (request.params as { guildId: string }).guildId;
 
-function leaderboardRoute(app: FastifyInstance, service: LevelingService, users: UserDirectory, guard?: (guildId: string) => Promise<void>) {
+function leaderboardRoute(
+  app: FastifyInstance,
+  service: LevelingService,
+  users: UserDirectory,
+  guard?: (guildId: string) => Promise<void>,
+  options: { fetchMissing?: boolean } = {},
+) {
   app.get(
     '/leaderboard',
     { schema: { tags: ['leveling'], summary: 'XP leaderboard', querystring: LeaderboardQuery, response: { 200: LeaderboardPage } } },
@@ -24,7 +30,7 @@ function leaderboardRoute(app: FastifyInstance, service: LevelingService, users:
       await guard?.(guildId(request));
       const { page, limit } = request.query as z.infer<typeof LeaderboardQuery>;
       const { items, total } = await service.leaderboard(guildId(request), page, limit);
-      return { items: await withNames(items, users), total };
+      return { items: await withNames(items, users, options), total };
     },
   );
 }
@@ -81,7 +87,13 @@ export function levelingApi(app: FastifyInstance, ctx: ApiModuleContext<Leveling
 
 /** Public leaderboard — when allowed in the settings. */
 export function levelingPublicApi(app: FastifyInstance, ctx: ModuleServices<LevelingConfig>): void {
-  leaderboardRoute(app, new LevelingService(ctx.db), new UserDirectory(ctx.redis, ctx.rest), async (id) => {
-    if (!(await ctx.getConfig(id)).publicLeaderboard) throw HttpError.notFound();
-  });
+  leaderboardRoute(
+    app,
+    new LevelingService(ctx.db),
+    new UserDirectory(ctx.redis, ctx.rest),
+    async (id) => {
+      if (!(await ctx.getConfig(id)).publicLeaderboard) throw HttpError.notFound();
+    },
+    { fetchMissing: false },
+  );
 }

@@ -25,4 +25,10 @@ describe('withNames', () => {
       [null, null],
     ]);
   });
+
+  it('forwards fetchMissing option to user directory', async () => {
+    const resolve = vi.fn(async () => ({}));
+    await withNames([entry('200000000000000002', null)], { resolve }, { fetchMissing: false });
+    expect(resolve).toHaveBeenCalledWith(['200000000000000002'], { fetchMissing: false });
+  });
 });

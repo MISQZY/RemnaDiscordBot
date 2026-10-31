@@ -31,7 +31,8 @@ export class UserDirectory {
   ) {}
 
   /** Known users of `ids`; non-snowflakes (`system`) and users Discord did not give are left out. */
-  async resolve(ids: Iterable<string | null | undefined>): Promise<Record<string, UserInfo>> {
+  async resolve(ids: Iterable<string | null | undefined>, options: { fetchMissing?: boolean } = {}): Promise<Record<string, UserInfo>> {
+    const { fetchMissing = true } = options;
     const unique = [...new Set([...ids].filter((id): id is string => !!id && Snowflake.safeParse(id).success))];
     if (unique.length === 0) return {};
     const result: Record<string, UserInfo> = {};
@@ -42,6 +43,8 @@ export class UserDirectory {
       if (raw === null) missing.push(id);
       else if (raw !== UNKNOWN) result[id] = UserInfo.parse(JSON.parse(raw));
     });
+
+    if (!fetchMissing || missing.length === 0) return result;
 
     const toFetch = missing.slice(0, MAX_FETCH);
     for (let i = 0; i < toFetch.length; i += PARALLEL) {
