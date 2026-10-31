@@ -115,15 +115,17 @@ export class SuggestionService {
   /** Casts, changes or takes back a vote; returns the suggestion with the new counts. */
   async vote(suggestion: Suggestion, userId: string, value: 1 | -1): Promise<Suggestion> {
     const { db } = this.services;
-    const key = { suggestionId_userId: { suggestionId: suggestion.id, userId } };
-    const current = await db.suggestionVote.findUnique({ where: key });
-    if (current?.value === value) await db.suggestionVote.delete({ where: key });
-    else await db.suggestionVote.upsert({ where: key, create: { suggestionId: suggestion.id, userId, value }, update: { value } });
-    const [upvotes, downvotes] = await Promise.all([
-      db.suggestionVote.count({ where: { suggestionId: suggestion.id, value: 1 } }),
-      db.suggestionVote.count({ where: { suggestionId: suggestion.id, value: -1 } }),
-    ]);
-    return db.suggestion.update({ where: { id: suggestion.id }, data: { upvotes, downvotes } });
+    return db.$transaction(async (tx) => {
+      const key = { suggestionId_userId: { suggestionId: suggestion.id, userId } };
+      const current = await tx.suggestionVote.findUnique({ where: key });
+      if (current?.value === value) await tx.suggestionVote.delete({ where: key });
+      else await tx.suggestionVote.upsert({ where: key, create: { suggestionId: suggestion.id, userId, value }, update: { value } });
+      const [upvotes, downvotes] = await Promise.all([
+        tx.suggestionVote.count({ where: { suggestionId: suggestion.id, value: 1 } }),
+        tx.suggestionVote.count({ where: { suggestionId: suggestion.id, value: -1 } }),
+      ]);
+      return tx.suggestion.update({ where: { id: suggestion.id }, data: { upvotes, downvotes } });
+    });
   }
 
   async decide(guildId: string, number: number, status: SuggestionStatus, reviewerId: string, response: string | null, config: SuggestionsConfig): Promise<Suggestion> {
