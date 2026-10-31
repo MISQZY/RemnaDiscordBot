@@ -12,8 +12,8 @@ export interface HealthResponse {
   body: { status: 'ok' | 'starting'; clusters: ClusterStatus[] };
 }
 
-export function healthResponse(clusters: ClusterStatus[]): HealthResponse {
-  const ok = clusters.length > 0 && clusters.every((c) => c.ready);
+export function healthResponse(clusters: ClusterStatus[], managerReady?: boolean): HealthResponse {
+  const ok = (managerReady ?? clusters.length > 0) && clusters.every((c) => c.ready);
   return { statusCode: ok ? 200 : 503, body: { status: ok ? 'ok' : 'starting', clusters } };
 }
 
@@ -22,9 +22,11 @@ export interface HealthServerOptions {
   /** Prometheus text served at `/metrics`. */
   getMetrics: () => Promise<string>;
   metricsToken?: string;
+  /** Dynamic managers can be healthy while waiting for assignments. */
+  managerReady?: () => boolean;
 }
 
-export function startHealthServer(port: number, { getClusters, getMetrics, metricsToken }: HealthServerOptions, logger: Logger): Server {
+export function startHealthServer(port: number, { getClusters, getMetrics, metricsToken, managerReady }: HealthServerOptions, logger: Logger): Server {
   const server = createServer((req, res) => {
     const onError = (err: unknown) => logger.error({ err }, 'Failed to collect metrics');
     if (handleMetricsRequest(req, res, { token: metricsToken, render: getMetrics, onError })) return;
@@ -32,7 +34,7 @@ export function startHealthServer(port: number, { getClusters, getMetrics, metri
       res.writeHead(404).end();
       return;
     }
-    const { statusCode, body } = healthResponse(getClusters());
+    const { statusCode, body } = healthResponse(getClusters(), managerReady?.());
     res.writeHead(statusCode, { 'content-type': 'application/json' }).end(JSON.stringify(body));
   });
   server.listen(port, () => logger.info({ port }, 'Health server listening'));

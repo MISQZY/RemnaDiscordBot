@@ -26,10 +26,27 @@ import { RedisIdentifyThrottler } from './identify.js';
 import { GuildLifecycle } from './lifecycle/guilds.js';
 import { startHeartbeat } from './lifecycle/heartbeat.js';
 import { registerClusterMetrics } from './metrics.js';
+import { startLeaseGuard } from './orchestration/guard.js';
+import { coordinationRedisOptions } from './orchestration/store.js';
 
 const env = loadClusterEnv();
 const info = getInfo();
 const logger = createLogger({ service: 'bot', level: env.LOG_LEVEL, bindings: { clusterId: info.CLUSTER } });
+let stopLeaseGuard: (() => void) | undefined;
+let leaseRedis: Redis | undefined;
+if (process.env.SHARD_MODE === 'dynamic') {
+  const token = process.env.SHARD_LEASE_TOKEN;
+  if (!token) throw new Error('Dynamic cluster started without an ownership token');
+  leaseRedis = new Redis(env.REDIS_URL, { ...coordinationRedisOptions(), lazyConnect: true });
+  leaseRedis.on('error', (err) => logger.warn({ err }, 'Lease Redis unavailable'));
+  await leaseRedis.connect();
+  const revoke = () => {
+    logger.fatal({ clusterId: info.CLUSTER }, 'Cluster ownership lost; exiting immediately');
+    process.exit(1);
+  };
+  process.once('disconnect', revoke);
+  stopLeaseGuard = await startLeaseGuard(leaseRedis, info.CLUSTER, token, revoke);
+}
 
 const registry = new ModuleRegistry(modules);
 
@@ -100,7 +117,11 @@ const dispatcher = new Dispatcher({ client, logger, db, redis, i18n, bus, config
 dispatcher.attach();
 const teardownModules = await dispatcher.setupModules();
 new GuildLifecycle(db, new GuildSnapshotWriter(redis), logger).attach(client);
-const stopHeartbeat = startHeartbeat(client, redis, logger, { clusterId: info.CLUSTER, shards: info.SHARD_LIST });
+const stopHeartbeat = startHeartbeat(client, redis, logger, {
+  clusterId: info.CLUSTER, shards: info.SHARD_LIST,
+  nodeId: process.env.SHARD_MODE === 'dynamic' ? process.env.SHARD_NODE_ID : undefined,
+  intervalMs: process.env.SHARD_MODE === 'dynamic' ? 5_000 : undefined,
+});
 
 client.once(Events.ClientReady, (ready) => {
   client.cluster.triggerReady();
@@ -125,6 +146,8 @@ async function shutdown(signal: string): Promise<void> {
   } catch (err) {
     logger.error({ err }, 'Error during shutdown');
   } finally {
+    stopLeaseGuard?.();
+    leaseRedis?.disconnect();
     process.exit(0);
   }
 }

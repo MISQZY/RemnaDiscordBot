@@ -12,6 +12,12 @@ const ManagerEnv = z
     SHARD_HOSTS: z.coerce.number().int().positive().default(1),
     /** This server among them, from 0; only the first one syncs slash commands. */
     SHARD_HOST_INDEX: z.coerce.number().int().min(0).default(0),
+    SHARD_MODE: z.enum(['static', 'dynamic']).default('static'),
+    SHARD_NODE_ID: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/).optional(),
+    REDIS_URL: z.string().min(1).optional(),
+    SHARD_NODE_MEMORY_MB: z.coerce.number().int().min(128).default(768),
+    SHARD_NODE_CPU_CORES: z.coerce.number().positive().default(1),
+    SHARD_NODE_MAX_CLUSTERS: z.coerce.number().int().positive().default(16),
     BOT_HEALTH_PORT: z.coerce.number().int().positive().default(3001),
     /** Bearer token required by `/metrics`; set it when the metrics port is published outside the Docker network. */
     METRICS_TOKEN: z.string().min(16).optional(),
@@ -27,6 +33,10 @@ const ManagerEnv = z
   .refine((env) => env.SHARD_HOST_INDEX < env.SHARD_HOSTS, {
     path: ['SHARD_HOST_INDEX'],
     message: 'Must be below SHARD_HOSTS',
+  })
+  .refine((env) => env.SHARD_MODE !== 'dynamic' || (env.TOTAL_SHARDS !== 'auto' && !!env.REDIS_URL && !!env.SHARD_NODE_ID), {
+    path: ['SHARD_MODE'],
+    message: 'Dynamic sharding requires numeric TOTAL_SHARDS, REDIS_URL and a unique SHARD_NODE_ID',
   });
 
 const ClusterEnv = z.object({

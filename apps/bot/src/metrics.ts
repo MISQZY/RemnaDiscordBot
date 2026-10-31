@@ -40,6 +40,7 @@ export function registerManagerMetrics(manager: ClusterManager): void {
     help: 'Whether the cluster process is alive and ready',
     labelNames: ['cluster'] as const,
     collect() {
+      this.reset();
       for (const cluster of manager.clusters.values()) this.set({ cluster: String(cluster.id) }, cluster.ready ? 1 : 0);
     },
   });

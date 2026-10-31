@@ -32,6 +32,11 @@ export const ClusterHeartbeat = z.object({
   totalShards: z.number().int().positive().optional(),
   uptime: z.number().nonnegative().optional(),
   memoryBytes: z.number().int().nonnegative().optional(),
+  nodeId: z.string().optional(),
+  cpuCores: z.number().nonnegative().optional(),
+  eventLoopDelayMs: z.number().nonnegative().optional(),
+  eventsPerSecond: z.number().nonnegative().optional(),
+  heartbeatTtlMs: z.number().int().positive().optional(),
   shardStats: z.array(ShardHeartbeat).optional(),
 });
 export type ClusterHeartbeat = z.infer<typeof ClusterHeartbeat>;

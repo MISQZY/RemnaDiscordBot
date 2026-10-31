@@ -1,16 +1,18 @@
 import type { ClusterHeartbeat } from '@bot/contracts';
+import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
 import { RedisKeys } from '@bot/core';
 import type { Logger } from '@bot/logger';
-import { Status, type Client } from 'discord.js';
+import { Events, Status, type Client } from 'discord.js';
 import type { Redis } from 'ioredis';
 
 export interface HeartbeatOptions {
   clusterId: number;
   shards: number[];
   intervalMs?: number;
+  nodeId?: string;
 }
 
-export function buildHeartbeat(client: Client, { clusterId, shards }: HeartbeatOptions): ClusterHeartbeat {
+export function buildHeartbeat(client: Client, { clusterId, shards, nodeId, intervalMs = 30_000 }: HeartbeatOptions): ClusterHeartbeat {
   const counts = new Map<number, { guilds: number; members: number }>();
   for (const guild of client.guilds.cache.values()) {
     const count = counts.get(guild.shardId) ?? { guilds: 0, members: 0 };
@@ -31,6 +33,8 @@ export function buildHeartbeat(client: Client, { clusterId, shards }: HeartbeatO
   } as const;
   return {
     clusterId,
+    heartbeatTtlMs: intervalMs * 3,
+    ...(nodeId ? { nodeId } : {}),
     shards,
     guilds: client.guilds.cache.size,
     ping: Number.isFinite(client.ws.ping) ? Math.round(client.ws.ping) : -1,
@@ -58,11 +62,31 @@ export function buildHeartbeat(client: Client, { clusterId, shards }: HeartbeatO
 export function startHeartbeat(client: Client, redis: Redis, logger: Logger, options: HeartbeatOptions): () => Promise<void> {
   const intervalMs = options.intervalMs ?? 30_000;
   const key = RedisKeys.clusterHeartbeat(options.clusterId);
+  const delay = monitorEventLoopDelay({ resolution: 20 });
+  delay.enable();
+  let previousCpu = process.cpuUsage();
+  let previousTime = performance.now();
+  let events = 0;
+  const onRaw = () => { events++; };
+  if (options.nodeId) client.on(Events.Raw, onRaw);
 
-  const beat = () =>
-    redis
-      .set(key, JSON.stringify(buildHeartbeat(client, options)), 'PX', intervalMs * 3)
+  const beat = () => {
+    const now = performance.now();
+    const cpu = process.cpuUsage();
+    const elapsed = Math.max(1, now - previousTime);
+    const load = {
+      cpuCores: Math.max(0, (cpu.user - previousCpu.user + cpu.system - previousCpu.system) / (elapsed * 1000)),
+      eventLoopDelayMs: Number.isFinite(delay.mean) ? delay.mean / 1e6 : 0,
+      eventsPerSecond: options.nodeId ? events * 1000 / elapsed : undefined,
+    };
+    previousCpu = cpu;
+    previousTime = now;
+    events = 0;
+    delay.reset();
+    return redis
+      .set(key, JSON.stringify({ ...buildHeartbeat(client, options), ...load }), 'PX', intervalMs * 3)
       .catch((err: unknown) => logger.warn({ err }, 'Heartbeat failed'));
+  };
 
   void beat();
   const timer = setInterval(() => void beat(), intervalMs);
@@ -70,6 +94,8 @@ export function startHeartbeat(client: Client, redis: Redis, logger: Logger, opt
 
   return async () => {
     clearInterval(timer);
+    delay.disable();
+    if (options.nodeId) client.off(Events.Raw, onRaw);
     await redis.del(key).catch(() => undefined);
   };
 }

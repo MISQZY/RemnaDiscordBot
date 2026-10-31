@@ -53,6 +53,8 @@ Slash-команды бот синхронизирует с Discord сам пр�
 
 ## Быстрый старт без контейнеров
 
+Для автоматического переноса кластеров при отказе и балансировки между нодами есть `SHARD_MODE=dynamic`: уникальный `SHARD_NODE_ID`, фиксированные `TOTAL_SHARDS` / `SHARDS_PER_CLUSTER` и общий Redis. Бюджеты памяти/CPU задаются `SHARD_NODE_MEMORY_MB`, `SHARD_NODE_CPU_CORES`, `SHARD_NODE_MAX_CLUSTERS`. Перед первым включением обновить образ на всех нодах и остановить все статические процессы; смешивать режимы нельзя. Ansible: `configure-bot-orchestration.yml` на всей группе `bot`. Просмотр и обслуживание: `docker compose exec bot node dist/orchestration/control.js status`, `move <clusterId> <nodeId>`, `drain <nodeId>`, `undrain <nodeId>`. Подробности и ограничения — `docs/02 Архитектура/Динамическое распределение кластеров.md`.
+
 ```sh
 corepack enable
 pnpm install

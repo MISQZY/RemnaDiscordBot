@@ -9,6 +9,8 @@ export const RedisKeys = {
   guildEmojis: (guildId: string) => `guild:${guildId}:emojis`,
   clusterHeartbeat: (clusterId: number) => `bot:cluster:${clusterId}`,
   clusterHeartbeatPattern: 'bot:cluster:*',
+  /** Persistent ownership and placement state; expiry timestamps live inside the value. */
+  orchestrationState: 'bot:orchestration:v1',
   /** Turn of an identify rate limit bucket (`shardId % max_concurrency`), shared by the clusters of every server. */
   identifyBucket: (bucket: number) => `bot:identify:${bucket}`,
   /** Web platform session (API). */
