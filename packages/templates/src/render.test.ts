@@ -105,6 +105,16 @@ describe('renderMessage', () => {
     expect(message.embeds?.[0]?.title).toHaveLength(256);
   });
 
+  it('parses complete color values and rejects partial numeric strings', () => {
+    const color = (value: string) => renderMessage({ embeds: [{ title: 'Color', color: '{color}' }] }, { color: value }).embeds?.[0]?.color;
+    expect(color('#5865f2')).toBe(0x5865f2);
+    expect(color('0x5865f2')).toBe(0x5865f2);
+    expect(color('16711680')).toBe(0xff0000);
+    expect(color('ff0000')).toBe(0xff0000);
+    expect(color('12garbage')).toBeUndefined();
+    expect(color('#ffjunk')).toBeUndefined();
+  });
+
   it('drops embeds beyond the total size limit', () => {
     const big = { description: 'd'.repeat(4000) };
     expect(renderMessage({ embeds: [big, big] }, vars).embeds).toHaveLength(1);
@@ -113,6 +123,8 @@ describe('renderMessage', () => {
   it('keeps only http(s) URLs for images', () => {
     const message = renderMessage({ embeds: [{ title: 'x', imageUrl: 'javascript:alert(1)', thumbnailUrl: 'https://cdn.test/a.png' }] }, vars);
     expect(message.embeds?.[0]).toEqual({ title: 'x', thumbnail: { url: 'https://cdn.test/a.png' } });
+    const bad = renderMessage({ embeds: [{ title: 'x', url: '{bad}', imageUrl: '{bad}', author: { name: 'Author', url: '{bad}' } }] }, { bad: 'https://invalid host/image.png' });
+    expect(bad.embeds?.[0]).toEqual({ title: 'x', author: { name: 'Author' } });
   });
 
   it('builds a REST body with allowed_mentions', () => {

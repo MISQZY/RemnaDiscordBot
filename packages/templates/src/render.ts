@@ -71,7 +71,13 @@ function renderEmbed(embed: EmbedTemplate, vars: TemplateVars, locale?: string):
   const text = (value: string | undefined, max: number) => (value === undefined ? undefined : truncate(render(value), max));
   const url = (value: string | undefined) => {
     const rendered = value === undefined ? undefined : render(value);
-    return rendered && /^https?:\/\//.test(rendered) ? rendered : undefined;
+    if (!rendered) return undefined;
+    try {
+      const parsed = new URL(rendered);
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.href : undefined;
+    } catch {
+      return undefined;
+    }
   };
 
   let color: number | undefined;
@@ -79,11 +85,13 @@ function renderEmbed(embed: EmbedTemplate, vars: TemplateVars, locale?: string):
     color = embed.color;
   } else if (typeof embed.color === 'string') {
     const renderedColor = render(embed.color).trim();
-    const parsedHex = renderedColor.startsWith('#')
-      ? parseInt(renderedColor.slice(1), 16)
-      : renderedColor.startsWith('0x')
-        ? parseInt(renderedColor.slice(2), 16)
-        : parseInt(renderedColor, 10);
+    const parsedHex = /^(?:#[\da-f]{1,6}|0x[\da-f]{1,6})$/i.test(renderedColor)
+      ? parseInt(renderedColor.replace(/^(#|0x)/i, ''), 16)
+      : /^\d+$/.test(renderedColor)
+        ? Number(renderedColor)
+        : /^[\da-f]{6}$/i.test(renderedColor)
+          ? parseInt(renderedColor, 16)
+          : NaN;
     if (!Number.isNaN(parsedHex) && parsedHex >= 0 && parsedHex <= 0xffffff) {
       color = parsedHex;
     }
