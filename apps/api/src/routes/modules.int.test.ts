@@ -166,6 +166,25 @@ describe('module routes', () => {
       ['announcer', false],
       ['hooked', false],
     ]);
+    expect(response.json()[0]).toHaveProperty('config');
+  });
+
+  it('supports compact listing for catalog and guild modules to reduce data transfer', async () => {
+    // 1. Catalog without schemas
+    const compactCatalog = await t.app.inject('/v1/modules?compact=true');
+    expect(compactCatalog.statusCode).toBe(200);
+    expect(compactCatalog.json()[0]).toMatchObject({ id: expect.any(String), name: expect.any(String) });
+    expect(compactCatalog.json()[0]).not.toHaveProperty('configSchema');
+
+    const fullCatalog = await t.app.inject('/v1/modules');
+    expect(fullCatalog.statusCode).toBe(200);
+    expect(fullCatalog.json()[0]).toHaveProperty('configSchema');
+
+    // 2. Guild modules without heavy configs
+    const compactModules = await t.app.inject({ url: `${url()}?compact=true`, headers: { cookie } });
+    expect(compactModules.statusCode).toBe(200);
+    expect(compactModules.json()[0]).toMatchObject({ id: expect.any(String), enabled: expect.any(Boolean), applied: expect.any(Boolean) });
+    expect(compactModules.json()[0]).not.toHaveProperty('config');
   });
 
   it('validates channel and role references against the guild snapshot', async () => {

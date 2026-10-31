@@ -127,28 +127,36 @@ export const GuildOverview = z.object({
 });
 export type GuildOverview = z.infer<typeof GuildOverview>;
 
-export const ModuleInfo = z.object({
+export const ModuleCatalogItem = z.object({
   id: ModuleId,
   name: z.string(),
   alwaysEnabled: z.boolean(),
   enabledByDefault: z.boolean(),
   /** Works only in guilds with VIP. */
   vip: z.boolean(),
+});
+export type ModuleCatalogItem = z.infer<typeof ModuleCatalogItem>;
+
+export const ModuleInfo = ModuleCatalogItem.extend({
   /** Config JSON Schema — for generating forms in the web app. */
   configSchema: z.record(z.string(), z.unknown()),
 });
 export type ModuleInfo = z.infer<typeof ModuleInfo>;
 
-export const ModuleState = z.object({
+export const ModuleSummaryState = z.object({
   id: ModuleId,
   enabled: z.boolean(),
-  config: z.unknown(),
   /** `null` — the config was never saved, defaults apply. */
   updatedAt: z.iso.datetime().nullable(),
   /** Whether the module configuration and hooks (e.g. onSaved) are successfully applied. */
   applied: z.boolean().default(true),
   /** Error message if applying configuration/hooks failed. */
   applyError: z.string().nullable().default(null),
+});
+export type ModuleSummaryState = z.infer<typeof ModuleSummaryState>;
+
+export const ModuleState = ModuleSummaryState.extend({
+  config: z.unknown(),
 });
 export type ModuleState = z.infer<typeof ModuleState>;
 

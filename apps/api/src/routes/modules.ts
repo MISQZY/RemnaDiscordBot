@@ -1,4 +1,13 @@
-import { ModuleConfigPatch, ModuleConfigReplace, ModuleId, ModuleInfo, ModuleState, Snowflake } from '@bot/contracts';
+import {
+  ModuleCatalogItem,
+  ModuleConfigPatch,
+  ModuleConfigReplace,
+  ModuleId,
+  ModuleInfo,
+  ModuleState,
+  ModuleSummaryState,
+  Snowflake,
+} from '@bot/contracts';
 import { ConfigConflictError, HttpError, moduleServices, UnknownModuleError, type AnyModule, type ConfigPatch, type ResolvedConfig } from '@bot/core';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod, ZodTypeProvider } from 'fastify-type-provider-zod';
@@ -24,6 +33,16 @@ function toState(id: string, resolved: ResolvedConfig): ModuleState {
     id,
     enabled: resolved.enabled,
     config: resolved.config,
+    updatedAt: resolved.updatedAt,
+    applied: resolved.applied,
+    applyError: resolved.applyError,
+  };
+}
+
+function toSummaryState(id: string, resolved: ResolvedConfig): ModuleSummaryState {
+  return {
+    id,
+    enabled: resolved.enabled,
     updatedAt: resolved.updatedAt,
     applied: resolved.applied,
     applyError: resolved.applyError,
@@ -119,21 +138,29 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
         schema: {
           tags: ['modules'],
           summary: 'Module catalog',
-          description: 'Names follow `Accept-Language`; `configSchema` is a JSON Schema for forms.',
+          description: 'Names follow `Accept-Language`; `configSchema` is a JSON Schema for forms (omitted when compact=true).',
           security: [],
-          response: { 200: z.array(ModuleInfo) },
+          querystring: z.object({ compact: z.coerce.boolean().optional() }),
+          response: { 200: z.union([z.array(ModuleInfo), z.array(ModuleCatalogItem)]) },
         },
       },
       async (request) => {
         const locale = i18n.resolveLocale(request.headers['accept-language']?.split(',')[0]);
-        return registry.all().map((module) => ({
-          id: module.id,
-          name: i18n.has(`${module.id}.name`, locale) ? i18n.t(locale, `${module.id}.name`) : module.id,
-          alwaysEnabled: module.alwaysEnabled ?? false,
-          enabledByDefault: module.enabledByDefault ?? false,
-          vip: config.vip.isVipModule(module.id),
-          configSchema: z.toJSONSchema(module.configSchema, { io: 'input', unrepresentable: 'any' }) as Record<string, unknown>,
-        }));
+        const isCompact = request.query.compact === true;
+        return registry.all().map((module) => {
+          const item = {
+            id: module.id,
+            name: i18n.has(`${module.id}.name`, locale) ? i18n.t(locale, `${module.id}.name`) : module.id,
+            alwaysEnabled: module.alwaysEnabled ?? false,
+            enabledByDefault: module.enabledByDefault ?? false,
+            vip: config.vip.isVipModule(module.id),
+          };
+          if (isCompact) return item;
+          return {
+            ...item,
+            configSchema: z.toJSONSchema(module.configSchema, { io: 'input', unrepresentable: 'any' }) as Record<string, unknown>,
+          };
+        });
       },
     );
 
@@ -162,10 +189,22 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
 
       scope.get(
         '/v1/guilds/:guildId/modules',
-        { schema: { tags: ['modules'], summary: 'State of all guild modules', params: GuildParams, response: { 200: z.array(ModuleState) } } },
+        {
+          schema: {
+            tags: ['modules'],
+            summary: 'State of all guild modules',
+            params: GuildParams,
+            querystring: z.object({ compact: z.coerce.boolean().optional() }),
+            response: { 200: z.union([z.array(ModuleState), z.array(ModuleSummaryState)]) },
+          },
+        },
         async (request) => {
           const all = await config.getAll(request.params.guildId);
-          return registry.all().map((m) => toState(m.id, all.get(m.id)!));
+          const isCompact = request.query.compact === true;
+          return registry.all().map((m) => {
+            const resolved = all.get(m.id)!;
+            return isCompact ? toSummaryState(m.id, resolved) : toState(m.id, resolved);
+          });
         },
       );
 
