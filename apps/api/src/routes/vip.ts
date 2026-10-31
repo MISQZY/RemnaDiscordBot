@@ -11,7 +11,7 @@ export function vipRoutes({ db, redis, registry, config, options, snapshots }: A
   const store = new PrismaVipStore(db);
 
   return async (app) => {
-    const guildSchema = GuildMeta.pick({ id: true, name: true, icon: true, memberCount: true });
+    const guildSchema = GuildMeta.pick({ id: true, name: true, icon: true, memberCount: true, shardId: true });
     const requireClient = (authorization: string | undefined) => {
       if (!authenticateClient(options.linkClients, authorization)) {
         throw ApiError.unauthorized('Unknown client or wrong secret');

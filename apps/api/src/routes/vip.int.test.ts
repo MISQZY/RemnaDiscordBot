@@ -49,7 +49,7 @@ describe('VIP routes', () => {
     const headers = { authorization: basic() };
     const list = await t.app.inject({ url: '/v1/vip/guilds', headers });
     expect(list.statusCode).toBe(200);
-    expect(list.json()).toEqual([{ id: GUILD_ID, name: 'Test guild', icon: null, memberCount: 10 }]);
+    expect(list.json()).toEqual([{ id: GUILD_ID, name: 'Test guild', icon: null, memberCount: 10, shardId: 0 }]);
     const detail = await t.app.inject({ url: `/v1/vip/guilds/${GUILD_ID}`, headers });
     expect(detail.statusCode).toBe(200);
     expect(detail.json()).toEqual(list.json()[0]);
