@@ -22,6 +22,9 @@ model Guild {
   leftAt      DateTime?
 
   modules GuildModuleConfig[]
+
+  @@index([leftAt])
+  @@index([joinedAt])
 }
 
 /// A module config for a guild. `config` is validated with the module's zod schema.
