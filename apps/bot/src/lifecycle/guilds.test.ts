@@ -1,9 +1,9 @@
 import type { PrismaClient } from '@bot/db';
 import type { GuildSnapshotWriter } from '@bot/discord';
 import { createLogger } from '@bot/logger';
-import type { Guild } from 'discord.js';
-import { describe, expect, it, vi } from 'vitest';
-import { GuildLifecycle, initialLocale } from './guilds.js';
+import { Client, type Guild } from 'discord.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { GuildLifecycle, initialLocale, SNAPSHOT_REFRESH_MS } from './guilds.js';
 
 const GUILD = '111111111111111111';
 
@@ -37,6 +37,28 @@ describe('initialLocale', () => {
 });
 
 describe('GuildLifecycle', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('refreshes unchanged guild snapshots daily and stops the timer on shutdown', async () => {
+    vi.useFakeTimers();
+    const { db, snapshots, lifecycle } = setup();
+    const client = new Client({ intents: [] });
+    client.guilds.cache.set(GUILD, guild());
+    client.guilds.cache.set('unavailable', guild(false));
+    const stop = lifecycle.attach(client);
+    try {
+      await vi.advanceTimersByTimeAsync(SNAPSHOT_REFRESH_MS * 8);
+      expect(snapshots.writeGuild).toHaveBeenCalledTimes(8);
+      expect(snapshots.writeGuild).toHaveBeenCalledWith(guild());
+      expect(db.guild.upsert).not.toHaveBeenCalled();
+      stop();
+      await vi.advanceTimersByTimeAsync(SNAPSHOT_REFRESH_MS);
+      expect(snapshots.writeGuild).toHaveBeenCalledTimes(8);
+    } finally {
+      stop();
+      await client.destroy();
+    }
+  });
   it('upserts the guild and writes a snapshot on join', async () => {
     const { db, snapshots, lifecycle } = setup();
     await lifecycle.join(guild());

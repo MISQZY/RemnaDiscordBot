@@ -86,7 +86,7 @@ const scheduler = new Scheduler(db);
 const dispatcher = new Dispatcher({ client, logger, db, redis, i18n, bus, config, scheduler, guildLocales, rest: client.rest, registry }, registry);
 dispatcher.attach();
 const teardownModules = await dispatcher.setupModules();
-new GuildLifecycle(db, new GuildSnapshotWriter(redis), logger).attach(client);
+const stopGuildLifecycle = new GuildLifecycle(db, new GuildSnapshotWriter(redis), logger).attach(client);
 const stopHeartbeat = startHeartbeat(client, redis, logger, {
   clusterId: info.CLUSTER, shards: info.SHARD_LIST,
   nodeId: process.env.SHARD_MODE === 'dynamic' ? process.env.SHARD_NODE_ID : undefined,
@@ -105,6 +105,7 @@ async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
   logger.info({ signal }, 'Cluster shutting down');
+  stopGuildLifecycle();
   try {
     await stopHeartbeat();
     await teardownModules();

@@ -5,6 +5,8 @@ import type { GuildSnapshotWriter } from '@bot/discord';
 import type { Logger } from '@bot/logger';
 import { Events, type Client, type Guild } from 'discord.js';
 
+export const SNAPSHOT_REFRESH_MS = 24 * 60 * 60_000;
+
 /**
  * A new server's language comes from its Discord settings; English if the bot does not support it.
  * A language chosen later (`/language`, API) is never overwritten.
@@ -25,7 +27,7 @@ export class GuildLifecycle {
     private readonly logger: Logger,
   ) {}
 
-  attach(client: Client): void {
+  attach(client: Client): () => void {
     client.once(Events.ClientReady, (ready) => this.safe('ready', () => this.syncAll([...ready.guilds.cache.values()])));
     client.on(Events.GuildCreate, (guild) => this.safe('guildCreate', () => this.join(guild)));
     client.on(Events.GuildDelete, (guild) => this.safe('guildDelete', () => this.leave(guild)));
@@ -50,6 +52,29 @@ export class GuildLifecycle {
     client.on(Events.GuildEmojiCreate, (emoji) => emojis(emoji.guild));
     client.on(Events.GuildEmojiUpdate, (_, emoji) => emojis(emoji.guild));
     client.on(Events.GuildEmojiDelete, (emoji) => emojis(emoji.guild));
+
+    // Refresh even unchanged guilds before their seven-day Redis TTL expires.
+    let refreshing = false;
+    const timer = setInterval(() => {
+      if (refreshing) return;
+      refreshing = true;
+      this.safe('snapshots', async () => {
+        try {
+          await eachLimit([...client.guilds.cache.values()], 10, async (guild) => {
+            if (!guild.available) return;
+            try {
+              await this.snapshots.writeGuild(guild);
+            } catch (err) {
+              this.logger.error({ err, guildId: guild.id }, 'Guild snapshot refresh failed');
+            }
+          });
+        } finally {
+          refreshing = false;
+        }
+      });
+    }, SNAPSHOT_REFRESH_MS);
+    timer.unref();
+    return () => clearInterval(timer);
   }
 
   async join(guild: Guild): Promise<void> {
