@@ -18,6 +18,7 @@ export class ConfigConflictError extends Error {
 
 export interface ConfigStore {
   find(guildId: string, moduleId: string): Promise<StoredConfig | null>;
+  findMany?(guildId: string, moduleIds?: string[]): Promise<Map<string, StoredConfig>>;
   save(guildId: string, moduleId: string, value: ConfigWrite, updatedBy?: string, expectedUpdatedAt?: string | null): Promise<StoredConfig>;
 }
 
@@ -36,6 +37,21 @@ export class PrismaConfigStore implements ConfigStore {
       select: SELECT,
     });
     return row && toStored(row);
+  }
+
+  async findMany(guildId: string, moduleIds?: string[]): Promise<Map<string, StoredConfig>> {
+    const rows = await this.db.guildModuleConfig.findMany({
+      where: {
+        guildId,
+        ...(moduleIds ? { moduleId: { in: moduleIds } } : {}),
+      },
+      select: { moduleId: true, ...SELECT },
+    });
+    const result = new Map<string, StoredConfig>();
+    for (const row of rows) {
+      result.set(row.moduleId, toStored(row));
+    }
+    return result;
   }
 
   async save(guildId: string, moduleId: string, value: ConfigWrite, updatedBy?: string, expectedUpdatedAt?: string | null): Promise<StoredConfig> {

@@ -93,10 +93,80 @@ export class ConfigService {
     return (await this.get(guildId, moduleId)).enabled;
   }
 
-  async enabledModules(guildId: string): Promise<string[]> {
+  async getAll(guildId: string): Promise<Map<string, ResolvedConfig>> {
     const modules = this.options.registry.all();
-    const flags = await Promise.all(modules.map((m) => this.isEnabled(guildId, m.id)));
-    return modules.filter((_, i) => flags[i]).map((m) => m.id);
+    const result = new Map<string, ResolvedConfig>();
+    const missingModuleIds: string[] = [];
+
+    for (const module of modules) {
+      const key = `${guildId}:${module.id}`;
+      const cached = this.local.get(key);
+      if (cached) {
+        result.set(module.id, cached);
+      } else {
+        missingModuleIds.push(module.id);
+      }
+    }
+
+    if (missingModuleIds.length > 0) {
+      const fromShared = this.options.sharedCache?.getMany
+        ? await this.options.sharedCache.getMany(guildId, missingModuleIds)
+        : new Map<string, StoredConfig | null>();
+
+      const stillMissingIds = missingModuleIds.filter((id) => !fromShared.has(id));
+      let fromStore = new Map<string, StoredConfig>();
+      if (stillMissingIds.length > 0) {
+        if (this.options.store.findMany) {
+          fromStore = await this.options.store.findMany(guildId, stillMissingIds);
+        } else {
+          await Promise.all(
+            stillMissingIds.map(async (id) => {
+              const item = await this.options.store.find(guildId, id);
+              if (item) fromStore.set(id, item);
+            }),
+          );
+        }
+
+        const toCacheInShared = new Map<string, StoredConfig | null>();
+        for (const id of stillMissingIds) {
+          const stored = fromStore.get(id) ?? null;
+          toCacheInShared.set(id, stored);
+          fromShared.set(id, stored);
+        }
+        if (this.options.sharedCache?.setMany) {
+          await this.options.sharedCache.setMany(guildId, toCacheInShared);
+        } else if (this.options.sharedCache) {
+          await Promise.all(
+            [...toCacheInShared.entries()].map(([id, val]) => this.options.sharedCache!.set(guildId, id, val)),
+          );
+        }
+      }
+
+      const generation = this.generation;
+      for (const id of missingModuleIds) {
+        const module = this.requireModule(id);
+        const stored = fromShared.get(id) ?? fromStore.get(id) ?? null;
+        const resolved = await this.resolve(module, guildId, stored);
+        if (generation === this.generation) {
+          this.local.set(`${guildId}:${id}`, resolved);
+        }
+        result.set(id, resolved);
+      }
+    }
+
+    const finalResult = new Map<string, ResolvedConfig>();
+    for (const [id, resolved] of result.entries()) {
+      finalResult.set(
+        id,
+        resolved.enabled && this.vip.locked(guildId, id) ? { ...resolved, enabled: false } : resolved,
+      );
+    }
+    return finalResult;
+  }
+
+  async enabledModules(guildId: string): Promise<string[]> {
+    const all = await this.getAll(guildId);
+    return this.options.registry.all().filter((m) => all.get(m.id)?.enabled).map((m) => m.id);
   }
 
   async update<T = unknown>(

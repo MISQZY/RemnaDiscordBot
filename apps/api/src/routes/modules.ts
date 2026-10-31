@@ -146,8 +146,10 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
       scope.get(
         '/v1/guilds/:guildId/modules',
         { schema: { tags: ['modules'], summary: 'State of all guild modules', params: GuildParams, response: { 200: z.array(ModuleState) } } },
-        async (request) =>
-          Promise.all(registry.all().map(async (m) => toState(m.id, await config.get(request.params.guildId, m.id)))),
+        async (request) => {
+          const all = await config.getAll(request.params.guildId);
+          return registry.all().map((m) => toState(m.id, all.get(m.id)!));
+        },
       );
 
       scope.get(

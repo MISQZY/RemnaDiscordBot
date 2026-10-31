@@ -10,6 +10,18 @@ export class MemoryConfigStore implements ConfigStore {
     return this.rows.get(`${guildId}:${moduleId}`) ?? null;
   }
 
+  async findMany(guildId: string, moduleIds?: string[]): Promise<Map<string, StoredConfig>> {
+    this.finds++;
+    const result = new Map<string, StoredConfig>();
+    for (const [key, val] of this.rows.entries()) {
+      const [g, m] = key.split(':');
+      if (g === guildId && m && (!moduleIds || moduleIds.includes(m))) {
+        result.set(m, val);
+      }
+    }
+    return result;
+  }
+
   async save(guildId: string, moduleId: string, value: ConfigWrite, _updatedBy?: string, expectedUpdatedAt?: string | null): Promise<StoredConfig> {
     const previous = this.rows.get(`${guildId}:${moduleId}`);
     if (expectedUpdatedAt !== undefined && expectedUpdatedAt !== (previous?.updatedAt ?? null)) throw new ConfigConflictError();
@@ -27,8 +39,25 @@ export class MemorySharedCache implements SharedConfigCache {
     return this.entries.has(key) ? this.entries.get(key) : undefined;
   }
 
+  async getMany(guildId: string, moduleIds: string[]): Promise<Map<string, StoredConfig | null>> {
+    const result = new Map<string, StoredConfig | null>();
+    for (const m of moduleIds) {
+      const key = `${guildId}:${m}`;
+      if (this.entries.has(key)) {
+        result.set(m, this.entries.get(key)!);
+      }
+    }
+    return result;
+  }
+
   async set(guildId: string, moduleId: string, value: StoredConfig | null): Promise<void> {
     this.entries.set(`${guildId}:${moduleId}`, value);
+  }
+
+  async setMany(guildId: string, entries: Map<string, StoredConfig | null>): Promise<void> {
+    for (const [m, val] of entries) {
+      this.entries.set(`${guildId}:${m}`, val);
+    }
   }
 
   async delete(guildId: string, moduleId: string): Promise<void> {

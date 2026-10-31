@@ -139,4 +139,22 @@ describe('ConfigService', () => {
     const { service } = setup();
     await expect(service.get(GUILD, 'missing')).rejects.toBeInstanceOf(UnknownModuleError);
   });
+
+  it('batch loads all modules in a single store lookup', async () => {
+    const { service, store, sharedCache } = setup([
+      createTestModule('mod1'),
+      createTestModule('mod2'),
+      createTestModule('mod3'),
+    ]);
+    store.rows.set(`${GUILD}:mod1`, { enabled: true, config: { xpPerMessage: 1, announce: false }, version: 1, updatedAt: STORED_AT });
+    store.rows.set(`${GUILD}:mod2`, { enabled: true, config: { xpPerMessage: 2, announce: true }, version: 1, updatedAt: STORED_AT });
+
+    const all = await service.getAll(GUILD);
+    expect(all.size).toBe(3);
+    expect(all.get('mod1')?.enabled).toBe(true);
+    expect(all.get('mod2')?.enabled).toBe(true);
+    expect(all.get('mod3')?.enabled).toBe(false);
+    expect(store.finds).toBe(1);
+    expect(sharedCache.entries.get(`${GUILD}:mod3`)).toBeNull();
+  });
 });
