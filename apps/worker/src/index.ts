@@ -1,28 +1,16 @@
 import { createServer } from 'node:http';
 import {
-  ConfigService,
+  bootstrapServices,
   EventBus,
-  GuildLocales,
   IntervalRunner,
   JobRunner,
-  ModuleRegistry,
-  PrismaConfigStore,
-  PrismaVipStore,
-  RedisConfigCache,
   Scheduler,
   handleMetricsRequest,
-  publishConfigInvalidation,
-  registerCoreLocales,
-  subscribeConfigInvalidation,
-  VipAccess,
   type CoreServices,
 } from '@bot/core';
-import { createDatabaseClient } from '@bot/db';
-import { I18n } from '@bot/i18n';
 import { createLogger } from '@bot/logger';
 import { modules } from '@bot/module-list';
 import { REST } from 'discord.js';
-import { Redis } from 'ioredis';
 import { Gauge, collectDefaultMetrics } from 'prom-client';
 import { loadWorkerEnv } from './env.js';
 import { startMaintenance } from './maintenance.js';
@@ -35,31 +23,12 @@ collectDefaultMetrics();
 const OVERDUE_GRACE_MS = 60_000;
 const MAX_ATTEMPTS = 5;
 
-const db = await createDatabaseClient(env.DATABASE_URL);
-const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: 3 });
-redis.on('error', (err) => logger.error({ err }, 'Redis error'));
-
-const registry = new ModuleRegistry(modules);
-const i18n = new I18n(env.DEFAULT_LOCALE);
-registerCoreLocales(i18n);
-registry.registerLocales(i18n);
-
-const guildLocales = new GuildLocales(db, i18n);
-const vip = new VipAccess(new PrismaVipStore(db));
-const stopVip = await vip.start(redis, logger);
-const config = new ConfigService({
-  registry,
-  vip,
-  store: new PrismaConfigStore(db),
-  sharedCache: new RedisConfigCache(redis),
-  publish: (message) => publishConfigInvalidation(redis, message),
-  locales: { localeOf: (guildId) => guildLocales.get(guildId), i18n },
+const { db, redis, registry, i18n, guildLocales, config, close: closeBootstrap } = await bootstrapServices({
+  databaseUrl: env.DATABASE_URL,
+  redisUrl: env.REDIS_URL,
+  defaultLocale: env.DEFAULT_LOCALE,
+  modules,
   logger,
-});
-const unsubscribeConfig = await subscribeConfigInvalidation(redis, logger, (message) => {
-  config.invalidate(message);
-  // Whole-guild invalidation — general settings, including the language, may have changed.
-  if (!message.moduleId) guildLocales.invalidate(message.guildId);
 });
 
 const services: CoreServices = {
@@ -115,10 +84,7 @@ async function shutdown(signal: string): Promise<void> {
     stopMaintenance();
     await jobs.stop();
     health.close();
-    await unsubscribeConfig();
-    await stopVip();
-    await redis.quit();
-    await db.$disconnect();
+    await closeBootstrap();
   } catch (err) {
     logger.error({ err }, 'Error during shutdown');
   } finally {

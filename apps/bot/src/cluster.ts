@@ -1,21 +1,11 @@
 import {
-  ConfigService,
+  bootstrapServices,
   Dispatcher,
   EventBus,
-  GuildLocales,
-  ModuleRegistry,
-  PrismaConfigStore,
-  PrismaVipStore,
-  RedisConfigCache,
   Scheduler,
-  publishConfigInvalidation,
-  registerCoreLocales,
-  subscribeConfigInvalidation,
-  VipAccess,
 } from '@bot/core';
-import { createDatabaseClient, isSqliteUrl } from '@bot/db';
+import { isSqliteUrl } from '@bot/db';
 import { GuildSnapshotWriter } from '@bot/discord';
-import { I18n } from '@bot/i18n';
 import { createLogger } from '@bot/logger';
 import { modules } from '@bot/module-list';
 import { ClusterClient, getInfo } from 'discord-hybrid-sharding';
@@ -48,7 +38,16 @@ if (process.env.SHARD_MODE === 'dynamic') {
   stopLeaseGuard = await startLeaseGuard(leaseRedis, info.CLUSTER, token, revoke);
 }
 
-const registry = new ModuleRegistry(modules);
+const { db, redis, registry, i18n, guildLocales, config, close: closeBootstrap } = await bootstrapServices({
+  databaseUrl: env.DATABASE_URL,
+  redisUrl: env.REDIS_URL,
+  defaultLocale: env.DEFAULT_LOCALE,
+  modules,
+  logger,
+});
+if (isSqliteUrl(env.DATABASE_URL)) {
+  logger.warn('Local mode: SQLite database, single cluster only');
+}
 
 const client = new Client({
   intents: registry.intents([GatewayIntentBits.Guilds, GatewayIntentBits.GuildExpressions]),
@@ -82,36 +81,7 @@ const client = new Client({
 client.cluster = new ClusterClient(client);
 registerClusterMetrics(client, info.CLUSTER);
 
-const db = await createDatabaseClient(env.DATABASE_URL);
-const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: 3 });
-redis.on('error', (err) => logger.error({ err }, 'Redis error'));
-if (isSqliteUrl(env.DATABASE_URL)) {
-  logger.warn('Local mode: SQLite database, single cluster only');
-}
-
-const i18n = new I18n(env.DEFAULT_LOCALE);
-registerCoreLocales(i18n);
-registry.registerLocales(i18n);
-
 const bus = new EventBus(logger);
-const guildLocales = new GuildLocales(db, i18n);
-const vip = new VipAccess(new PrismaVipStore(db));
-const stopVip = await vip.start(redis, logger);
-const config = new ConfigService({
-  registry,
-  vip,
-  store: new PrismaConfigStore(db),
-  sharedCache: new RedisConfigCache(redis),
-  publish: (message) => publishConfigInvalidation(redis, message),
-  locales: { localeOf: (guildId) => guildLocales.get(guildId), i18n },
-  logger,
-});
-const unsubscribeConfig = await subscribeConfigInvalidation(redis, logger, (message) => {
-  config.invalidate(message);
-  // Whole-guild invalidation — general settings, including the language, may have changed.
-  if (!message.moduleId) guildLocales.invalidate(message.guildId);
-});
-
 const scheduler = new Scheduler(db);
 const dispatcher = new Dispatcher({ client, logger, db, redis, i18n, bus, config, scheduler, guildLocales, rest: client.rest, registry }, registry);
 dispatcher.attach();
@@ -139,10 +109,7 @@ async function shutdown(signal: string): Promise<void> {
     await stopHeartbeat();
     await teardownModules();
     await client.destroy();
-    await unsubscribeConfig();
-    await stopVip();
-    await redis.quit();
-    await db.$disconnect();
+    await closeBootstrap();
   } catch (err) {
     logger.error({ err }, 'Error during shutdown');
   } finally {

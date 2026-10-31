@@ -1,26 +1,14 @@
 import { createServer } from 'node:http';
 import {
-  ConfigService,
+  bootstrapServices,
   EventBus,
-  GuildLocales,
-  ModuleRegistry,
-  PrismaConfigStore,
-  PrismaVipStore,
-  RedisConfigCache,
   Scheduler,
-  publishConfigInvalidation,
   handleMetricsRequest,
-  registerCoreLocales,
-  subscribeConfigInvalidation,
-  VipAccess,
 } from '@bot/core';
-import { createDatabaseClient } from '@bot/db';
 import { GuildSnapshotReader } from '@bot/discord';
-import { I18n } from '@bot/i18n';
 import { createLogger } from '@bot/logger';
 import { modules } from '@bot/module-list';
 import { REST } from 'discord.js';
-import { Redis } from 'ioredis';
 import { collectDefaultMetrics } from 'prom-client';
 import { HttpDiscordOAuth } from './auth/discord-oauth.js';
 import { loadApiEnv } from './env.js';
@@ -33,32 +21,12 @@ const docs = env.API_DOCS ? env.API_DOCS === 'true' : env.NODE_ENV !== 'producti
 
 collectDefaultMetrics();
 
-const db = await createDatabaseClient(env.DATABASE_URL);
-const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: 3 });
-redis.on('error', (err) => logger.error({ err }, 'Redis error'));
-
-const registry = new ModuleRegistry(modules);
-const i18n = new I18n(env.DEFAULT_LOCALE);
-registerCoreLocales(i18n);
-registry.registerLocales(i18n);
-
-const guildLocales = new GuildLocales(db, i18n);
-const vip = new VipAccess(new PrismaVipStore(db));
-const stopVip = await vip.start(redis, logger);
-const config = new ConfigService({
-  registry,
-  vip,
-  store: new PrismaConfigStore(db),
-  sharedCache: new RedisConfigCache(redis),
-  publish: (message) => publishConfigInvalidation(redis, message),
-  locales: { localeOf: (guildId) => guildLocales.get(guildId), i18n },
+const { db, redis, registry, i18n, guildLocales, config, close: closeBootstrap } = await bootstrapServices({
+  databaseUrl: env.DATABASE_URL,
+  redisUrl: env.REDIS_URL,
+  defaultLocale: env.DEFAULT_LOCALE,
+  modules,
   logger,
-});
-// Other API replicas change configs too — the local cache must be invalidated.
-const unsubscribeConfig = await subscribeConfigInvalidation(redis, logger, (message) => {
-  config.invalidate(message);
-  // Whole-guild invalidation — general settings, including the language, may have changed.
-  if (!message.moduleId) guildLocales.invalidate(message.guildId);
 });
 
 const app = await buildServer({
@@ -103,10 +71,7 @@ async function shutdown(signal: string): Promise<void> {
   try {
     await app.close();
     metricsServer.close();
-    await unsubscribeConfig();
-    await stopVip();
-    await redis.quit();
-    await db.$disconnect();
+    await closeBootstrap();
   } catch (err) {
     logger.error({ err }, 'Error during shutdown');
   } finally {

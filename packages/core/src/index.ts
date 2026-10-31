@@ -1,3 +1,4 @@
+export * from './bootstrap.js';
 export * from './bot/dispatcher.js';
 export * from './bot/guild-id.js';
 export * from './bot/reply.js';
