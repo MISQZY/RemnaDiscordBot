@@ -1,5 +1,5 @@
 import { MessageTemplate } from '@bot/contracts';
-import { defineCommand, type ComponentHandler, type InteractionContext } from '@bot/core';
+import { defineCommand, ephemeralReply as reply, type ComponentHandler, type InteractionContext } from '@bot/core';
 import { memberTemplateVars } from '@bot/discord';
 import { renderMessage } from '@bot/templates';
 import {
@@ -42,9 +42,6 @@ const kindOption = (kinds: WelcomeKind[]) => (o: SlashCommandStringOption) =>
     .setDescription('Which message')
     .setRequired(true)
     .addChoices(...kinds.map((kind) => ({ name: { join: 'Join', leave: 'Leave', dm: 'Direct message' }[kind], value: kind })));
-
-const reply = (interaction: { reply: ChatInputCommandInteraction['reply'] }, content: string) =>
-  interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
 
 async function updateConfig(ctx: Ctx, guildId: string, userId: string, change: (config: WelcomeConfig) => void): Promise<void> {
   const config = structuredClone(await ctx.getConfig(guildId));

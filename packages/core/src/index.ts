@@ -1,5 +1,6 @@
 export * from './bot/dispatcher.js';
 export * from './bot/guild-id.js';
+export * from './bot/reply.js';
 export * from './bus.js';
 export * from './command-locales.js';
 export * from './concurrency.js';

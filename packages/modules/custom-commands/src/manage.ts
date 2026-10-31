@@ -1,4 +1,4 @@
-import { defineCommand, defineComponent, type InteractionContext } from '@bot/core';
+import { defineCommand, defineComponent, ephemeralReply as reply, type InteractionContext } from '@bot/core';
 import { toGuildEntities as entities } from '@bot/discord';
 import {
   EmbedBuilder,
@@ -42,9 +42,6 @@ const Pending = z.object({
     ephemeral: z.boolean(),
   }),
 });
-
-const reply = (interaction: Repliable, content: string) =>
-  interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
 
 const commandOption = (o: SlashCommandStringOption) =>
   o.setName('command').setDescription('Custom command').setRequired(true).setAutocomplete(true);

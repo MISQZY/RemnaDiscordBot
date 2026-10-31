@@ -1,4 +1,4 @@
-import { defineCommand, type InteractionContext } from '@bot/core';
+import { defineCommand, ephemeralReply as reply, type InteractionContext } from '@bot/core';
 import { isElevatedRole, memberOutranksRole } from '@bot/discord';
 import {
   channelMention,
@@ -19,9 +19,6 @@ import { LevelingConfig } from './config.js';
 import { LevelingService } from './service.js';
 
 type Ctx = InteractionContext<LevelingConfig>;
-
-const reply = (interaction: ChatInputCommandInteraction, content: string) =>
-  interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
 
 /** Saves a changed config; false — the change breaks the schema (the reply is already sent). */
 async function updateConfig(ctx: Ctx, interaction: ChatInputCommandInteraction, change: (config: LevelingConfig) => LevelingConfig) {

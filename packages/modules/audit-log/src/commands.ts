@@ -1,4 +1,4 @@
-import { defineCommand, type InteractionContext } from '@bot/core';
+import { defineCommand, ephemeralReply as reply, type InteractionContext } from '@bot/core';
 import {
   channelMention,
   ChannelType,
@@ -25,9 +25,6 @@ const categoryOption = (o: SlashCommandStringOption, { all = false } = {}) =>
       ...LogCategory.options.map((value) => ({ name: value, value })),
       ...(all ? [{ name: 'all', value: 'all' }] : []),
     );
-
-const reply = (interaction: ChatInputCommandInteraction, content: string) =>
-  interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
 
 async function updateConfig(ctx: Ctx, interaction: ChatInputCommandInteraction, change: (config: AuditLogConfig) => AuditLogConfig) {
   const guildId = interaction.guildId!;

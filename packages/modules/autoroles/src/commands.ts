@@ -1,4 +1,4 @@
-import { defineCommand, type InteractionContext } from '@bot/core';
+import { defineCommand, ephemeralReply as reply, type InteractionContext } from '@bot/core';
 import { isElevatedRole, memberOutranksRole } from '@bot/discord';
 import {
   ChannelType,
@@ -24,9 +24,6 @@ const roleOption = (o: SlashCommandRoleOption) =>
   o.setName('role').setDescription('Role').setRequired(true);
 const panelOption = (o: SlashCommandStringOption) =>
   o.setName('panel').setDescription('Role panel').setRequired(true).setAutocomplete(true);
-
-const reply = (interaction: ChatInputCommandInteraction, content: string) =>
-  interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
 
 /** Why the bot cannot assign the role, or why the invoker may not pick it; `null` — fine. */
 function roleProblem(ctx: Ctx, interaction: ChatInputCommandInteraction, role: Role): string | null {

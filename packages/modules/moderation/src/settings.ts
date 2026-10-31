@@ -1,4 +1,4 @@
-import { defineCommand, type InteractionContext } from '@bot/core';
+import { defineCommand, ephemeralReply as reply, type InteractionContext } from '@bot/core';
 import {
   channelMention,
   ChannelType,
@@ -16,9 +16,6 @@ import { formatDuration, MAX_TIMEOUT_SEC, parseDuration } from './duration.js';
 
 type Ctx = InteractionContext<ModerationConfig>;
 type Rule = z.infer<typeof EscalationRule>;
-
-const reply = (interaction: ChatInputCommandInteraction, content: string) =>
-  interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
 
 /** Saves a changed config; false — the change breaks the schema (the reply is already sent). */
 async function updateConfig(ctx: Ctx, interaction: ChatInputCommandInteraction, change: (config: ModerationConfig) => ModerationConfig) {
