@@ -13,16 +13,41 @@ export async function purgeLeftGuilds(db: PrismaClient, retentionDays: number, n
   const guilds = await db.guild.findMany({ where: { leftAt: { lt: new Date(now.getTime() - retentionDays * DAY_MS) } }, select: { id: true } });
   for (const { id: guildId } of guilds) {
     const where = { guildId };
+    const giveaways = await db.giveaway.findMany({ where, select: { id: true } });
+    if (giveaways.length > 0) {
+      await db.giveawayEntry.deleteMany({ where: { giveawayId: { in: giveaways.map((g) => g.id) } } });
+    }
+    const suggestions = await db.suggestion.findMany({ where, select: { id: true } });
+    if (suggestions.length > 0) {
+      await db.suggestionVote.deleteMany({ where: { suggestionId: { in: suggestions.map((s) => s.id) } } });
+    }
     await db.$transaction([
       db.dashboardAuditLog.deleteMany({ where }),
       db.scheduledAction.deleteMany({ where }),
       db.rolePanel.deleteMany({ where }),
+      db.infoPanel.deleteMany({ where }),
       db.memberRoleBackup.deleteMany({ where }),
       db.modCase.deleteMany({ where }),
-      db.modCaseCounter.deleteMany({ where }),
+      db.modCaseCounter.deleteMany({ where: { guildId } }),
+      db.channelLockdown.deleteMany({ where }),
+      db.verificationPanel.deleteMany({ where: { guildId } }),
+      db.ticketPanel.deleteMany({ where }),
+      db.ticket.deleteMany({ where }),
+      db.ticketCounter.deleteMany({ where: { guildId } }),
+      db.botMessage.deleteMany({ where }),
+      db.scheduledMessage.deleteMany({ where }),
+      db.stickyMessage.deleteMany({ where }),
+      db.reminder.deleteMany({ where }),
+      db.tempVoiceChannel.deleteMany({ where }),
+      db.giveaway.deleteMany({ where }),
+      db.memberInvite.deleteMany({ where }),
+      db.suggestion.deleteMany({ where }),
+      db.suggestionCounter.deleteMany({ where: { guildId } }),
+      db.starboardEntry.deleteMany({ where }),
       db.memberLevel.deleteMany({ where }),
       db.customCommand.deleteMany({ where }),
       db.notificationSubscription.deleteMany({ where }),
+      db.guildVip.deleteMany({ where: { guildId } }),
       // Module configs go with the guild row (cascade).
       db.guild.delete({ where: { id: guildId } }),
     ]);
