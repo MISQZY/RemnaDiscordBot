@@ -11,7 +11,7 @@
     "lint": "eslint src",
     "test": "vitest run --passWithNoTests",
     "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests",
-    "openapi:export": "tsx scripts/export-openapi.ts"
+    "openapi:export": "tsx --conditions=development scripts/export-openapi.ts"
   },
   "dependencies": {
     "@bot/contracts": "workspace:*",
