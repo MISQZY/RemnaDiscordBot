@@ -139,21 +139,21 @@ export class GiveawayService {
    */
   async toggleEntry(giveaway: Giveaway, userId: string): Promise<boolean> {
     const { db } = this.services;
-    const left = await db.giveawayEntry.deleteMany({ where: { giveawayId: giveaway.id, userId } });
-    if (left.count > 0) {
-      await db.giveaway.update({ where: { id: giveaway.id }, data: { entries: { decrement: left.count } } });
-      return false;
-    }
-    try {
-      await db.$transaction([
-        db.giveawayEntry.create({ data: { giveawayId: giveaway.id, userId } }),
-        db.giveaway.update({ where: { id: giveaway.id }, data: { entries: { increment: 1 } } }),
-      ]);
-    } catch (err) {
-      // A click at the same moment entered already.
-      if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002')) throw err;
-    }
-    return true;
+    return db.$transaction(async (tx) => {
+      const left = await tx.giveawayEntry.deleteMany({ where: { giveawayId: giveaway.id, userId } });
+      if (left.count > 0) {
+        await tx.giveaway.update({ where: { id: giveaway.id }, data: { entries: { decrement: left.count } } });
+        return false;
+      }
+      try {
+        await tx.giveawayEntry.create({ data: { giveawayId: giveaway.id, userId } });
+        await tx.giveaway.update({ where: { id: giveaway.id }, data: { entries: { increment: 1 } } });
+      } catch (err) {
+        // A click at the same moment entered already.
+        if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002')) throw err;
+      }
+      return true;
+    });
   }
 
   /** Whether an entrant still may win: on the server, with the required roles and long enough. */
