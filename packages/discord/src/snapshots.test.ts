@@ -11,13 +11,13 @@ function fakeRedis(): Redis {
   const data = new Map<string, string>();
   const redis = {
     get: async (key: string) => data.get(key) ?? null,
-    set: async (key: string, value: string) => void data.set(key, value),
+    set: async (key: string, value: string, ..._args: unknown[]) => void data.set(key, value),
     exists: async (key: string) => (data.has(key) ? 1 : 0),
     del: async (...keys: string[]) => keys.filter((k) => data.delete(k)).length,
     multi: () => {
       const ops: (() => void)[] = [];
       const chain = {
-        set: (key: string, value: string) => (ops.push(() => data.set(key, value)), chain),
+        set: (key: string, value: string, ..._args: unknown[]) => (ops.push(() => data.set(key, value)), chain),
         exec: async () => ops.map((op) => op()),
       };
       return chain;
