@@ -70,14 +70,16 @@ export class Scheduler {
       select: { id: true, lockedUntil: true },
     });
 
-    const claimed: string[] = [];
-    for (const candidate of candidates) {
-      const { count } = await this.db.scheduledAction.updateMany({
-        where: { id: candidate.id, doneAt: null, lockedUntil: candidate.lockedUntil },
-        data: { lockedUntil: new Date(now.getTime() + lockMs), attempts: { increment: 1 } },
-      });
-      if (count === 1) claimed.push(candidate.id);
-    }
+    const claimResults = await Promise.all(
+      candidates.map(async (candidate) => {
+        const { count } = await this.db.scheduledAction.updateMany({
+          where: { id: candidate.id, doneAt: null, lockedUntil: candidate.lockedUntil },
+          data: { lockedUntil: new Date(now.getTime() + lockMs), attempts: { increment: 1 } },
+        });
+        return count === 1 ? candidate.id : null;
+      }),
+    );
+    const claimed = claimResults.filter((id): id is string => id !== null);
     if (claimed.length === 0) return [];
     return this.db.scheduledAction.findMany({ where: { id: { in: claimed } }, orderBy: { runAt: 'asc' } });
   }
