@@ -207,3 +207,25 @@ export type BotStatus = z.infer<typeof BotStatus>;
 
 export const InviteLink = z.object({ url: z.url() });
 export type InviteLink = z.infer<typeof InviteLink>;
+
+export const FailedJobItem = z.object({
+  id: z.string(),
+  guildId: Snowflake,
+  guildName: z.string().nullable().optional(),
+  guildIcon: z.string().nullable().optional(),
+  type: z.string(),
+  payload: z.unknown(),
+  runAt: z.iso.datetime(),
+  doneAt: z.iso.datetime(),
+  attempts: z.number().int().nonnegative(),
+  lastError: z.string(),
+  key: z.string().nullable().optional(),
+  createdAt: z.iso.datetime(),
+});
+export type FailedJobItem = z.infer<typeof FailedJobItem>;
+
+export const FailedJobsPage = z.object({
+  items: z.array(FailedJobItem),
+  nextCursor: z.string().nullable(),
+});
+export type FailedJobsPage = z.infer<typeof FailedJobsPage>;

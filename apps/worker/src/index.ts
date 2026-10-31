@@ -1,11 +1,9 @@
-import { createServer } from 'node:http';
 import {
   bootstrapServices,
   EventBus,
   IntervalRunner,
   JobRunner,
   Scheduler,
-  handleMetricsRequest,
   type CoreServices,
 } from '@bot/core';
 import { createLogger } from '@bot/logger';
@@ -13,6 +11,7 @@ import { modules } from '@bot/module-list';
 import { REST } from 'discord.js';
 import { Gauge, collectDefaultMetrics } from 'prom-client';
 import { loadWorkerEnv } from './env.js';
+import { createWorkerHealthServer } from './health.js';
 import { startMaintenance } from './maintenance.js';
 
 const env = loadWorkerEnv();
@@ -57,12 +56,15 @@ jobs.start(env.WORKER_POLL_MS);
 intervals.start();
 const stopMaintenance = startMaintenance(services, { retentionDays: env.GUILD_DATA_RETENTION_DAYS, jobHistoryDays: env.JOB_HISTORY_DAYS });
 
-const health = createServer((req, res) => {
-  if (req.method === 'GET' && req.url === '/health') {
-    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ status: 'ok' }));
-  } else if (!handleMetricsRequest(req, res, { token: env.METRICS_TOKEN, onError: (err) => logger.error({ err }, 'Failed to collect metrics') })) {
-    res.writeHead(404).end();
-  }
+let shuttingDown = false;
+
+const health = createWorkerHealthServer({
+  db,
+  redis,
+  jobs,
+  isShuttingDown: () => shuttingDown,
+  metricsToken: env.METRICS_TOKEN,
+  onError: (err) => logger.error({ err }, 'Failed to collect metrics'),
 });
 health.listen(env.WORKER_HEALTH_PORT, () => logger.info({ port: env.WORKER_HEALTH_PORT }, 'Health server listening'));
 
@@ -74,7 +76,6 @@ logger.info(
   'Worker started',
 );
 
-let shuttingDown = false;
 async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;

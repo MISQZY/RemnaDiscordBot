@@ -23,6 +23,24 @@ function setup() {
       return { count: matching.length };
     },
     update: async ({ where, data }: { where: { id: string }; data: object }) => Object.assign(rows.find((r) => r.id === where.id)!, data),
+    deleteMany: async ({ where }: { where: { id?: string; key?: string; doneAt?: null } }) => {
+      const initial = rows.length;
+      for (let i = rows.length - 1; i >= 0; i--) {
+        const r = rows[i]!;
+        if (where.id && r.id === where.id) { rows.splice(i, 1); continue; }
+        if (where.key && r.key === where.key && (where.doneAt === undefined || r.doneAt === null)) { rows.splice(i, 1); }
+      }
+      return { count: initial - rows.length };
+    },
+    findUnique: async ({ where }: { where: { id: string } }) => rows.find((r) => r.id === where.id) ?? null,
+    findMany: async ({ where }: { where?: { doneAt?: { not: null }; lastError?: { not: null }; guildId?: string } } = {}) => {
+      return rows.filter((r) => {
+        if (where?.doneAt?.not !== undefined && r.doneAt === null) return false;
+        if (where?.lastError?.not !== undefined && !r.lastError) return false;
+        if (where?.guildId && r.guildId !== where.guildId) return false;
+        return true;
+      });
+    },
   };
   const db = { scheduledAction: actions, $transaction: async <T>(fn: (tx: { scheduledAction: typeof actions }) => Promise<T>) => {
     transactions++;
@@ -108,5 +126,43 @@ describe('keyed job successors', () => {
     conflict(3);
     await expect(schedule()).rejects.toMatchObject({ code: 'P2002' });
     expect(transactions()).toBe(3);
+  });
+});
+
+describe('failed jobs management', () => {
+  it('finds failed jobs, retries and cancels them', async () => {
+    const { rows, scheduler, schedule } = setup();
+    const action = await schedule();
+    rows[0]!.attempts = 5;
+    await scheduler.fail(action.id, 'Discord 500 Internal Error', null);
+
+    // 1. findFailed
+    const failed = await scheduler.findFailed();
+    expect(failed.items).toHaveLength(1);
+    expect(failed.items[0]).toMatchObject({
+      id: action.id,
+      lastError: 'Discord 500 Internal Error',
+      attempts: 5,
+    });
+    expect(failed.items[0]!.doneAt).toBeInstanceOf(Date);
+
+    // 2. retry
+    const retried = await scheduler.retry(action.id);
+    expect(retried).toMatchObject({
+      id: action.id,
+      doneAt: null,
+      lastError: null,
+      attempts: 0,
+    });
+
+    const afterRetry = await scheduler.findFailed();
+    expect(afterRetry.items).toHaveLength(0);
+
+    // 3. cancelById
+    await scheduler.fail(action.id, 'Fatal error', null);
+    expect((await scheduler.findFailed()).items).toHaveLength(1);
+    const deleted = await scheduler.cancelById(action.id);
+    expect(deleted).toBe(true);
+    expect((await scheduler.findFailed()).items).toHaveLength(0);
   });
 });

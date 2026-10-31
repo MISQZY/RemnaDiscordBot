@@ -53,6 +53,8 @@ export class JobRunner {
   private timer: NodeJS.Timeout | undefined;
   private running: Promise<unknown> = Promise.resolve();
   private stopped = false;
+  private started = false;
+  private lastTickAt: Date | null = null;
   private readonly inFlight = new Set<Promise<void>>();
   private readonly options: Required<JobRunnerOptions>;
 
@@ -64,8 +66,21 @@ export class JobRunner {
     this.options = { batchSize: 20, lockMs: 60_000, maxAttempts: 5, timeoutMs: 30_000, ...options };
   }
 
+  isRunning(): boolean {
+    return this.started && !this.stopped;
+  }
+
+  getStatus(): { running: boolean; inFlight: number; lastTickAt: string | null } {
+    return {
+      running: this.isRunning(),
+      inFlight: this.inFlight.size,
+      lastTickAt: this.lastTickAt ? this.lastTickAt.toISOString() : null,
+    };
+  }
+
   /** One pass: claim due jobs for the free slots and run them to the end. Returns the number of jobs. */
   async tick(): Promise<number> {
+    this.lastTickAt = new Date();
     const started = await this.fill();
     await Promise.all(started);
     return started.length;
@@ -85,8 +100,10 @@ export class JobRunner {
   }
 
   start(pollMs: number): void {
+    this.started = true;
     const loop = async () => {
       if (this.stopped) return;
+      this.lastTickAt = new Date();
       this.running = this.fill().catch((err: unknown) => this.services.logger.error({ err }, 'Job tick failed'));
       await this.running;
       if (!this.stopped) this.timer = setTimeout(() => void loop(), pollMs);

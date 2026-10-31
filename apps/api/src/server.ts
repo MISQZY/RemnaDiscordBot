@@ -20,6 +20,7 @@ import { moduleRoutes } from './routes/modules.js';
 import { statusRoutes } from './routes/status.js';
 import { vipRoutes } from './routes/vip.js';
 import { healthRoutes } from './routes/health.js';
+import { jobsRoutes } from './routes/jobs.js';
 
 /** Fastify's request log line, without the query: OAuth codes and states travel in it (`/v1/auth/callback`). */
 function logRequest(request: FastifyRequest) {
@@ -80,6 +81,7 @@ export async function buildServer(deps: ApiDeps): Promise<FastifyInstance> {
   await app.register(guildRoutes(deps, userGuilds));
   await app.register(profileRoutes(deps, userGuilds));
   await app.register(moduleRoutes(deps, userGuilds));
+  await app.register(jobsRoutes(deps, userGuilds));
 
   return app;
 }

@@ -56,6 +56,55 @@ export class Scheduler {
     return count > 0;
   }
 
+  /** Deletes an action by its primary key ID (e.g. permanently removing a failed job). */
+  async cancelById(id: string): Promise<boolean> {
+    const { count } = await this.db.scheduledAction.deleteMany({ where: { id } });
+    return count > 0;
+  }
+
+  /** Returns permanently failed jobs (`doneAt IS NOT NULL AND lastError IS NOT NULL`). */
+  async findFailed({
+    guildId,
+    limit = 50,
+    cursor,
+  }: {
+    guildId?: string;
+    limit?: number;
+    cursor?: string;
+  } = {}): Promise<{ items: ScheduledAction[]; nextCursor: string | null }> {
+    const rows = await this.db.scheduledAction.findMany({
+      where: {
+        doneAt: { not: null },
+        lastError: { not: null },
+        ...(guildId ? { guildId } : {}),
+      },
+      orderBy: [{ doneAt: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+    const nextCursor = hasMore ? items[items.length - 1]!.id : null;
+    return { items, nextCursor };
+  }
+
+  /** Retries a failed job: clears doneAt and lastError, resets attempts and schedules for now. */
+  async retry(id: string): Promise<ScheduledAction | null> {
+    const existing = await this.db.scheduledAction.findUnique({ where: { id } });
+    if (!existing) return null;
+    return this.db.scheduledAction.update({
+      where: { id },
+      data: {
+        doneAt: null,
+        lastError: null,
+        attempts: 0,
+        runAt: new Date(),
+        lockedUntil: null,
+      },
+    });
+  }
+
   async claimDue({ limit, lockMs, maxAttempts }: ClaimOptions): Promise<ScheduledAction[]> {
     const now = new Date();
     const candidates = await this.db.scheduledAction.findMany({
