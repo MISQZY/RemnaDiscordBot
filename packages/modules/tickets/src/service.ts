@@ -129,38 +129,43 @@ export class TicketService {
     };
 
     let channelId: string;
-    if (config.mode === 'forum') {
-      // A forum post is made with its first message; the buttons, which need the ticket's id, are put on it after.
-      const post = (await rest.post(Routes.threads(config.parentChannelId), {
-        body: { name: ticketName(number), auto_archive_duration: 10_080, applied_tags: (await forumTagIds(rest, config.parentChannelId, [t('tickets.tags.open')])) ?? [], message: first },
-        reason: `Ticket #${number}`,
-      })) as { id: string };
-      channelId = post.id;
-      await rest.put(Routes.threadMembers(channelId, owner.id));
-    } else if (config.mode === 'thread') {
-      const thread = (await rest.post(Routes.threads(config.parentChannelId), {
-        body: { name: ticketName(number), type: ChannelType.PrivateThread, invitable: false, auto_archive_duration: 10_080 },
-        reason: `Ticket #${number}`,
-      })) as { id: string };
-      channelId = thread.id;
-      await rest.put(Routes.threadMembers(channelId, owner.id));
-    } else {
-      const botId = await this.ownId();
-      const channel = (await rest.post(Routes.guildChannels(guildId), {
-        body: {
-          name: ticketName(number),
-          type: ChannelType.GuildText,
-          parent_id: config.parentChannelId,
-          permission_overwrites: [
-            { id: guildId, type: OverwriteType.Role, deny: PermissionFlagsBits.ViewChannel.toString() },
-            { id: owner.id, type: OverwriteType.Member, allow: MEMBER_ALLOW.toString() },
-            { id: botId, type: OverwriteType.Member, allow: (MEMBER_ALLOW | PermissionFlagsBits.ManageChannels).toString() },
-            ...support.map((id) => ({ id, type: OverwriteType.Role, allow: MEMBER_ALLOW.toString() })),
-          ],
-        },
-        reason: `Ticket #${number}`,
-      })) as { id: string };
-      channelId = channel.id;
+    try {
+      if (config.mode === 'forum') {
+        // A forum post is made with its first message; the buttons, which need the ticket's id, are put on it after.
+        const post = (await rest.post(Routes.threads(config.parentChannelId), {
+          body: { name: ticketName(number), auto_archive_duration: 10_080, applied_tags: (await forumTagIds(rest, config.parentChannelId, [t('tickets.tags.open')])) ?? [], message: first },
+          reason: `Ticket #${number}`,
+        })) as { id: string };
+        channelId = post.id;
+        await rest.put(Routes.threadMembers(channelId, owner.id));
+      } else if (config.mode === 'thread') {
+        const thread = (await rest.post(Routes.threads(config.parentChannelId), {
+          body: { name: ticketName(number), type: ChannelType.PrivateThread, invitable: false, auto_archive_duration: 10_080 },
+          reason: `Ticket #${number}`,
+        })) as { id: string };
+        channelId = thread.id;
+        await rest.put(Routes.threadMembers(channelId, owner.id));
+      } else {
+        const botId = await this.ownId();
+        const channel = (await rest.post(Routes.guildChannels(guildId), {
+          body: {
+            name: ticketName(number),
+            type: ChannelType.GuildText,
+            parent_id: config.parentChannelId,
+            permission_overwrites: [
+              { id: guildId, type: OverwriteType.Role, deny: PermissionFlagsBits.ViewChannel.toString() },
+              { id: owner.id, type: OverwriteType.Member, allow: MEMBER_ALLOW.toString() },
+              { id: botId, type: OverwriteType.Member, allow: (MEMBER_ALLOW | PermissionFlagsBits.ManageChannels).toString() },
+              ...support.map((id) => ({ id, type: OverwriteType.Role, allow: MEMBER_ALLOW.toString() })),
+            ],
+          },
+          reason: `Ticket #${number}`,
+        })) as { id: string };
+        channelId = channel.id;
+      }
+    } catch (err) {
+      await db.ticketCounter.update({ where: { guildId, last: number }, data: { last: { decrement: 1 } } }).catch(() => {});
+      throw err;
     }
 
     const ticket = await db.ticket.create({
