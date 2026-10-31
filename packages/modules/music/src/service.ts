@@ -18,6 +18,7 @@ import {
   type Track,
   type UnresolvedSearchResult,
   type UnresolvedTrack,
+  type VoicePacket,
 } from 'lavalink-client';
 import { SearchSource, type MusicConfig } from './config.js';
 import { SEARCH_PLATFORMS } from './format.js';
@@ -77,6 +78,7 @@ export class MusicService {
   private readonly aloneTimers = new Map<string, NodeJS.Timeout>();
   private subscriber: Redis | null = null;
   private sourcesTimer: NodeJS.Timeout | null = null;
+  private rawListener?: (packet: { t?: string; d?: unknown }) => void;
   private resumed = false;
 
   constructor(
@@ -115,7 +117,12 @@ export class MusicService {
   /** Hooks into the gateway: raw voice packets feed Lavalink, the ready event initializes it. */
   async start(): Promise<void> {
     const client = this.ctx.client;
-    client.on(Events.Raw, (packet) => void this.manager.sendRawData(packet));
+    this.rawListener = (packet: { t?: string; d?: unknown }) => {
+      if (packet.t === 'VOICE_SERVER_UPDATE' || packet.t === 'VOICE_STATE_UPDATE') {
+        void this.manager.sendRawData(packet as VoicePacket);
+      }
+    };
+    client.on(Events.Raw, this.rawListener);
     const init = (ready: Client<true>) =>
       void this.manager.init({ id: ready.user.id, username: ready.user.username }).catch((err: unknown) => {
         this.ctx.logger.error({ err }, 'Lavalink manager failed to start');
@@ -132,6 +139,10 @@ export class MusicService {
 
   /** Saves playing players for the next start and leaves the voice channels. */
   async stop(): Promise<void> {
+    if (this.rawListener) {
+      this.ctx.client.off(Events.Raw, this.rawListener);
+      this.rawListener = undefined;
+    }
     for (const timer of this.aloneTimers.values()) clearTimeout(timer);
     this.aloneTimers.clear();
     if (this.sourcesTimer) clearInterval(this.sourcesTimer);
