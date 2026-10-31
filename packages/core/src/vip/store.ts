@@ -31,23 +31,20 @@ export class PrismaVipStore implements VipStore {
   async replace(state: VipState): Promise<void> {
     const modules = state.modules as Prisma.InputJsonValue;
     const features = state.features as Prisma.InputJsonValue;
-    const currentGuilds = await this.db.guildVip.findMany();
-    const currentMap = new Map(currentGuilds.map((g) => [g.guildId, g.expiresAt?.getTime() ?? null]));
-
-    const targetGuildIds = new Set(state.guilds.map((g) => g.guildId));
-    const toDelete = currentGuilds.filter((g) => !targetGuildIds.has(g.guildId)).map((g) => g.guildId);
-
-    const toUpsert = state.guilds.filter((g) => {
-      const targetTime = g.expiresAt ? new Date(g.expiresAt).getTime() : null;
-      if (!currentMap.has(g.guildId)) return true;
-      return currentMap.get(g.guildId) !== targetTime;
-    });
-
     await this.db.$transaction(async (tx) => {
+      // Every replacement writes this row first, serializing the read and diff across API replicas.
       await tx.vipSettings.upsert({
         where: { id: SETTINGS_ID },
         create: { id: SETTINGS_ID, modules, features },
         update: { modules, features },
+      });
+      const currentGuilds = await tx.guildVip.findMany();
+      const currentMap = new Map(currentGuilds.map((g) => [g.guildId, g.expiresAt?.getTime() ?? null]));
+      const targetGuildIds = new Set(state.guilds.map((g) => g.guildId));
+      const toDelete = currentGuilds.filter((g) => !targetGuildIds.has(g.guildId)).map((g) => g.guildId);
+      const toUpsert = state.guilds.filter((g) => {
+        const targetTime = g.expiresAt ? new Date(g.expiresAt).getTime() : null;
+        return !currentMap.has(g.guildId) || currentMap.get(g.guildId) !== targetTime;
       });
       if (toDelete.length > 0) {
         await tx.guildVip.deleteMany({ where: { guildId: { in: toDelete } } });
