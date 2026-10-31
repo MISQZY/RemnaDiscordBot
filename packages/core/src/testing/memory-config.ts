@@ -25,9 +25,21 @@ export class MemoryConfigStore implements ConfigStore {
   async save(guildId: string, moduleId: string, value: ConfigWrite, _updatedBy?: string, expectedUpdatedAt?: string | null): Promise<StoredConfig> {
     const previous = this.rows.get(`${guildId}:${moduleId}`);
     if (expectedUpdatedAt !== undefined && expectedUpdatedAt !== (previous?.updatedAt ?? null)) throw new ConfigConflictError();
-    const stored = { ...value, updatedAt: new Date(Math.max(Date.now(), previous ? Date.parse(previous.updatedAt) + 1 : 0)).toISOString() };
+    const stored: StoredConfig = {
+      ...value,
+      updatedAt: new Date(Math.max(Date.now(), previous ? Date.parse(previous.updatedAt) + 1 : 0)).toISOString(),
+      applied: previous?.applied ?? true,
+      applyError: previous?.applyError ?? null,
+    };
     this.rows.set(`${guildId}:${moduleId}`, stored);
     return stored;
+  }
+
+  async setApplied(guildId: string, moduleId: string, applied: boolean, applyError: string | null): Promise<void> {
+    const previous = this.rows.get(`${guildId}:${moduleId}`);
+    if (previous) {
+      this.rows.set(`${guildId}:${moduleId}`, { ...previous, applied, applyError });
+    }
   }
 }
 

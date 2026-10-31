@@ -27,6 +27,10 @@ export class ApiError extends HttpError {
     return new ApiError(404, 'NOT_FOUND', message);
   }
 
+  static override conflict(message = 'Conflict') {
+    return new ApiError(409, 'CONFLICT', message);
+  }
+
   static preconditionFailed(message = 'The resource was modified by someone else') {
     return new ApiError(412, 'PRECONDITION_FAILED', message);
   }

@@ -14,6 +14,8 @@ export interface ResolvedConfig<T = unknown> {
   config: T;
   /** `null` — the config was never saved, defaults apply. */
   updatedAt: string | null;
+  applied: boolean;
+  applyError: string | null;
 }
 
 export interface ConfigPatch {
@@ -200,7 +202,21 @@ export class ConfigService {
     this.invalidate({ guildId, moduleId });
     await this.options.publish?.({ guildId, moduleId });
 
-    return { enabled: enabled && !this.vip.locked(guildId, moduleId), config: config as T, updatedAt: saved.updatedAt };
+    return {
+      enabled: enabled && !this.vip.locked(guildId, moduleId),
+      config: config as T,
+      updatedAt: saved.updatedAt,
+      applied: saved.applied,
+      applyError: saved.applyError,
+    };
+  }
+
+  /** Updates the onSaved application status for a module in the database and clears caches. */
+  async setApplied(guildId: string, moduleId: string, applied: boolean, applyError: string | null): Promise<void> {
+    await this.options.store.setApplied?.(guildId, moduleId, applied, applyError);
+    await this.options.sharedCache?.delete(guildId, moduleId);
+    this.invalidate({ guildId, moduleId });
+    await this.options.publish?.({ guildId, moduleId });
   }
 
   /** Drops the local cache — called on a pub/sub message. */
@@ -243,7 +259,7 @@ export class ConfigService {
 
   private async resolve(module: AnyModule, guildId: string, stored: StoredConfig | null): Promise<ResolvedConfig> {
     const enabled = module.alwaysEnabled || (stored?.enabled ?? module.enabledByDefault ?? false);
-    if (!stored) return { enabled, config: await this.defaults(guildId, module.id), updatedAt: null };
+    if (!stored) return { enabled, config: await this.defaults(guildId, module.id), updatedAt: null, applied: true, applyError: null };
 
     const raw =
       stored.version < module.configVersion && module.migrateConfig
@@ -251,12 +267,26 @@ export class ConfigService {
         : stored.config;
 
     const parsed = module.configSchema.safeParse(raw);
-    if (parsed.success) return { enabled, config: parsed.data, updatedAt: stored.updatedAt };
+    if (parsed.success) {
+      return {
+        enabled,
+        config: parsed.data,
+        updatedAt: stored.updatedAt,
+        applied: stored.applied ?? true,
+        applyError: stored.applyError ?? null,
+      };
+    }
 
     this.options.logger.warn(
       { guildId, moduleId: module.id, issues: parsed.error.issues },
       'Stored module config is invalid, falling back to defaults',
     );
-    return { enabled, config: await this.defaults(guildId, module.id), updatedAt: stored.updatedAt };
+    return {
+      enabled,
+      config: await this.defaults(guildId, module.id),
+      updatedAt: stored.updatedAt,
+      applied: stored.applied ?? true,
+      applyError: stored.applyError ?? null,
+    };
   }
 }

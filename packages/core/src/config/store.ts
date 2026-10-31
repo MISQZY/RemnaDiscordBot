@@ -7,9 +7,14 @@ export interface StoredConfig {
   version: number;
   /** ISO time of the last change — the basis of the API ETag. */
   updatedAt: string;
+  applied: boolean;
+  applyError: string | null;
 }
 
-export type ConfigWrite = Omit<StoredConfig, 'updatedAt'>;
+export type ConfigWrite = Omit<StoredConfig, 'updatedAt' | 'applied' | 'applyError'> & {
+  applied?: boolean;
+  applyError?: string | null;
+};
 
 /** The config changed after the caller read it. */
 export class ConfigConflictError extends Error {
@@ -20,12 +25,20 @@ export interface ConfigStore {
   find(guildId: string, moduleId: string): Promise<StoredConfig | null>;
   findMany?(guildId: string, moduleIds?: string[]): Promise<Map<string, StoredConfig>>;
   save(guildId: string, moduleId: string, value: ConfigWrite, updatedBy?: string, expectedUpdatedAt?: string | null): Promise<StoredConfig>;
+  setApplied?(guildId: string, moduleId: string, applied: boolean, applyError: string | null): Promise<void>;
 }
 
-const SELECT = { enabled: true, config: true, version: true, updatedAt: true } as const;
+const SELECT = { enabled: true, config: true, version: true, updatedAt: true, applied: true, applyError: true } as const;
 
-function toStored(row: { enabled: boolean; config: unknown; version: number; updatedAt: Date }): StoredConfig {
-  return { ...row, updatedAt: row.updatedAt.toISOString() };
+function toStored(row: { enabled: boolean; config: unknown; version: number; updatedAt: Date; applied?: boolean | null; applyError?: string | null }): StoredConfig {
+  return {
+    enabled: row.enabled,
+    config: row.config,
+    version: row.version,
+    updatedAt: row.updatedAt.toISOString(),
+    applied: row.applied ?? true,
+    applyError: row.applyError ?? null,
+  };
 }
 
 export class PrismaConfigStore implements ConfigStore {
@@ -60,6 +73,8 @@ export class PrismaConfigStore implements ConfigStore {
       config: value.config as Prisma.InputJsonValue,
       version: value.version,
       updatedBy: updatedBy ?? null,
+      ...(value.applied !== undefined ? { applied: value.applied } : {}),
+      ...(value.applyError !== undefined ? { applyError: value.applyError } : {}),
     };
     if (expectedUpdatedAt !== undefined) {
       try {
@@ -96,5 +111,12 @@ export class PrismaConfigStore implements ConfigStore {
       select: SELECT,
     });
     return toStored(row);
+  }
+
+  async setApplied(guildId: string, moduleId: string, applied: boolean, applyError: string | null): Promise<void> {
+    await this.db.guildModuleConfig.update({
+      where: { guildId_moduleId: { guildId, moduleId } },
+      data: { applied, applyError },
+    });
   }
 }

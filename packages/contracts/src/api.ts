@@ -145,6 +145,10 @@ export const ModuleState = z.object({
   config: z.unknown(),
   /** `null` — the config was never saved, defaults apply. */
   updatedAt: z.iso.datetime().nullable(),
+  /** Whether the module configuration and hooks (e.g. onSaved) are successfully applied. */
+  applied: z.boolean().default(true),
+  /** Error message if applying configuration/hooks failed. */
+  applyError: z.string().nullable().default(null),
 });
 export type ModuleState = z.infer<typeof ModuleState>;
 

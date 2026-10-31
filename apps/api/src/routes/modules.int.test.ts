@@ -42,6 +42,20 @@ const announcer = defineModule({
     new EntityChecker(guild).textChannel(cfg.channelId, ['channelId']).roles(cfg.roleIds, ['roleIds'], { assignable: true }).issues,
 });
 
+let hookShouldFail = false;
+let hookCallCount = 0;
+
+const hooked = defineModule({
+  id: 'hooked',
+  configSchema: z.object({ value: z.string().default('init') }),
+  defaultConfig: { value: 'init' },
+  configVersion: 1,
+  onSaved: async () => {
+    hookCallCount++;
+    if (hookShouldFail) throw new Error('External service unreachable');
+  },
+});
+
 describe('module routes', () => {
   let t: TestApp;
   let cookie: string;
@@ -50,7 +64,7 @@ describe('module routes', () => {
     t.app.inject({ method, url: path, headers: { cookie, ...headers }, ...(payload ? { payload } : {}) });
 
   beforeAll(async () => {
-    t = await createTestApp({ modules: [leveling, general, announcer] });
+    t = await createTestApp({ modules: [leveling, general, announcer, hooked] });
     t.oauth.guilds = [{ id: GUILD_ID, name: 'Managed', icon: null, owner: true, permissions: '0' }];
     await seedGuildSnapshot(t);
     cookie = await login(t);
@@ -71,7 +85,14 @@ describe('module routes', () => {
   it('returns default state with an ETag', async () => {
     const response = await t.app.inject({ url: url('/leveling'), headers: { cookie } });
 
-    expect(response.json()).toEqual({ id: 'leveling', enabled: false, config: { xpPerMessage: 10, announce: true }, updatedAt: null });
+    expect(response.json()).toEqual({
+      id: 'leveling',
+      enabled: false,
+      config: { xpPerMessage: 10, announce: true },
+      updatedAt: null,
+      applied: true,
+      applyError: null,
+    });
     expect(response.headers.etag).toBe('"default"');
   });
 
@@ -143,6 +164,7 @@ describe('module routes', () => {
       ['leveling', expect.any(Boolean)],
       ['general', true],
       ['announcer', false],
+      ['hooked', false],
     ]);
   });
 
@@ -192,5 +214,74 @@ describe('module routes', () => {
     expect(response.json()).toEqual({ guildId: GUILD_ID, xpPerMessage: 33 });
 
     expect((await t.app.inject(url('/leveling/stats'))).statusCode).toBe(401);
+  });
+
+  it('distinguishes saved from applied when onSaved hook fails and allows retry', async () => {
+    hookCallCount = 0;
+    hookShouldFail = true;
+
+    // 1. Save succeeds, but onSaved fails -> applied: false, applyError is returned
+    const failRes = await send('PUT', url('/hooked'), { enabled: true, config: { value: 'v1' } });
+    expect(failRes.statusCode).toBe(200);
+    expect(failRes.json()).toMatchObject({
+      enabled: true,
+      config: { value: 'v1' },
+      applied: false,
+      applyError: 'External service unreachable',
+    });
+    expect(hookCallCount).toBe(1);
+
+    // 2. Subsequent GET returns applied: false
+    const getRes = await t.app.inject({ url: url('/hooked'), headers: { cookie } });
+    expect(getRes.json()).toMatchObject({
+      applied: false,
+      applyError: 'External service unreachable',
+    });
+
+    // 3. Retry when hook still fails
+    const retryFail = await send('POST', url('/hooked/retry-apply'));
+    expect(retryFail.statusCode).toBe(200);
+    expect(retryFail.json()).toMatchObject({
+      applied: false,
+      applyError: 'External service unreachable',
+    });
+    expect(hookCallCount).toBe(2);
+
+    // 4. Retry succeeds
+    hookShouldFail = false;
+    const retryOk = await send('POST', url('/hooked/retry-apply'));
+    expect(retryOk.statusCode).toBe(200);
+    expect(retryOk.json()).toMatchObject({
+      applied: true,
+      applyError: null,
+    });
+    expect(hookCallCount).toBe(3);
+
+    // 5. Duplicate retry does not re-run hook
+    const noopRetry = await send('POST', url('/hooked/retry-apply'));
+    expect(noopRetry.statusCode).toBe(200);
+    expect(noopRetry.json()).toMatchObject({
+      applied: true,
+      applyError: null,
+    });
+    expect(hookCallCount).toBe(3); // unchanged
+
+    // 6. Audit log recorded
+    const audit = (await t.app.inject({ url: `/v1/guilds/${GUILD_ID}/audit`, headers: { cookie } })).json();
+    expect(audit.items[0]).toMatchObject({
+      action: 'module.retry_apply',
+      moduleId: 'hooked',
+    });
+  });
+
+  it('protects retry-apply against concurrent execution with 409 Conflict', async () => {
+    await t.deps.redis.set(`lock:apply:${GUILD_ID}:hooked`, '1', 'EX', 10);
+    try {
+      const res = await send('POST', url('/hooked/retry-apply'));
+      expect(res.statusCode).toBe(409);
+      expect(res.json()).toMatchObject({ error: { code: 'CONFLICT' } });
+    } finally {
+      await t.deps.redis.del(`lock:apply:${GUILD_ID}:hooked`);
+    }
   });
 });

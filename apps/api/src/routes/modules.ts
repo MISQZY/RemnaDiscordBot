@@ -20,7 +20,14 @@ export function configEtag(resolved: ResolvedConfig): string {
 }
 
 function toState(id: string, resolved: ResolvedConfig): ModuleState {
-  return { id, enabled: resolved.enabled, config: resolved.config, updatedAt: resolved.updatedAt };
+  return {
+    id,
+    enabled: resolved.enabled,
+    config: resolved.config,
+    updatedAt: resolved.updatedAt,
+    applied: resolved.applied,
+    applyError: resolved.applyError,
+  };
 }
 
 export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): FastifyPluginAsyncZod {
@@ -84,13 +91,22 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
       after: { enabled: updated.enabled, config: updated.config },
     };
     await recordAudit(db, { guildId, userId, moduleId, action, diff });
+    let applied = true;
+    let applyError: string | null = null;
     if (module.onSaved) {
       try {
         await module.onSaved(moduleServices(deps, module), { guildId, userId, ...diff });
       } catch (err) {
         request.log.warn({ err, guildId, moduleId }, 'Module onSaved failed');
+        applied = false;
+        applyError = err instanceof Error ? err.message : String(err);
       }
     }
+    if (!applied || current.applyError) {
+      await config.setApplied(guildId, moduleId, applied, applyError);
+    }
+    updated.applied = applied;
+    updated.applyError = applyError;
 
     reply.header('etag', configEtag(updated));
     return toState(moduleId, updated);
@@ -220,6 +236,80 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
         async (request, reply) => {
           const defaults = await config.defaults(request.params.guildId, request.params.moduleId);
           return applyUpdate(request, reply, request.params, () => ({ config: defaults }), 'module.reset');
+        },
+      );
+
+      scope.post(
+        '/v1/guilds/:guildId/modules/:moduleId/retry-apply',
+        {
+          schema: {
+            tags: ['modules'],
+            summary: 'Retry applying onSaved hook for the current configuration',
+            params: ModuleParams,
+            response: { 200: ModuleState },
+          },
+        },
+        async (request, reply) => {
+          if (!request.guild?.canManage) throw ApiError.forbidden('You cannot manage this guild');
+          const { guildId, moduleId } = request.params;
+          const module = requireModule(moduleId);
+          const current = await config.get(guildId, moduleId);
+
+          if (!module.onSaved) {
+            return toState(moduleId, current);
+          }
+
+          // Protect against duplicate execution with Redis lock
+          const lockKey = `lock:apply:${guildId}:${moduleId}`;
+          const acquired = await deps.redis.set(lockKey, '1', 'EX', 10, 'NX');
+          if (!acquired) {
+            throw ApiError.conflict('Apply operation is already in progress');
+          }
+
+          try {
+            // If already applied and no error, avoid re-running
+            if (current.applied && !current.applyError) {
+              return toState(moduleId, current);
+            }
+
+            const userId = requireSession(request).userId;
+            const lastAudit = await db.dashboardAuditLog.findFirst({
+              where: { guildId, moduleId },
+              orderBy: { createdAt: 'desc' },
+            });
+            const diff = (lastAudit?.diff as { before: { enabled: boolean; config: unknown }; after: { enabled: boolean; config: unknown } } | null) ?? {
+              before: { enabled: false, config: {} },
+              after: { enabled: current.enabled, config: current.config },
+            };
+
+            let applied = true;
+            let applyError: string | null = null;
+            try {
+              await module.onSaved(moduleServices(deps, module), { guildId, userId, ...diff });
+            } catch (err) {
+              request.log.warn({ err, guildId, moduleId }, 'Module retry onSaved failed');
+              applied = false;
+              applyError = err instanceof Error ? err.message : String(err);
+            }
+
+            await config.setApplied(guildId, moduleId, applied, applyError);
+            await recordAudit(db, {
+              guildId,
+              userId,
+              moduleId,
+              action: 'module.retry_apply',
+              diff: {
+                before: { applied: current.applied, applyError: current.applyError },
+                after: { applied, applyError },
+              },
+            });
+
+            const fresh = await config.get(guildId, moduleId);
+            reply.header('etag', configEtag(fresh));
+            return toState(moduleId, fresh);
+          } finally {
+            await deps.redis.del(lockKey);
+          }
         },
       );
 

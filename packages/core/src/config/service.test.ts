@@ -32,6 +32,8 @@ describe('ConfigService', () => {
       enabled: false,
       config: { xpPerMessage: 10, announce: true },
       updatedAt: null,
+      applied: true,
+      applyError: null,
     });
   });
 
@@ -60,12 +62,20 @@ describe('ConfigService', () => {
 
     const updated = await service.update(GUILD, 'leveling', { enabled: true, config: { xpPerMessage: 20, announce: false } }, 'user');
 
-    expect(updated).toEqual({ enabled: true, config: { xpPerMessage: 20, announce: false }, updatedAt: expect.any(String) });
+    expect(updated).toEqual({
+      enabled: true,
+      config: { xpPerMessage: 20, announce: false },
+      updatedAt: expect.any(String),
+      applied: true,
+      applyError: null,
+    });
     expect(store.rows.get(`${GUILD}:leveling`)).toEqual({
       enabled: true,
       config: { xpPerMessage: 20, announce: false },
       version: 1,
       updatedAt: updated.updatedAt,
+      applied: true,
+      applyError: null,
     });
     expect(publish).toHaveBeenCalledWith({ guildId: GUILD, moduleId: 'leveling' });
     expect(await service.get(GUILD, 'leveling')).toEqual(updated);
@@ -85,6 +95,8 @@ describe('ConfigService', () => {
       enabled: true,
       config: { xpPerMessage: 10, announce: true },
       updatedAt: STORED_AT,
+      applied: true,
+      applyError: null,
     });
   });
 
@@ -111,6 +123,8 @@ describe('ConfigService', () => {
       enabled: true,
       config: { xpPerMessage: 15, announce: true },
       updatedAt: STORED_AT,
+      applied: true,
+      applyError: null,
     });
   });
 

@@ -30,13 +30,15 @@ model Guild {
 
 /// A module config for a guild. `config` is validated with the module's zod schema.
 model GuildModuleConfig {
-  guildId   String
-  moduleId  String
-  enabled   Boolean  @default(false)
-  config    Json
-  version   Int
-  updatedAt DateTime @updatedAt
-  updatedBy String?
+  guildId    String
+  moduleId   String
+  enabled    Boolean  @default(false)
+  config     Json
+  version    Int
+  updatedAt  DateTime @updatedAt
+  updatedBy  String?
+  applied    Boolean  @default(true)
+  applyError String?
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
