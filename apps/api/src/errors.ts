@@ -10,7 +10,7 @@ export class ApiError extends HttpError {
     return new ApiError(401, 'UNAUTHORIZED', message);
   }
 
-  static forbidden(message = 'Access denied') {
+  static override forbidden(message = 'Access denied') {
     return new ApiError(403, 'FORBIDDEN', message);
   }
 

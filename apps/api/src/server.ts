@@ -75,7 +75,7 @@ export async function buildServer(deps: ApiDeps): Promise<FastifyInstance> {
   await app.register(vipRoutes(deps));
 
   app.decorateRequest('guild', null);
-  const userGuilds = new UserGuildService(deps.redis, deps.oauth, sessions, deps.snapshots);
+  const userGuilds = new UserGuildService(deps.redis, deps.oauth, sessions, deps.snapshots, deps.db, deps.rest);
   await app.register(meRoutes(userGuilds));
   await app.register(guildRoutes(deps, userGuilds));
   await app.register(profileRoutes(deps, userGuilds));

@@ -1,3 +1,4 @@
+import type { UserGuild } from '@bot/contracts';
 import type { PrismaClient } from '@bot/db';
 import type { I18n } from '@bot/i18n';
 import type { Logger } from '@bot/logger';
@@ -10,6 +11,12 @@ import type { GuildLocales } from './guild-locales.js';
 import type { Scheduler } from './jobs/scheduler.js';
 import type { ModuleRegistry } from './registry.js';
 import type { GuildEntities } from './validation.js';
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    guild: UserGuild | null;
+  }
+}
 
 /** Shared process services (bot, API, worker) available to modules. */
 export interface CoreServices {

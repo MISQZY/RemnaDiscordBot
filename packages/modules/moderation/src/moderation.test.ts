@@ -1,8 +1,9 @@
-import type { GuildMember } from 'discord.js';
+import { PermissionFlagsBits, type GuildMember } from 'discord.js';
 import { describe, expect, it } from 'vitest';
-import { hierarchyError } from './checks.js';
+import { hierarchyError, isMemberModerator } from './checks.js';
 import { defaultModerationConfig, isActive, ModerationConfig } from './config.js';
 import { formatDuration, parseDuration } from './duration.js';
+import { escalationAllowed } from './service.js';
 
 describe('parseDuration', () => {
   it('parses English and Russian units', () => {
@@ -74,5 +75,64 @@ describe('isActive', () => {
     expect(isActive({ type: 'mute', revokedAt: null, expiresAt: new Date('2026-10-19T11:00:00Z') }, now)).toBe(false);
     expect(isActive({ type: 'warn', revokedAt: now, expiresAt: null }, now)).toBe(false);
     expect(isActive({ type: 'kick', revokedAt: null, expiresAt: null }, now)).toBe(false);
+  });
+});
+
+describe('isMemberModerator', () => {
+  const guild = { ownerId: '10' };
+  const createMember = ({
+    id = '20',
+    roles = [] as string[],
+    perms = [] as bigint[],
+  } = {}) =>
+    ({
+      id,
+      guild,
+      roles: { cache: new Map(roles.map((r) => [r, { id: r }])) },
+      permissions: {
+        has: (p: bigint) => perms.includes(p) || perms.includes(PermissionFlagsBits.Administrator),
+      },
+    }) as unknown as GuildMember;
+
+  it('allows guild owner without roles or permissions', () => {
+    const owner = createMember({ id: '10' });
+    expect(isMemberModerator(owner, [])).toBe(true);
+  });
+
+  it('allows administrator or manage guild', () => {
+    const admin = createMember({ perms: [PermissionFlagsBits.Administrator] });
+    expect(isMemberModerator(admin, [])).toBe(true);
+
+    const manager = createMember({ perms: [PermissionFlagsBits.ManageGuild] });
+    expect(isMemberModerator(manager, [])).toBe(true);
+  });
+
+  it('allows discordPermission when member has it', () => {
+    const mod = createMember({ perms: [PermissionFlagsBits.ModerateMembers] });
+    expect(isMemberModerator(mod, [], PermissionFlagsBits.ModerateMembers)).toBe(true);
+    expect(isMemberModerator(mod, [], PermissionFlagsBits.BanMembers)).toBe(false);
+  });
+
+  it('allows member having one of modRoleIds even without discord permissions', () => {
+    const roleUser = createMember({ roles: ['role-mod-1'] });
+    expect(isMemberModerator(roleUser, ['role-mod-1', 'role-mod-2'], PermissionFlagsBits.BanMembers)).toBe(true);
+  });
+
+  it('denies user without permissions or mod roles', () => {
+    const regular = createMember({ roles: ['role-regular'] });
+    expect(isMemberModerator(regular, ['role-mod-1'], PermissionFlagsBits.ModerateMembers)).toBe(false);
+    expect(isMemberModerator(null, ['role-mod-1'])).toBe(false);
+  });
+
+  it('escalationAllowed supports GuildMember with modRoleIds', () => {
+    const roleUser = createMember({ roles: ['role-mod-1'] });
+    const canEscalate = escalationAllowed(roleUser, ['role-mod-1']);
+    expect(canEscalate('ban')).toBe(true);
+    expect(canEscalate('kick')).toBe(true);
+    expect(canEscalate('mute')).toBe(true);
+
+    const regular = createMember();
+    const cannotEscalate = escalationAllowed(regular, ['role-mod-1']);
+    expect(cannotEscalate('ban')).toBe(false);
   });
 });

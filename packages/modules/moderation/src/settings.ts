@@ -9,8 +9,10 @@ import {
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
   type GuildBasedChannel,
+  type GuildMember,
 } from 'discord.js';
 import type { z } from 'zod';
+import { getGuildModRoleIds, isMemberModerator } from './checks.js';
 import { ModerationConfig, type EscalationRule } from './config.js';
 import { formatDuration, MAX_TIMEOUT_SEC, parseDuration } from './duration.js';
 
@@ -119,6 +121,13 @@ export const modsettings = defineCommand<ModerationConfig>({
   cooldownMs: 2_000,
 
   async execute(interaction, ctx) {
+    const member = interaction.member as GuildMember | null;
+    const isOwner = Boolean(member && interaction.guild && member.id === interaction.guild.ownerId);
+    const canManage = isOwner || member?.permissions?.has(PermissionFlagsBits.ManageGuild) || member?.permissions?.has(PermissionFlagsBits.Administrator);
+    if (!canManage) {
+      return void (await reply(interaction, ctx.t('moderation.errors.noPermission')));
+    }
+
     const group = interaction.options.getSubcommandGroup(false);
     const sub = interaction.options.getSubcommand();
     const onOff = (value: boolean) => ctx.t(value ? 'moderation.settings.on' : 'moderation.settings.off');
@@ -253,6 +262,11 @@ export const slowmode = defineCommand<ModerationConfig>({
     .addStringOption((o) => o.setName('reason').setDescription('Reason').setMaxLength(500)),
   cooldownMs: 3_000,
   async execute(interaction, ctx) {
+    const modRoleIds = await getGuildModRoleIds(ctx.db, interaction.guildId!);
+    if (!isMemberModerator(interaction.member as GuildMember | null, modRoleIds, PermissionFlagsBits.ManageChannels)) {
+      return void (await reply(interaction, ctx.t('moderation.errors.noPermission')));
+    }
+
     const raw = interaction.options.getString('interval', true).trim();
     const seconds = raw === '0' ? 0 : parseDuration(raw);
     // Discord allows up to six hours.

@@ -25,6 +25,8 @@ export const RedisKeys = {
   userGuildsLast: (userId: string) => `user:${userId}:guilds:last`,
   /** A Discord user's name and avatar — for the dashboard, which knows users only by ID. */
   user: (userId: string) => `user:${userId}:profile`,
+  /** A member's roles on a guild, cached for checking moderator status. */
+  guildMemberRoles: (guildId: string, userId: string) => `guild:${guildId}:member:${userId}:roles`,
   /** Lock of a worker interval task for one period. */
   intervalLock: (moduleId: string, name: string) => `lock:interval:${moduleId}:${name}`,
   /** Lease of a running interval task, renewed while it runs — no second run starts before it ends. */

@@ -43,7 +43,7 @@ async function readSettings(db: PrismaClient, guildId: string): Promise<{ settin
 
 export function guildRoutes({ db, redis, snapshots, guildLocales, config, options }: ApiDeps, userGuilds: UserGuildService): FastifyPluginAsyncZod {
   return async (app) => {
-    app.addHook('preHandler', requireGuildAccess(userGuilds));
+    app.addHook('preHandler', requireGuildAccess(userGuilds, 'moderator'));
     if (options.rateLimitPerMinute > 0) app.addHook('preHandler', guildWriteLimit(redis));
 
     app.get(
@@ -72,6 +72,7 @@ export function guildRoutes({ db, redis, snapshots, guildLocales, config, option
         config: { rateLimit: GUILD_WRITE_LIMIT },
       },
       async (request, reply) => {
+        if (!request.guild?.canManage) throw ApiError.forbidden('You cannot manage this guild');
         const { guildId } = request.params;
         const patch = request.body;
         const ifMatch = request.headers['if-match'];

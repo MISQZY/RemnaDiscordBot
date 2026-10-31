@@ -88,6 +88,10 @@ export function moderationApi(app: FastifyInstance, ctx: ApiModuleContext<Modera
     },
     async (request) => {
       const modCase = await findCase(request);
+      const userId = ctx.currentUserId(request);
+      if (modCase.moderatorId !== userId && !request.guild?.canManage) {
+        throw HttpError.forbidden('You cannot edit someone else’s case');
+      }
       const { reason } = request.body as { reason: string | null };
       return toCaseDto(await ctx.db.modCase.update({ where: { id: modCase.id }, data: { reason } }));
     },
@@ -150,6 +154,7 @@ export function moderationApi(app: FastifyInstance, ctx: ApiModuleContext<Modera
       },
     },
     async (request) => {
+      if (!request.guild?.canManage) throw HttpError.forbidden('You cannot manage this guild');
       const id = guildId(request);
       await ctx.requireEnabled(id);
       const { channelIds, durationSec, reason } = request.body as z.infer<typeof LockBody>;
@@ -175,6 +180,7 @@ export function moderationApi(app: FastifyInstance, ctx: ApiModuleContext<Modera
       },
     },
     async (request) => {
+      if (!request.guild?.canManage) throw HttpError.forbidden('You cannot manage this guild');
       const { channelIds } = request.body as { channelIds: string[] | null };
       await ownChannels(guildId(request), channelIds);
       const unlocked = await lockdown.unlock(guildId(request), channelIds, {

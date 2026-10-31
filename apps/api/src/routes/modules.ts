@@ -45,6 +45,7 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
     buildPatch: (current: ResolvedConfig) => ConfigPatch,
     action: string,
   ): Promise<ModuleState> {
+    if (!request.guild?.canManage) throw ApiError.forbidden('You cannot manage this guild');
     const module = requireModule(moduleId);
     const current = await config.get(guildId, moduleId);
 
@@ -139,7 +140,7 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
     }
 
     await app.register(async (guildScope) => {
-      guildScope.addHook('preHandler', requireGuildAccess(userGuilds));
+      guildScope.addHook('preHandler', requireGuildAccess(userGuilds, 'moderator'));
       if (deps.options.rateLimitPerMinute > 0) guildScope.addHook('preHandler', guildWriteLimit(deps.redis));
       const scope = guildScope.withTypeProvider<ZodTypeProvider>();
 

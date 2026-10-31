@@ -36,9 +36,9 @@ describe('guild routes', () => {
     const response = await get('/v1/me/guilds');
 
     expect(response.json()).toEqual([
-      { id: NO_BOT_GUILD, name: 'Bot missing', icon: null, owner: true, canManage: true, botPresent: false },
-      { id: GUILD_ID, name: 'Managed', icon: null, owner: false, canManage: true, botPresent: true },
-      { id: MEMBER_GUILD, name: 'Just a member', icon: null, owner: false, canManage: false, botPresent: true },
+      { id: NO_BOT_GUILD, name: 'Bot missing', icon: null, owner: true, canManage: true, isModerator: true, botPresent: false },
+      { id: GUILD_ID, name: 'Managed', icon: null, owner: false, canManage: true, isModerator: true, botPresent: true },
+      { id: MEMBER_GUILD, name: 'Just a member', icon: null, owner: false, canManage: false, isModerator: false, botPresent: true },
     ]);
   });
 
@@ -150,6 +150,40 @@ describe('guild routes', () => {
     expect((await get(`/v1/guilds/${MEMBER_GUILD}`)).json()).toMatchObject({ error: { code: 'FORBIDDEN' } });
     expect((await get(`/v1/guilds/${NO_BOT_GUILD}`)).json()).toMatchObject({ error: { code: 'BOT_NOT_IN_GUILD' } });
     expect((await get('/v1/guilds/not-a-snowflake')).statusCode).toBe(400);
+  });
+
+  it('allows read-only guild access for moderator role holders, denying write actions', async () => {
+    const MOD_ROLE = '400000000000000044';
+    await t.database.db.guild.upsert({
+      where: { id: MEMBER_GUILD },
+      create: { id: MEMBER_GUILD, modRoleIds: [MOD_ROLE] },
+      update: { modRoleIds: [MOD_ROLE] },
+    });
+    t.rest.responses.set(`/guilds/${MEMBER_GUILD}/members/${TEST_USER.id}`, { roles: [MOD_ROLE] });
+    t.rest.responses.set(`/guilds/${MEMBER_GUILD}`, { id: MEMBER_GUILD, name: 'Just a member' });
+    await t.redis.del(`user:${TEST_USER.id}:guilds`);
+
+    const listRes = await get('/v1/me/guilds');
+    expect(listRes.json().find((g: { id: string }) => g.id === MEMBER_GUILD)).toMatchObject({
+      id: MEMBER_GUILD,
+      canManage: false,
+      isModerator: true,
+    });
+
+    const overviewRes = await get(`/v1/guilds/${MEMBER_GUILD}`);
+    expect(overviewRes.statusCode).toBe(200);
+
+    const modulesRes = await get(`/v1/guilds/${MEMBER_GUILD}/modules`);
+    expect(modulesRes.statusCode).toBe(200);
+
+    const patchRes = await t.app.inject({
+      method: 'PATCH',
+      url: `/v1/guilds/${MEMBER_GUILD}`,
+      headers: { cookie },
+      payload: { locale: 'en' },
+    });
+    expect(patchRes.statusCode).toBe(403);
+    expect(patchRes.json()).toMatchObject({ error: { code: 'FORBIDDEN' } });
   });
 
   it('returns the guild overview and snapshots', async () => {

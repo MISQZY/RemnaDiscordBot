@@ -1,7 +1,8 @@
 import type { Locale } from '@bot/contracts';
 import { HttpError, type CoreServices } from '@bot/core';
 import type { ModCase } from '@bot/db';
-import { DiscordAPIError, PermissionFlagsBits, RESTJSONErrorCodes, Routes, type APIEmbed, type APIGuild, type PermissionsBitField } from 'discord.js';
+import { DiscordAPIError, PermissionFlagsBits, RESTJSONErrorCodes, Routes, type APIEmbed, type APIGuild, type GuildMember, type PermissionsBitField } from 'discord.js';
+import { isMemberModerator } from './checks.js';
 import { SYSTEM_MODERATOR, isActive, toCaseDto, type CaseType, type ModerationConfig } from './config.js';
 import { formatDuration, MAX_TIMEOUT_SEC } from './duration.js';
 
@@ -39,10 +40,19 @@ const isDiscordError = (err: unknown, ...codes: number[]) => err instanceof Disc
  * Moderation actions via Discord REST — work the same in the bot, the API and the worker.
  * Role hierarchy checks are done by the caller (the bot); the REST context has none.
  */
-/** Whether someone with these permissions could take an escalated action themselves (`warn`'s `mayEscalate`). */
-export function escalationAllowed(permissions: Readonly<PermissionsBitField> | null): (action: 'mute' | 'kick' | 'ban') => boolean {
+/** Whether someone with these permissions or roles could take an escalated action themselves (`warn`'s `mayEscalate`). */
+export function escalationAllowed(
+  actor: GuildMember | Readonly<PermissionsBitField> | null,
+  modRoleIds: readonly string[] = [],
+): (action: 'mute' | 'kick' | 'ban') => boolean {
   const needed = { mute: PermissionFlagsBits.ModerateMembers, kick: PermissionFlagsBits.KickMembers, ban: PermissionFlagsBits.BanMembers } as const;
-  return (action) => permissions?.has(needed[action]) ?? false;
+  return (action) => {
+    if (!actor) return false;
+    if ('guild' in actor) {
+      return isMemberModerator(actor, modRoleIds, needed[action]);
+    }
+    return actor.has(needed[action]);
+  };
 }
 
 export class ModerationService {

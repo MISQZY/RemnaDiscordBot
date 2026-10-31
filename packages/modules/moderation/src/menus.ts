@@ -15,7 +15,7 @@ import {
   type GuildMember,
   type ModalSubmitInteraction,
 } from 'discord.js';
-import { hierarchyError } from './checks.js';
+import { getGuildModRoleIds, hierarchyError, isMemberModerator } from './checks.js';
 import type { ModerationConfig } from './config.js';
 import { parseDuration } from './duration.js';
 import { historyLines } from './history.js';
@@ -46,6 +46,10 @@ export const warnMenu = defineContextMenu<ModerationConfig>({
   data: menu('Warn', ApplicationCommandType.User, PermissionFlagsBits.ModerateMembers),
   async execute(interaction, ctx) {
     if (!interaction.isUserContextMenuCommand()) return;
+    const modRoleIds = await getGuildModRoleIds(ctx.db, interaction.guildId!);
+    if (!isMemberModerator(interaction.member as GuildMember | null, modRoleIds, PermissionFlagsBits.ModerateMembers)) {
+      return void (await interaction.reply(ephemeral(ctx.t('moderation.errors.noPermission'))));
+    }
     await interaction.showModal(
       new ModalBuilder()
         .setCustomId(`${MOD_PREFIX}:warn:${interaction.targetId}`)
@@ -60,6 +64,10 @@ export const muteMenu = defineContextMenu<ModerationConfig>({
   data: menu('Mute', ApplicationCommandType.User, PermissionFlagsBits.ModerateMembers),
   async execute(interaction, ctx) {
     if (!interaction.isUserContextMenuCommand()) return;
+    const modRoleIds = await getGuildModRoleIds(ctx.db, interaction.guildId!);
+    if (!isMemberModerator(interaction.member as GuildMember | null, modRoleIds, PermissionFlagsBits.ModerateMembers)) {
+      return void (await interaction.reply(ephemeral(ctx.t('moderation.errors.noPermission'))));
+    }
     const config = await ctx.getConfig(interaction.guildId!);
     await interaction.showModal(
       new ModalBuilder()
@@ -78,6 +86,10 @@ export const historyMenu = defineContextMenu<ModerationConfig>({
   data: menu('Moderation history', ApplicationCommandType.User, PermissionFlagsBits.ModerateMembers),
   async execute(interaction, ctx) {
     if (!interaction.isUserContextMenuCommand()) return;
+    const modRoleIds = await getGuildModRoleIds(ctx.db, interaction.guildId!);
+    if (!isMemberModerator(interaction.member as GuildMember | null, modRoleIds, PermissionFlagsBits.ModerateMembers)) {
+      return void (await interaction.reply(ephemeral(ctx.t('moderation.errors.noPermission'))));
+    }
     const cases = await new ModerationService(ctx).history(interaction.guildId!, interaction.targetId);
     await interaction.reply(ephemeral(historyLines(ctx, interaction.targetUser.username, cases)));
   },
@@ -109,8 +121,10 @@ async function targetMember(interaction: ModalSubmitInteraction, userId: string)
 
 async function submitPunishment(interaction: ModalSubmitInteraction, ctx: Ctx, action: 'warn' | 'mute', userId: string): Promise<void> {
   if (!interaction.inCachedGuild()) return;
-  const permission = PermissionFlagsBits.ModerateMembers;
-  if (!interaction.memberPermissions.has(permission)) return void (await interaction.reply(ephemeral(ctx.t('moderation.errors.noPermission'))));
+  const modRoleIds = await getGuildModRoleIds(ctx.db, interaction.guildId);
+  if (!isMemberModerator(interaction.member, modRoleIds, PermissionFlagsBits.ModerateMembers)) {
+    return void (await interaction.reply(ephemeral(ctx.t('moderation.errors.noPermission'))));
+  }
 
   const target = await targetMember(interaction, userId);
   if (!target) return void (await interaction.reply(ephemeral(ctx.t('moderation.errors.notMember'))));
@@ -133,7 +147,7 @@ async function submitPunishment(interaction: ModalSubmitInteraction, ctx: Ctx, a
   }
 
   await interaction.deferReply();
-  const { case: modCase, escalated } = await service.warn(input, config, { mayEscalate: escalationAllowed(interaction.memberPermissions) });
+  const { case: modCase, escalated } = await service.warn(input, config, { mayEscalate: escalationAllowed(interaction.member, modRoleIds) });
   await interaction.editReply({ content: ctx.tGuild('moderation.done.warn', { user: target.user.username, number: modCase.number }), allowedMentions: { parse: [] } });
   if (escalated) {
     await interaction.followUp({
@@ -204,14 +218,20 @@ export const moderationComponent = defineComponent<ModerationConfig>({
     };
 
     if (action === 'rdel' && a && b) {
-      if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageMessages)) return void (await interaction.reply(ephemeral(ctx.t('moderation.errors.noPermission'))));
+      const modRoleIds = await getGuildModRoleIds(ctx.db, interaction.guildId);
+      if (!isMemberModerator(interaction.member, modRoleIds, PermissionFlagsBits.ManageMessages)) {
+        return void (await interaction.reply(ephemeral(ctx.t('moderation.errors.noPermission'))));
+      }
       const channel = interaction.guild.channels.cache.get(a);
       if (channel?.isTextBased()) await channel.messages.delete(b).catch(() => undefined);
       await close(`${handled} · ${ctx.tGuild('moderation.report.deleted')}`);
       return;
     }
     if (action === 'rdone') {
-      if (!interaction.memberPermissions.has(PermissionFlagsBits.ModerateMembers)) return void (await interaction.reply(ephemeral(ctx.t('moderation.errors.noPermission'))));
+      const modRoleIds = await getGuildModRoleIds(ctx.db, interaction.guildId);
+      if (!isMemberModerator(interaction.member, modRoleIds, PermissionFlagsBits.ModerateMembers)) {
+        return void (await interaction.reply(ephemeral(ctx.t('moderation.errors.noPermission'))));
+      }
       await close(handled);
     }
   },

@@ -9,7 +9,7 @@ import {
   type SlashCommandUserOption,
   type SlashCommandStringOption,
 } from 'discord.js';
-import { hierarchyError, type PunishAction } from './checks.js';
+import { getGuildModRoleIds, hierarchyError, isMemberModerator, type PunishAction } from './checks.js';
 import { type ModerationConfig } from './config.js';
 import { parseDuration } from './duration.js';
 import { historyLines } from './history.js';
@@ -44,8 +44,15 @@ async function prepare(
   interaction: ChatInputCommandInteraction,
   ctx: Ctx,
   action: PunishAction | null,
-  { durationRequired = false } = {},
+  { durationRequired = false, requiredPermission }: { durationRequired?: boolean; requiredPermission?: bigint } = {},
 ) {
+  const modRoleIds = await getGuildModRoleIds(ctx.db, interaction.guildId!);
+  const member = interaction.member as GuildMember | null;
+  if (!isMemberModerator(member, modRoleIds, requiredPermission)) {
+    await interaction.reply(ephemeral(ctx.t('moderation.errors.noPermission')));
+    return null;
+  }
+
   const config = await ctx.getConfig(interaction.guildId!);
   const reason = interaction.options.getString('reason');
   if (config.requireReason && !reason && action) {
@@ -61,8 +68,8 @@ async function prepare(
   }
 
   const target = interaction.options.getMember('user') as GuildMember | null;
-  if (action && target) {
-    const error = hierarchyError(interaction.member as GuildMember, target, action);
+  if (action && target && member) {
+    const error = hierarchyError(member, target, action);
     if (error) {
       await interaction.reply(ephemeral(ctx.t(error)));
       return null;
@@ -71,6 +78,7 @@ async function prepare(
 
   return {
     config,
+    modRoleIds,
     service: new ModerationService(ctx),
     input: {
       guildId: interaction.guildId!,
@@ -104,7 +112,7 @@ export const ban = defineCommand<ModerationConfig>({
         .setMaxValue(7),
     ),
   async execute(interaction, ctx) {
-    const prepared = await prepare(interaction, ctx, 'ban');
+    const prepared = await prepare(interaction, ctx, 'ban', { requiredPermission: PermissionFlagsBits.BanMembers });
     if (!prepared) return;
     await interaction.deferReply();
     const deleteDays = interaction.options.getInteger('delete_days') ?? 0;
@@ -118,7 +126,7 @@ export const unban = defineCommand<ModerationConfig>({
     .addUserOption((o) => userOption(o).setDescription('User ID or mention'))
     .addStringOption(reasonOption),
   async execute(interaction, ctx) {
-    const prepared = await prepare(interaction, ctx, null);
+    const prepared = await prepare(interaction, ctx, null, { requiredPermission: PermissionFlagsBits.BanMembers });
     if (!prepared) return;
     await interaction.deferReply();
     const modCase = await prepared.service.unban(prepared.input, prepared.config);
@@ -129,7 +137,7 @@ export const unban = defineCommand<ModerationConfig>({
 export const kick = defineCommand<ModerationConfig>({
   data: base('kick', 'Kick a member', PermissionFlagsBits.KickMembers).addUserOption(userOption).addStringOption(reasonOption),
   async execute(interaction, ctx) {
-    const prepared = await prepare(interaction, ctx, 'kick');
+    const prepared = await prepare(interaction, ctx, 'kick', { requiredPermission: PermissionFlagsBits.KickMembers });
     if (!prepared) return;
     if (!interaction.options.getMember('user')) {
       await interaction.reply(ephemeral(ctx.t('moderation.errors.notMember')));
@@ -147,7 +155,7 @@ export const mute = defineCommand<ModerationConfig>({
     .addStringOption((o) => durationOption(o, true))
     .addStringOption(reasonOption),
   async execute(interaction, ctx) {
-    const prepared = await prepare(interaction, ctx, 'mute', { durationRequired: true });
+    const prepared = await prepare(interaction, ctx, 'mute', { durationRequired: true, requiredPermission: PermissionFlagsBits.ModerateMembers });
     if (!prepared) return;
     await interaction.deferReply();
     const modCase = await prepared.service.mute(prepared.input, prepared.config);
@@ -158,7 +166,7 @@ export const mute = defineCommand<ModerationConfig>({
 export const unmute = defineCommand<ModerationConfig>({
   data: base('unmute', 'Remove a time out', PermissionFlagsBits.ModerateMembers).addUserOption(userOption).addStringOption(reasonOption),
   async execute(interaction, ctx) {
-    const prepared = await prepare(interaction, ctx, null);
+    const prepared = await prepare(interaction, ctx, null, { requiredPermission: PermissionFlagsBits.ModerateMembers });
     if (!prepared) return;
     await interaction.deferReply();
     const modCase = await prepared.service.unmute(prepared.input, prepared.config);
@@ -171,11 +179,11 @@ export const warn = defineCommand<ModerationConfig>({
     .addUserOption(userOption)
     .addStringOption((o) => reasonOption(o).setRequired(true)),
   async execute(interaction, ctx) {
-    const prepared = await prepare(interaction, ctx, 'warn');
+    const prepared = await prepare(interaction, ctx, 'warn', { requiredPermission: PermissionFlagsBits.ModerateMembers });
     if (!prepared) return;
     await interaction.deferReply();
     const { case: modCase, escalated } = await prepared.service.warn(prepared.input, prepared.config, {
-      mayEscalate: escalationAllowed(interaction.memberPermissions),
+      mayEscalate: escalationAllowed(interaction.member as GuildMember, prepared.modRoleIds),
     });
     await done(interaction, ctx, 'warn', modCase.number);
     if (escalated) {
@@ -190,6 +198,11 @@ export const warn = defineCommand<ModerationConfig>({
 export const warns = defineCommand<ModerationConfig>({
   data: base('warns', 'Active warnings of a member', PermissionFlagsBits.ModerateMembers).addUserOption(userOption),
   async execute(interaction, ctx) {
+    const modRoleIds = await getGuildModRoleIds(ctx.db, interaction.guildId!);
+    if (!isMemberModerator(interaction.member as GuildMember | null, modRoleIds, PermissionFlagsBits.ModerateMembers)) {
+      await interaction.reply(ephemeral(ctx.t('moderation.errors.noPermission')));
+      return;
+    }
     const user = interaction.options.getUser('user', true);
     const list = await new ModerationService(ctx).activeWarnings(interaction.guildId!, user.id);
     const lines = list.map(
@@ -210,6 +223,11 @@ export const unwarn = defineCommand<ModerationConfig>({
     )
     .addStringOption(reasonOption),
   async execute(interaction, ctx) {
+    const modRoleIds = await getGuildModRoleIds(ctx.db, interaction.guildId!);
+    if (!isMemberModerator(interaction.member as GuildMember | null, modRoleIds, PermissionFlagsBits.ModerateMembers)) {
+      await interaction.reply(ephemeral(ctx.t('moderation.errors.noPermission')));
+      return;
+    }
     const number = interaction.options.getInteger('case', true);
     const existing = await ctx.db.modCase.findUnique({ where: { guildId_number: { guildId: interaction.guildId!, number } } });
     if (existing?.type !== 'warn') {
@@ -238,6 +256,12 @@ export const caseCommand = defineCommand<ModerationConfig>({
         .addStringOption((o) => o.setName('reason').setDescription('New reason').setRequired(true).setMaxLength(500)),
     ),
   async execute(interaction, ctx) {
+    const modRoleIds = await getGuildModRoleIds(ctx.db, interaction.guildId!);
+    const member = interaction.member as GuildMember | null;
+    if (!isMemberModerator(member, modRoleIds, PermissionFlagsBits.ModerateMembers)) {
+      await interaction.reply(ephemeral(ctx.t('moderation.errors.noPermission')));
+      return;
+    }
     const guildId = interaction.guildId!;
     const number = interaction.options.getInteger('number', true);
     const service = new ModerationService(ctx);
@@ -248,7 +272,11 @@ export const caseCommand = defineCommand<ModerationConfig>({
     }
     if (interaction.options.getSubcommand() === 'reason') {
       // Only the case author or a server manager rewrites someone's reason.
-      if (modCase.moderatorId !== interaction.user.id && !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+      const isManager =
+        member?.id === interaction.guild?.ownerId ||
+        member?.permissions.has(PermissionFlagsBits.ManageGuild) ||
+        member?.permissions.has(PermissionFlagsBits.Administrator);
+      if (modCase.moderatorId !== interaction.user.id && !isManager) {
         await interaction.reply(ephemeral(ctx.t('moderation.errors.notYourCase')));
         return;
       }
@@ -265,6 +293,11 @@ export const note = defineCommand<ModerationConfig>({
     .addUserOption(userOption)
     .addStringOption((o) => o.setName('text').setDescription('Note').setRequired(true).setMaxLength(500)),
   async execute(interaction, ctx) {
+    const modRoleIds = await getGuildModRoleIds(ctx.db, interaction.guildId!);
+    if (!isMemberModerator(interaction.member as GuildMember | null, modRoleIds, PermissionFlagsBits.ModerateMembers)) {
+      await interaction.reply(ephemeral(ctx.t('moderation.errors.noPermission')));
+      return;
+    }
     const user = interaction.options.getUser('user', true);
     const config = await ctx.getConfig(interaction.guildId!);
     const modCase = await new ModerationService(ctx).note(
@@ -278,6 +311,11 @@ export const note = defineCommand<ModerationConfig>({
 export const history = defineCommand<ModerationConfig>({
   data: base('history', 'All cases and notes of a member', PermissionFlagsBits.ModerateMembers).addUserOption(userOption),
   async execute(interaction, ctx) {
+    const modRoleIds = await getGuildModRoleIds(ctx.db, interaction.guildId!);
+    if (!isMemberModerator(interaction.member as GuildMember | null, modRoleIds, PermissionFlagsBits.ModerateMembers)) {
+      await interaction.reply(ephemeral(ctx.t('moderation.errors.noPermission')));
+      return;
+    }
     const user = interaction.options.getUser('user', true);
     const cases = await new ModerationService(ctx).history(interaction.guildId!, user.id);
     await interaction.reply({ ...ephemeral(historyLines(ctx, user.username, cases)), allowedMentions: { parse: [] } });
@@ -330,6 +368,11 @@ export const clear = defineCommand<ModerationConfig>({
   async execute(interaction, ctx) {
     const channel = interaction.channel;
     if (!channel || channel.isDMBased() || !('bulkDelete' in channel)) return;
+    const modRoleIds = await getGuildModRoleIds(ctx.db, interaction.guildId!);
+    if (!isMemberModerator(interaction.member as GuildMember | null, modRoleIds, PermissionFlagsBits.ManageMessages)) {
+      await interaction.reply(ephemeral(ctx.t('moderation.errors.noPermission')));
+      return;
+    }
     const amount = interaction.options.getInteger('amount', true);
     const options = {
       userId: interaction.options.getUser('user')?.id,

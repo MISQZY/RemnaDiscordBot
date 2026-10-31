@@ -11,11 +11,14 @@ declare module 'fastify' {
   }
 }
 
+export type GuildAccessLevel = 'manage' | 'moderator';
+
 /**
- * Access to `/v1/guilds/:guildId/*`: the user is logged in, can manage the guild
- * (owner, Administrator or Manage Server) and the bot is on the server.
+ * Access to `/v1/guilds/:guildId/*`: the user is logged in, has the required permission
+ * level ('manage' for owners/administrators; 'moderator' also permits users with a role from modRoleIds)
+ * and the bot is on the server.
  */
-export function requireGuildAccess(userGuilds: UserGuildService): preHandlerAsyncHookHandler {
+export function requireGuildAccess(userGuilds: UserGuildService, level: GuildAccessLevel = 'manage'): preHandlerAsyncHookHandler {
   return async (request: FastifyRequest) => {
     const session = requireSession(request);
     const { guildId } = request.params as { guildId?: string };
@@ -24,8 +27,15 @@ export function requireGuildAccess(userGuilds: UserGuildService): preHandlerAsyn
     // While Discord refuses, reads may go by the user's last known guilds; changes wait for a fresh answer, which may
     // have taken the permission away.
     const guild = await userGuilds.find(session, guildId, { stale: request.method === 'GET' || request.method === 'HEAD' });
-    if (!guild?.canManage) throw ApiError.forbidden('You cannot manage this guild');
+    if (!guild) throw ApiError.forbidden('You do not have access to this guild');
     if (!guild.botPresent) throw ApiError.botNotInGuild();
+
+    if (level === 'manage' && !guild.canManage) {
+      throw ApiError.forbidden('You cannot manage this guild');
+    }
+    if (level === 'moderator' && !guild.canManage && !guild.isModerator) {
+      throw ApiError.forbidden('You cannot moderate this guild');
+    }
     request.guild = guild;
   };
 }

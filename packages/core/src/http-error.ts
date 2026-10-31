@@ -20,6 +20,10 @@ export class HttpError extends Error {
     return new HttpError(400, 'VALIDATION_FAILED', message, details);
   }
 
+  static forbidden(message = 'Access denied') {
+    return new HttpError(403, 'FORBIDDEN', message);
+  }
+
   static notFound(message = 'Not found') {
     return new HttpError(404, 'NOT_FOUND', message);
   }

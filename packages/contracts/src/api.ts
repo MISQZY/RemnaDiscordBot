@@ -60,6 +60,8 @@ export const UserGuild = z.object({
   owner: z.boolean(),
   /** Owner, Administrator or Manage Server — can configure the bot. */
   canManage: z.boolean(),
+  /** Member with one of the moderator roles from Guild.modRoleIds. */
+  isModerator: z.boolean().default(false),
   botPresent: z.boolean(),
 });
 export type UserGuild = z.infer<typeof UserGuild>;

@@ -10,8 +10,19 @@ const GUILD = '100000000000000001';
 function setup(options: { sub: string; group?: string | null; strings?: Record<string, string | null>; ints?: Record<string, number> }) {
   const update = vi.fn(async () => ({}));
   const reply = vi.fn(async () => {});
+  const member = {
+    id: '9',
+    permissions: {
+      has: () => true,
+    },
+    roles: {
+      cache: new Map(),
+    },
+  };
   const interaction = {
     guildId: GUILD,
+    guild: { id: GUILD, ownerId: '1' },
+    member,
     user: { id: '9', username: 'mod' },
     options: {
       getSubcommandGroup: () => options.group ?? null,
@@ -27,6 +38,11 @@ function setup(options: { sub: string; group?: string | null; strings?: Record<s
   const ctx = {
     moduleId: 'moderation',
     locale: 'en',
+    db: {
+      guild: {
+        findUnique: vi.fn(async () => ({ modRoleIds: [] })),
+      },
+    },
     getConfig: async () => defaultModerationConfig,
     config: { update },
     t: (key: string) => key,

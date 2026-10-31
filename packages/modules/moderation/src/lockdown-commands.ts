@@ -8,6 +8,7 @@ import {
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
   type Guild,
+  type GuildMember,
   type SlashCommandSubcommandBuilder,
 } from 'discord.js';
 import type { ModerationConfig } from './config.js';
@@ -37,6 +38,12 @@ function summary(ctx: Ctx, key: 'locked' | 'unlocked', channelIds: readonly stri
 
 async function lock(interaction: ChatInputCommandInteraction, ctx: Ctx, server: boolean): Promise<void> {
   const guild = interaction.guild!;
+  const member = interaction.member as GuildMember | null;
+  const isOwner = Boolean(member && guild && member.id === guild.ownerId);
+  const canLock = isOwner || member?.permissions?.has(PermissionFlagsBits.ManageChannels) || member?.permissions?.has(PermissionFlagsBits.ManageGuild) || member?.permissions?.has(PermissionFlagsBits.Administrator);
+  if (!canLock) {
+    return void (await interaction.reply({ content: ctx.t('moderation.errors.noPermission'), flags: MessageFlags.Ephemeral }));
+  }
   const config = await ctx.getConfig(guild.id);
   const raw = interaction.options.getString('duration');
   const durationSec = raw ? parseDuration(raw) : null;
@@ -110,6 +117,12 @@ export const unlock = defineCommand<ModerationConfig>({
   cooldownMs: 5_000,
   async execute(interaction, ctx) {
     const guild = interaction.guild!;
+    const member = interaction.member as GuildMember | null;
+    const isOwner = Boolean(member && guild && member.id === guild.ownerId);
+    const canLock = isOwner || member?.permissions?.has(PermissionFlagsBits.ManageChannels) || member?.permissions?.has(PermissionFlagsBits.ManageGuild) || member?.permissions?.has(PermissionFlagsBits.Administrator);
+    if (!canLock) {
+      return void (await interaction.reply({ content: ctx.t('moderation.errors.noPermission'), flags: MessageFlags.Ephemeral }));
+    }
     const server = interaction.options.getSubcommand() === 'server';
     const channelId = server ? null : (interaction.options.getChannel('channel') ?? interaction.channel)!.id;
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
