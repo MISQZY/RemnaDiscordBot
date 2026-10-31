@@ -103,10 +103,8 @@ export function guildRoutes({ db, redis, snapshots, guildLocales, config, option
         const updatedGuild = await db.$transaction(async (tx) => {
           const newUpdatedAt = new Date(Math.max(Date.now(), currentUpdatedAt ? currentUpdatedAt.getTime() + 1 : 0));
           if (currentUpdatedAt === null) {
-            return await tx.guild.upsert({
-              where: { id: guildId },
-              create: { id: guildId, ...after, updatedAt: newUpdatedAt },
-              update: { ...after, updatedAt: newUpdatedAt },
+            return await tx.guild.create({
+              data: { id: guildId, ...after, updatedAt: newUpdatedAt },
             });
           }
 
@@ -117,6 +115,11 @@ export function guildRoutes({ db, redis, snapshots, guildLocales, config, option
           if (count !== 1) throw ApiError.preconditionFailed();
 
           return await tx.guild.findUniqueOrThrow({ where: { id: guildId } });
+        }).catch((err: unknown) => {
+          if (typeof err === 'object' && err !== null && 'code' in err && err.code === 'P2002') {
+            throw ApiError.preconditionFailed();
+          }
+          throw err;
         });
 
         const resultSettings: GuildSettings = {
