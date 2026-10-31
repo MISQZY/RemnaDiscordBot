@@ -1,6 +1,6 @@
 import type { GuildChannel, GuildEmoji, GuildMeta, GuildRole } from '@bot/contracts';
 import type { GuildEntities } from '@bot/core';
-import type { Guild, GuildBasedChannel, GuildEmoji as DiscordEmoji, Role } from 'discord.js';
+import { PermissionFlagsBits, type Guild, type GuildBasedChannel, type GuildEmoji as DiscordEmoji, type Role } from 'discord.js';
 import { canAssignRole, isElevatedRole } from './role-safety.js';
 
 export function toGuildMeta(guild: Guild): GuildMeta {
@@ -15,12 +15,23 @@ export function toGuildMeta(guild: Guild): GuildMeta {
 }
 
 export function toGuildChannel(channel: GuildBasedChannel): GuildChannel {
+  const me = channel.guild?.members?.me;
+  let canSend: boolean | undefined = undefined;
+  if (me && 'permissionsFor' in channel && typeof channel.permissionsFor === 'function') {
+    try {
+      const perms = channel.permissionsFor(me);
+      canSend = perms?.has(PermissionFlagsBits.ViewChannel) && perms?.has(PermissionFlagsBits.SendMessages);
+    } catch {
+      canSend = undefined;
+    }
+  }
   return {
     id: channel.id,
     name: channel.name,
     type: channel.type,
     parentId: channel.parentId,
     position: 'position' in channel ? channel.position : 0,
+    canSend,
   };
 }
 

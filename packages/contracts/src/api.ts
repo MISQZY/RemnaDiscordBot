@@ -237,3 +237,17 @@ export const FailedJobsPage = z.object({
   nextCursor: z.string().nullable(),
 });
 export type FailedJobsPage = z.infer<typeof FailedJobsPage>;
+
+export const ModuleDiagnosticIssue = z.object({
+  severity: z.enum(['error', 'warning']),
+  field: z.string().optional(),
+  message: z.string(),
+  action: z.string(),
+});
+export type ModuleDiagnosticIssue = z.infer<typeof ModuleDiagnosticIssue>;
+
+export const ModuleDiagnosticResult = z.object({
+  valid: z.boolean(),
+  issues: z.array(ModuleDiagnosticIssue),
+});
+export type ModuleDiagnosticResult = z.infer<typeof ModuleDiagnosticResult>;

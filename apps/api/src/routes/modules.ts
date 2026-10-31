@@ -2,6 +2,8 @@ import {
   ModuleCatalogItem,
   ModuleConfigPatch,
   ModuleConfigReplace,
+  ModuleDiagnosticIssue,
+  ModuleDiagnosticResult,
   ModuleId,
   ModuleInfo,
   ModuleState,
@@ -350,6 +352,70 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
             await deps.redis.del(lockKey);
           }
         },
+      );
+
+      const diagnoseModule = async (guildId: string, moduleId: string, customConfig?: unknown) => {
+        const module = requireModule(moduleId);
+        const issues: ModuleDiagnosticIssue[] = [];
+
+        // 1. VIP dependency
+        if (config.vipLocked(guildId, moduleId)) {
+          issues.push({
+            severity: 'error',
+            message: 'This module requires Discord VIP to operate',
+            action: 'Activate a VIP key on this server to enable and run this module',
+          });
+        }
+
+        // 2. Validate current or custom config against guild snapshot
+        const current = await config.get(guildId, moduleId);
+        const configToValidate = customConfig !== undefined ? customConfig : current.config;
+        const entities = await guildEntities(guildId);
+        if (module.validateConfig) {
+          const rawIssues = module.validateConfig(configToValidate, entities);
+          for (const issue of rawIssues) {
+            issues.push({
+              severity: issue.severity ?? 'error',
+              field: issue.path.join('.'),
+              message: issue.message,
+              action: issue.action ?? 'Update module settings with a valid channel or role',
+            });
+          }
+        }
+
+        return {
+          valid: issues.every((i) => i.severity !== 'error'),
+          issues,
+        };
+      };
+
+      scope.get(
+        '/v1/guilds/:guildId/modules/:moduleId/diagnose',
+        {
+          schema: {
+            tags: ['modules'],
+            summary: 'Diagnose module configuration, permissions and dependencies',
+            description: 'Checks if required channels and roles exist, if the bot can send messages or assign roles, and if VIP is active.',
+            params: ModuleParams,
+            response: { 200: ModuleDiagnosticResult },
+          },
+        },
+        async (request) => diagnoseModule(request.params.guildId, request.params.moduleId),
+      );
+
+      scope.post(
+        '/v1/guilds/:guildId/modules/:moduleId/diagnose',
+        {
+          schema: {
+            tags: ['modules'],
+            summary: 'Diagnose draft module configuration',
+            description: 'Validates a draft configuration before saving against permissions and dependencies.',
+            params: ModuleParams,
+            body: z.object({ config: z.unknown().optional() }),
+            response: { 200: ModuleDiagnosticResult },
+          },
+        },
+        async (request) => diagnoseModule(request.params.guildId, request.params.moduleId, request.body.config),
       );
 
       // Modules' own routes: /v1/guilds/:guildId/modules/<id>/…

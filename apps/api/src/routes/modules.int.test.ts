@@ -199,6 +199,51 @@ describe('module routes', () => {
     ]);
   });
 
+  it('diagnoses module configuration, permissions and dependencies', async () => {
+    // 1. With valid config
+    await send('PUT', url('/announcer'), { config: { channelId: CHANNEL_ID, roleIds: [ROLE_ID] } });
+    const diagOk = await t.app.inject({ url: url('/announcer/diagnose'), headers: { cookie } });
+    expect(diagOk.statusCode).toBe(200);
+    expect(diagOk.json()).toEqual({ valid: true, issues: [] });
+
+    // 2. Draft diagnose with unassignable role or non-existent channel via POST
+    const diagDraft = await t.app.inject({
+      method: 'POST',
+      url: url('/announcer/diagnose'),
+      headers: { cookie },
+      payload: { config: { channelId: '599999999999999999', roleIds: [GUILD_ID] } },
+    });
+    expect(diagDraft.statusCode).toBe(200);
+    expect(diagDraft.json().valid).toBe(false);
+    expect(diagDraft.json().issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: 'error',
+          field: 'roleIds.0',
+          message: expect.stringContaining('@everyone'),
+          action: expect.any(String),
+        }),
+        expect.objectContaining({
+          severity: 'error',
+          field: 'channelId',
+          message: expect.stringContaining('599999999999999999'),
+          action: expect.any(String),
+        }),
+      ]),
+    );
+
+    // 3. Stored diagnose when channel was deleted afterwards
+    await t.deps.config.update(GUILD_ID, 'announcer', { config: { channelId: '599999999999999999', roleIds: [] } });
+    const diagDeleted = await t.app.inject({ url: url('/announcer/diagnose'), headers: { cookie } });
+    expect(diagDeleted.statusCode).toBe(200);
+    expect(diagDeleted.json().valid).toBe(false);
+    expect(diagDeleted.json().issues[0]).toMatchObject({
+      severity: 'error',
+      field: 'channelId',
+      action: expect.any(String),
+    });
+  });
+
   it('switches a module on and off though its saved config points at a deleted channel', async () => {
     await t.deps.config.update(GUILD_ID, 'announcer', { config: { channelId: '599999999999999999', roleIds: [] } });
 

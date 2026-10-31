@@ -111,7 +111,7 @@ describe('welcome module', () => {
 
   it('validates configured channels', () => {
     const issues = welcome.validateConfig!(config(), { channels: [], roles: [] });
-    expect(issues).toEqual([{ path: ['join', 'channelId'], message: `Channel ${CHANNEL} not found` }]);
+    expect(issues).toMatchObject([{ path: ['join', 'channelId'], message: `Channel ${CHANNEL} not found` }]);
   });
 });
 

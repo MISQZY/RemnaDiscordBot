@@ -16,8 +16,13 @@ export class HttpError extends Error {
     super(message);
   }
 
-  static badRequest(message: string, details?: HttpErrorDetails) {
-    return new HttpError(400, 'VALIDATION_FAILED', message, details);
+  static badRequest(message: string, details?: Array<{ path: (string | number)[]; message: string }>) {
+    return new HttpError(
+      400,
+      'VALIDATION_FAILED',
+      message,
+      details?.map((d) => ({ path: d.path, message: d.message })),
+    );
   }
 
   static forbidden(message = 'Access denied') {

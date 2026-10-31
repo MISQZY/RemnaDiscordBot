@@ -26,11 +26,52 @@ describe('EntityChecker', () => {
       .roles(['10', '11', '98', '12'], ['joinRoles'], { assignable: true });
 
     expect(issues).toEqual([
-      { path: ['join', 'channelId'], message: 'Channel 2 is not a text channel' },
-      { path: ['leave', 'channelId'], message: 'Channel 99 not found' },
-      { path: ['joinRoles', 1], message: 'The bot cannot assign role Admin' },
-      { path: ['joinRoles', 2], message: 'Role 98 not found' },
-      { path: ['joinRoles', 3], message: 'Role Mod has moderator permissions — the bot does not hand it out' },
+      {
+        path: ['join', 'channelId'],
+        message: 'Channel 2 is not a text channel',
+        action: 'Choose a text channel instead of a voice or category channel',
+        severity: 'error',
+      },
+      {
+        path: ['leave', 'channelId'],
+        message: 'Channel 99 not found',
+        action: 'Select an existing channel in server settings',
+        severity: 'error',
+      },
+      {
+        path: ['joinRoles', 1],
+        message: 'The bot cannot assign role Admin',
+        action: "In Discord Server Settings → Roles, drag the bot's role above @Admin",
+        severity: 'error',
+      },
+      {
+        path: ['joinRoles', 2],
+        message: 'Role 98 not found',
+        action: 'Select an existing role in server settings',
+        severity: 'error',
+      },
+      {
+        path: ['joinRoles', 3],
+        message: 'Role Mod has moderator permissions — the bot does not hand it out',
+        action: 'Use a dedicated member role without administrator or moderation permissions',
+        severity: 'error',
+      },
+    ]);
+  });
+
+  it('detects when the bot lacks send permissions in a channel', () => {
+    const guildWithPerms = {
+      channels: [{ id: '1', name: 'logs', type: 0, parentId: null, position: 0, canSend: false }],
+      roles: [],
+    };
+    const { issues } = new EntityChecker(guildWithPerms).textChannel('1', ['logChannelId']);
+    expect(issues).toEqual([
+      {
+        path: ['logChannelId'],
+        message: 'Bot lacks permission to send messages in #logs',
+        action: 'Grant the bot Send Messages and View Channel permissions in #logs',
+        severity: 'error',
+      },
     ]);
   });
 });

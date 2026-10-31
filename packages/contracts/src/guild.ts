@@ -20,6 +20,8 @@ export const GuildChannel = z.object({
   type: z.number().int(),
   parentId: Snowflake.nullable(),
   position: z.number().int(),
+  /** Whether the bot can view and send messages in this channel. Missing in older snapshots. */
+  canSend: z.boolean().optional(),
 });
 export type GuildChannel = z.infer<typeof GuildChannel>;
 

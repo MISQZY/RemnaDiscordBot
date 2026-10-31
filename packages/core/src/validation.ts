@@ -9,6 +9,8 @@ export interface GuildEntities {
 export interface ConfigIssue {
   path: (string | number)[];
   message: string;
+  action?: string;
+  severity?: 'error' | 'warning';
 }
 
 /** discord.js channel types the bot can post messages to. */
@@ -31,9 +33,27 @@ export class EntityChecker {
   textChannel(id: string | null | undefined, path: ConfigIssue['path']): this {
     if (!id) return this;
     const channel = this.channelById.get(id);
-    if (!channel) this.issues.push({ path, message: `Channel ${id} not found` });
-    else if (!(TEXT_CHANNEL_TYPES as readonly number[]).includes(channel.type)) {
-      this.issues.push({ path, message: `Channel ${id} is not a text channel` });
+    if (!channel) {
+      this.issues.push({
+        path,
+        message: `Channel ${id} not found`,
+        action: 'Select an existing channel in server settings',
+        severity: 'error',
+      });
+    } else if (!(TEXT_CHANNEL_TYPES as readonly number[]).includes(channel.type)) {
+      this.issues.push({
+        path,
+        message: `Channel ${id} is not a text channel`,
+        action: 'Choose a text channel instead of a voice or category channel',
+        severity: 'error',
+      });
+    } else if (channel.canSend === false) {
+      this.issues.push({
+        path,
+        message: `Bot lacks permission to send messages in #${channel.name}`,
+        action: `Grant the bot Send Messages and View Channel permissions in #${channel.name}`,
+        severity: 'error',
+      });
     }
     return this;
   }
@@ -45,14 +65,40 @@ export class EntityChecker {
   assignableRole(id: string | null | undefined, path: ConfigIssue['path']): this {
     if (!id) return this;
     const role = this.roleById.get(id);
-    if (!role) this.issues.push({ path, message: `Role ${id} not found` });
-    else if (role.elevated) this.issues.push({ path, message: `Role ${role.name} has moderator permissions — the bot does not hand it out` });
-    else if (!role.manageable) this.issues.push({ path, message: `The bot cannot assign role ${role.name}` });
+    if (!role) {
+      this.issues.push({
+        path,
+        message: `Role ${id} not found`,
+        action: 'Select an existing role in server settings',
+        severity: 'error',
+      });
+    } else if (role.elevated) {
+      this.issues.push({
+        path,
+        message: `Role ${role.name} has moderator permissions — the bot does not hand it out`,
+        action: `Use a dedicated member role without administrator or moderation permissions`,
+        severity: 'error',
+      });
+    } else if (!role.manageable) {
+      this.issues.push({
+        path,
+        message: `The bot cannot assign role ${role.name}`,
+        action: `In Discord Server Settings → Roles, drag the bot's role above @${role.name}`,
+        severity: 'error',
+      });
+    }
     return this;
   }
 
   role(id: string | null | undefined, path: ConfigIssue['path']): this {
-    if (id && !this.roleById.has(id)) this.issues.push({ path, message: `Role ${id} not found` });
+    if (id && !this.roleById.has(id)) {
+      this.issues.push({
+        path,
+        message: `Role ${id} not found`,
+        action: 'Select an existing role in server settings',
+        severity: 'error',
+      });
+    }
     return this;
   }
 
@@ -63,7 +109,14 @@ export class EntityChecker {
 
   channels(ids: readonly string[], path: ConfigIssue['path']): this {
     ids.forEach((id, i) => {
-      if (!this.channelById.has(id)) this.issues.push({ path: [...path, i], message: `Channel ${id} not found` });
+      if (!this.channelById.has(id)) {
+        this.issues.push({
+          path: [...path, i],
+          message: `Channel ${id} not found`,
+          action: 'Select an existing channel in server settings',
+          severity: 'error',
+        });
+      }
     });
     return this;
   }
