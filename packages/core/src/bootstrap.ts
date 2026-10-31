@@ -70,10 +70,12 @@ export async function bootstrapServices({
   });
 
   const close = async () => {
-    unsubscribeConfig();
-    stopVip();
-    await redis.quit().catch(() => {});
-    await db.$disconnect().catch(() => {});
+    const subscribers = await Promise.allSettled([unsubscribeConfig(), stopVip()]);
+    const connections = await Promise.allSettled([redis.quit(), db.$disconnect()]);
+    const errors = [...subscribers, ...connections]
+      .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+      .map((result) => result.reason);
+    if (errors.length) throw new AggregateError(errors, 'Core services failed to close');
   };
 
   return { db, redis, registry, i18n, guildLocales, vip, config, close };
