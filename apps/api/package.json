@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint src",
     "test": "vitest run --passWithNoTests",
-    "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests"
+    "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests",
+    "openapi:export": "tsx scripts/export-openapi.ts"
   },
   "dependencies": {
     "@bot/contracts": "workspace:*",
