@@ -7,7 +7,7 @@ import type { UserGuildService } from '../auth/user-guilds.js';
 import type { ApiDeps } from '../deps.js';
 import { ApiError } from '../errors.js';
 import { requireGuildAccess } from '../plugins/guild-access.js';
-import { GUILD_WRITE_LIMIT } from '../plugins/rate-limit.js';
+import { GUILD_WRITE_LIMIT, guildWriteLimit } from '../plugins/rate-limit.js';
 import { requireSession } from '../plugins/session.js';
 
 const GuildParams = z.object({ guildId: Snowflake });
@@ -47,6 +47,7 @@ export function profileRoutes({ db, rest, redis, snapshots, config, options }: A
 
   return async (app) => {
     app.addHook('preHandler', requireGuildAccess(userGuilds));
+    if (options.rateLimitPerMinute > 0) app.addHook('preHandler', guildWriteLimit(redis));
 
     app.get(
       '/v1/guilds/:guildId/profile',

@@ -17,7 +17,7 @@ import type { UserGuildService } from '../auth/user-guilds.js';
 import type { ApiDeps } from '../deps.js';
 import { ApiError } from '../errors.js';
 import { requireGuildAccess } from '../plugins/guild-access.js';
-import { GUILD_WRITE_LIMIT } from '../plugins/rate-limit.js';
+import { GUILD_WRITE_LIMIT, guildWriteLimit } from '../plugins/rate-limit.js';
 import { requireSession } from '../plugins/session.js';
 
 const GuildParams = z.object({ guildId: Snowflake });
@@ -32,9 +32,10 @@ async function readSettings(db: PrismaClient, guildId: string): Promise<GuildSet
   };
 }
 
-export function guildRoutes({ db, redis, snapshots, guildLocales, config }: ApiDeps, userGuilds: UserGuildService): FastifyPluginAsyncZod {
+export function guildRoutes({ db, redis, snapshots, guildLocales, config, options }: ApiDeps, userGuilds: UserGuildService): FastifyPluginAsyncZod {
   return async (app) => {
     app.addHook('preHandler', requireGuildAccess(userGuilds));
+    if (options.rateLimitPerMinute > 0) app.addHook('preHandler', guildWriteLimit(redis));
 
     app.get(
       '/v1/guilds/:guildId',
