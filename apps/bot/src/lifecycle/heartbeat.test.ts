@@ -1,8 +1,15 @@
+import type * as PerfHooks from 'node:perf_hooks';
 import { createLogger } from '@bot/logger';
 import { createTestRedis } from '@bot/testing';
 import { Collection, Status, type Client } from 'discord.js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildHeartbeat, startHeartbeat } from './heartbeat.js';
+
+const histogram = vi.hoisted(() => ({ mean: Number.NaN, enable: vi.fn(), disable: vi.fn(), reset: vi.fn() }));
+vi.mock('node:perf_hooks', async (importOriginal) => ({
+  ...await importOriginal<typeof PerfHooks>(),
+  monitorEventLoopDelay: vi.fn(() => histogram),
+}));
 
 const client = {
   guilds: { cache: new Collection(Array.from({ length: 7 }, (_, i) => [String(i), { shardId: i % 2 + 6, memberCount: 10 }])) },
@@ -25,6 +32,26 @@ describe('startHeartbeat', () => {
       ],
     });
   });
+  it.each([
+    [Number.NaN, 0],
+    [19_000_000, 0],
+    [20_000_000, 0],
+    [45_000_000, 25],
+  ])('reports excess event loop delay for histogram mean %s', async (mean, expected) => {
+    histogram.mean = mean;
+    const redis = createTestRedis();
+    const stop = startHeartbeat(client, redis, createLogger({ service: 'test', level: 'silent', pretty: false }), {
+      clusterId: 3, shards: [6, 7], intervalMs: 1_000,
+    });
+    try {
+      await expect.poll(() => redis.get('bot:cluster:3')).not.toBeNull();
+      expect(JSON.parse((await redis.get('bot:cluster:3'))!)).toMatchObject({ eventLoopDelayMs: expected });
+    } finally {
+      await stop();
+      histogram.mean = Number.NaN;
+    }
+  });
+
   it('writes the cluster state with a TTL and removes it on stop', async () => {
     const redis = createTestRedis();
     const stop = startHeartbeat(client, redis, createLogger({ service: 'test', level: 'silent', pretty: false }), {
