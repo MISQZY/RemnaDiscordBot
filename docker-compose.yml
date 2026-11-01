@@ -128,8 +128,8 @@ services:
     image: ghcr.io/lavalink-devs/lavalink:4.2.2-alpine
     profiles: [music]
     restart: unless-stopped
-    # Its http source fetches links members give: kept off the stack's network, so none of them reaches the API,
-    # Postgres or Redis (the bot also refuses links to internal hosts, see music's playableQuery).
+    # Generic HTTP and local sources are disabled. Keep the audio node off the stack's network as well,
+    # so it cannot reach the API, Postgres or Redis (see music's playableQuery).
     networks: [music]
     environment:
       LAVALINK_SERVER_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}

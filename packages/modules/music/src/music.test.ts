@@ -232,8 +232,8 @@ describe('playableQuery', () => {
   it('lets search text and public links through', () => {
     expect(playableQuery('never gonna give you up')).toBe(true);
     expect(playableQuery('https://soundcloud.com/artist/track')).toBe(true);
-    expect(playableQuery('https://cdn.example.com/song.mp3')).toBe(true);
-    expect(playableQuery('http://93.184.216.34/a.mp3')).toBe(true);
+    expect(playableQuery('https://cdn.example.com/song.mp3')).toBe(false);
+    expect(playableQuery('http://93.184.216.34/a.mp3')).toBe(false);
   });
 
   it('refuses links into the stack or a private network', () => {
@@ -242,6 +242,9 @@ describe('playableQuery', () => {
       'http://2130706433/', 'http://169.254.169.254/latest/meta-data/', 'http://10.0.0.5/a.mp3', 'http://192.168.1.1/',
       'http://172.20.0.3/', 'http://[::1]/', 'http://[fd00::1]/', 'http://printer.local/', 'file:///etc/passwd',
       'ftp://example.com/a.mp3', 'https://user:pass@example.com/a.mp3',
+      'https://localtest.me/a.mp3', 'https://attacker.example/a.mp3',
+      'https://soundcloud.com.evil.test/a', 'https://soundcloud.com:2333/a',
+      '//api:3000/v1/guilds',
     ]) {
       expect(playableQuery(url), url).toBe(false);
     }

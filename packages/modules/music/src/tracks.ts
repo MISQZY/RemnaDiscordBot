@@ -24,26 +24,29 @@ export function trackView(track: Track | UnresolvedTrack): TrackView {
   };
 }
 
-/** Literal IPs of loopback, private, link-local, CGNAT and unique-local ranges. */
-const PRIVATE_IP = /^(?:127\.|10\.|0\.|169\.254\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|\[?(?:::1?|f[cd][0-9a-f]{0,2}:|fe[89ab][0-9a-f]?:|::ffff:))/i;
+/** Providers whose source managers fetch audio. Arbitrary HTTP playback is disabled in Lavalink too. */
+const MUSIC_HOSTS = new Set([
+  'youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtu.be',
+  'soundcloud.com', 'www.soundcloud.com', 'm.soundcloud.com',
+  'open.spotify.com', 'deezer.com', 'www.deezer.com',
+  'music.yandex.ru', 'music.yandex.com', 'music.yandex.kz', 'music.yandex.by',
+  'bandcamp.com', 'www.bandcamp.com', 'twitch.tv', 'www.twitch.tv', 'vimeo.com', 'www.vimeo.com',
+]);
 
 /**
- * Whether a link may go to the audio server. Lavalink's http source fetches whatever it is given from inside the
- * stack's network, so a link to an internal service (`http://api:3000`, a private or metadata IP) is refused: only
- * http(s) to a public host name or address. Search text, not a link, is always fine.
+ * Only search text or HTTPS links to known music providers may reach Lavalink. Checking DNS in the bot cannot
+ * pin the address Lavalink later connects to or guard its redirects, so generic HTTP sources must remain off.
  */
 export function playableQuery(query: string): boolean {
-  if (!/^[a-z][a-z\d+.-]*:/i.test(query.trim())) return true;
+  const value = query.trim();
+  if (value.startsWith('//') || value.startsWith('\\\\')) return false;
+  if (!/^[a-z][a-z\d+.-]*:/i.test(value)) return true;
   let url: URL;
   try {
-    url = new URL(query.trim());
+    url = new URL(value);
   } catch {
     return false;
   }
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
-  if (url.username || url.password) return false;
-  const host = url.hostname.toLowerCase();
-  if (!host.includes('.') && !host.includes(':')) return false;
-  if (host === 'localhost' || /\.(?:localhost|local|internal|lan|home|arpa)$/.test(host)) return false;
-  return !PRIVATE_IP.test(host);
+  if (url.protocol !== 'https:' || url.username || url.password || url.port) return false;
+  return MUSIC_HOSTS.has(url.hostname) || /^[a-z0-9-]+\.bandcamp\.com$/.test(url.hostname);
 }

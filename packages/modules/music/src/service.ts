@@ -228,6 +228,7 @@ export class MusicService {
 
   /** Search suggestions for `/play` autocomplete. */
   async suggest(query: string, config: MusicConfig, requester: Requester): Promise<Track[]> {
+    if (!playableQuery(query)) return [];
     const node = this.manager.nodeManager.leastUsedNodes()[0];
     if (!node) return [];
     const result = await withTimeout(node.search({ query, source: SEARCH_PLATFORMS[config.searchSource] }, requester), 2_500);
