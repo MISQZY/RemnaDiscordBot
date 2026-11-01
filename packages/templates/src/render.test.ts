@@ -98,6 +98,31 @@ describe('renderMessage', () => {
     });
   });
 
+  it('renders user mentions cleanly across plain and rich embed fields', () => {
+    const message = renderMessage(
+      {
+        embeds: [
+          {
+            title: 'Welcome {user}',
+            description: 'Hello {user} and <@id>',
+            author: { name: '{user.mention}' },
+            footer: { text: 'By {user}' },
+            fields: [{ name: 'Member {user}', value: 'Giveaway winner: {user} (<@id>)', inline: true }],
+          },
+        ],
+      },
+      vars,
+    );
+
+    expect(message.embeds?.[0]).toMatchObject({
+      title: 'Welcome @Neo',
+      description: 'Hello <@1> and <@1>',
+      author: { name: '@Neo' },
+      footer: { text: 'By @Neo' },
+      fields: [{ name: 'Member @Neo', value: 'Giveaway winner: <@1> (<@1>)', inline: true }],
+    });
+  });
+
   it('truncates long fields to Discord limits', () => {
     const message = renderMessage({ content: 'x'.repeat(3000), embeds: [{ title: 't'.repeat(300) }] }, vars);
 
