@@ -62,7 +62,8 @@ export function buildHeartbeat(client: Client, { clusterId, shards, nodeId, inte
 export function startHeartbeat(client: Client, redis: Redis, logger: Logger, options: HeartbeatOptions): () => Promise<void> {
   const intervalMs = options.intervalMs ?? 30_000;
   const key = RedisKeys.clusterHeartbeat(options.clusterId);
-  const delay = monitorEventLoopDelay({ resolution: 20 });
+  const resolutionMs = 20;
+  const delay = monitorEventLoopDelay({ resolution: resolutionMs });
   delay.enable();
   let previousCpu = process.cpuUsage();
   let previousTime = performance.now();
@@ -76,7 +77,7 @@ export function startHeartbeat(client: Client, redis: Redis, logger: Logger, opt
     const elapsed = Math.max(1, now - previousTime);
     const load = {
       cpuCores: Math.max(0, (cpu.user - previousCpu.user + cpu.system - previousCpu.system) / (elapsed * 1000)),
-      eventLoopDelayMs: Number.isFinite(delay.mean) ? delay.mean / 1e6 : 0,
+      eventLoopDelayMs: Number.isFinite(delay.mean) ? Math.max(0, delay.mean / 1e6 - resolutionMs) : 0,
       eventsPerSecond: options.nodeId ? events * 1000 / elapsed : undefined,
     };
     previousCpu = cpu;
