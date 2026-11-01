@@ -2,6 +2,8 @@
 
 Модульный Discord-бот с API-first архитектурой: каждая функция — отдельный модуль, настройки гильдий хранятся в БД, меняются через REST API и применяются ботом без перезапуска.
 
+Перед обновлением проверьте [инструкцию по безопасности](SECURITY.md): настройки метрик и источников Lavalink требуют обновления конфигурации.
+
 ## Стек
 
 TypeScript, Node.js 24, pnpm + Turborepo, discord.js 14 + discord-hybrid-sharding, Fastify 5, PostgreSQL + Prisma, Redis, zod, pino, Vitest.

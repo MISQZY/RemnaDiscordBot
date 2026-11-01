@@ -2,13 +2,20 @@
 # The bot manager aggregates the metrics of all its clusters.
 
 # --- Same server: Prometheus is in monitoring-network (docker/monitoring/shared-network.yml) ---
+# Mount the token file into Prometheus; its contents must match METRICS_TOKEN in the bot's .env.
 - job_name: discord-bot
+  authorization:
+    credentials_file: /etc/prometheus/discord-bot.token
   static_configs:
     - targets: ["discord-bot:3001"]
 - job_name: discord-bot-worker
+  authorization:
+    credentials_file: /etc/prometheus/discord-bot.token
   static_configs:
     - targets: ["discord-bot-worker:3002"]
 - job_name: discord-bot-api
+  authorization:
+    credentials_file: /etc/prometheus/discord-bot.token
   static_configs:
     - targets: ["discord-bot-api:9464"]
 

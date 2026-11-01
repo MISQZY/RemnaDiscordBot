@@ -1,6 +1,6 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { handleMetricsRequest } from './metrics.js';
 
 describe('handleMetricsRequest', () => {
@@ -33,5 +33,18 @@ describe('handleMetricsRequest', () => {
 
   it('leaves other paths to the caller', async () => {
     expect((await fetch(`${url}/health`)).status).toBe(404);
+  });
+
+  it('disables metrics without a token without rendering data', () => {
+    const render = vi.fn();
+    const end = vi.fn();
+    const writeHead = vi.fn().mockReturnValue({ end });
+    expect(handleMetricsRequest(
+      { method: 'GET', url: '/metrics', headers: {} } as never,
+      { writeHead } as never,
+      { render },
+    )).toBe(true);
+    expect(writeHead).toHaveBeenCalledWith(404);
+    expect(render).not.toHaveBeenCalled();
   });
 });

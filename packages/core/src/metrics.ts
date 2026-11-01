@@ -40,7 +40,7 @@ export function metricsSnapshot(): Promise<MetricObjectWithValues<MetricValue<st
 }
 
 export interface MetricsRequestOptions {
-  /** Expected `Authorization: Bearer <token>`; unset — `/metrics` is open (reachable only inside the Docker network). */
+  /** Expected Authorization: Bearer <token>; unset disables /metrics (404). */
   token?: string;
   /** Prometheus text; the default registry of this process unless overridden (the bot manager aggregates clusters). */
   render?: () => Promise<string>;
@@ -55,7 +55,11 @@ function sameToken(header: string | undefined, token: string): boolean {
 /** Serves `GET /metrics` on a plain node:http server; returns `false` for other requests so the caller can handle them. */
 export function handleMetricsRequest(req: IncomingMessage, res: ServerResponse, options: MetricsRequestOptions = {}): boolean {
   if (req.method !== 'GET' || req.url !== '/metrics') return false;
-  if (options.token && !sameToken(req.headers.authorization, options.token)) {
+  if (!options.token?.trim()) {
+    res.writeHead(404).end();
+    return true;
+  }
+  if (!sameToken(req.headers.authorization, options.token)) {
     res.writeHead(401, { 'www-authenticate': 'Bearer' }).end();
     return true;
   }
