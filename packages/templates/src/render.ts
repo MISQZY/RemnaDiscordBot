@@ -73,11 +73,11 @@ function cleanPlainMentions(text: string, vars: TemplateVars): string {
   const channelName = rawChannelName ? String(rawChannelName).replace(/^#/, '') : undefined;
 
   return text
-    .replace(/<@!?id>/gi, userDisplay ? `@${userDisplay}` : '@User')
+    .replace(/<@!?id>/gi, () => userDisplay ? `@${userDisplay}` : '@User')
     .replace(/<@!?(\d+)>/g, (_, id) => {
       if (userId && id === userId && userDisplay) return `@${userDisplay}`;
       if (botId && id === botId && botName) return `@${botName}`;
-      return userDisplay ? `@${userDisplay}` : `@${id}`;
+      return `@${id}`;
     })
     .replace(/<@&(?:\d+|id)>/gi, '@Role')
     .replace(/<#(?:\d+|id)>/gi, channelName ? `#${channelName}` : '#channel');

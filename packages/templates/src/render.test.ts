@@ -123,6 +123,16 @@ describe('renderMessage', () => {
     });
   });
 
+  it('does not relabel other users as the template subject in plain embed fields', () => {
+    const message = renderMessage({ embeds: [{ title: '<@1> <@!3> <@999>' }] }, vars);
+    expect(message.embeds?.[0]?.title).toBe('@Neo @Oracle @999');
+  });
+
+  it('preserves replacement tokens in display names when resolving mention placeholders', () => {
+    const message = renderMessage({ embeds: [{ title: '<@id>' }] }, { ...vars, 'user.displayName': '$&' });
+    expect(message.embeds?.[0]?.title).toBe('@$&');
+  });
+
   it('truncates long fields to Discord limits', () => {
     const message = renderMessage({ content: 'x'.repeat(3000), embeds: [{ title: 't'.repeat(300) }] }, vars);
 
