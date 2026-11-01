@@ -111,6 +111,9 @@ export function moderationApi(app: FastifyInstance, ctx: ApiModuleContext<Modera
     async (request) => {
       const modCase = await findCase(request);
       const { reason } = request.body as { reason: string | null };
+      if ((modCase.type === 'ban' || modCase.type === 'mute') && !request.guild?.canManage) {
+        throw HttpError.forbidden('Only guild managers can revoke bans or timeouts via API');
+      }
       const config = await ctx.getConfig(modCase.guildId);
       return toCaseDto(await service.revoke(modCase.guildId, modCase.number, ctx.currentUserId(request), reason, config));
     },

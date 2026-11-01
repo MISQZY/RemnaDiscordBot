@@ -1,4 +1,4 @@
-import { defineCommand, ephemeralReply as reply, type InteractionContext } from '@bot/core';
+import { requireManageGuild, defineCommand, ephemeralReply as reply, type InteractionContext } from '@bot/core';
 import {
   channelMention,
   ChannelType,
@@ -92,6 +92,7 @@ export const logs = defineCommand<AuditLogConfig>({
     const guildId = interaction.guildId!;
     const group = interaction.options.getSubcommandGroup(false);
     const sub = interaction.options.getSubcommand();
+    if (sub !== 'show' && !(await requireManageGuild(interaction, ctx))) return;
     const category = (key: string) => ctx.t(`audit-log.categories.${key}`);
 
     if (sub === 'show') {

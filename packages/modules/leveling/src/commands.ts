@@ -1,4 +1,4 @@
-import { defineCommand, defineComponent, type InteractionContext } from '@bot/core';
+import { requireManageGuild, defineCommand, defineComponent, type InteractionContext } from '@bot/core';
 import { UserDirectory } from '@bot/discord';
 import {
   ActionRowBuilder,
@@ -148,6 +148,7 @@ export const xp = defineCommand<LevelingConfig>({
       o.setName('amount').setDescription('XP').setRequired(true).setMinValue(0).setMaxValue(10_000_000),
     ),
   async execute(interaction, ctx) {
+    if (!(await requireManageGuild(interaction, ctx))) return;
     const action = interaction.options.getString('action', true);
     const user = interaction.options.getUser('user', true);
     const amount = interaction.options.getInteger('amount', true);

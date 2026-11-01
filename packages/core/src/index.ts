@@ -1,6 +1,7 @@
 export * from './bootstrap.js';
 export * from './bot/dispatcher.js';
 export * from './bot/guild-id.js';
+export * from './bot/permissions.js';
 export * from './bot/reply.js';
 export * from './bus.js';
 export * from './command-locales.js';

@@ -1,7 +1,8 @@
 import { modules } from '@bot/module-list';
 import { ModerationService, type ModerationConfig } from '@bot/module-moderation';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { CHANNEL_ID, createTestApp, GUILD_ID, login, seedGuildSnapshot, type TestApp } from '../testing/app.js';
+import { CHANNEL_ID, createTestApp, GUILD_ID, login, ROLE_ID, seedGuildSnapshot, type TestApp } from '../testing/app.js';
+import { TEST_USER } from '../testing/fake-oauth.js';
 
 const moderation = modules.find((m) => m.id === 'moderation')!;
 const MOD = '600000000000000006';
@@ -123,6 +124,31 @@ describe('moderation', () => {
     expect(t.rest.calls.some((c) => c.method === 'delete' && c.route === `/guilds/${GUILD_ID}/bans/${TARGET}`)).toBe(true);
     expect(await t.database.db.scheduledAction.count()).toBe(0);
     expect((await send('GET', '/cases/1')).json()).toMatchObject({ active: false, revokeReason: 'appeal' });
+  });
+
+  it('lets junior moderators read cases but refuses unban and unmute without Discord side effects', async () => {
+    const isolated = await createTestApp({ modules: [moderation] });
+    try {
+      isolated.oauth.guilds = [{ id: GUILD_ID, name: 'Moderated', icon: null, owner: false, permissions: '0' }];
+      await seedGuildSnapshot(isolated);
+      await isolated.deps.db.guild.create({ data: { id: GUILD_ID, modRoleIds: [ROLE_ID] } });
+      isolated.rest.responses.set(`/guilds/${GUILD_ID}/members/${TEST_USER.id}`, { roles: [ROLE_ID] });
+      const moderatorCookie = await login(isolated);
+      for (const [index, type] of ['ban', 'mute'].entries()) {
+        await isolated.database.db.modCase.create({
+          data: { guildId: GUILD_ID, number: index + 1, type, targetId: TARGET, moderatorId: MOD },
+        });
+        const url = `${base}/cases/${index + 1}`;
+        expect((await isolated.app.inject({ url, headers: { cookie: moderatorCookie } })).statusCode).toBe(200);
+        isolated.rest.calls.length = 0;
+        const result = await isolated.app.inject({ method: 'POST', url: `${url}/revoke`, headers: { cookie: moderatorCookie }, payload: {} });
+        expect(result.statusCode).toBe(403);
+        expect(isolated.rest.calls.filter((call) => call.method !== 'get')).toHaveLength(0);
+        expect((await isolated.database.db.modCase.findFirst({ where: { guildId: GUILD_ID, number: index + 1 } }))?.revokedAt).toBeNull();
+      }
+    } finally {
+      await isolated.close();
+    }
   });
 
   it('adds notes that do not count as punishments', async () => {

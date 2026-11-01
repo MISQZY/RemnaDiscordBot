@@ -33,6 +33,7 @@ describe('/cc', () => {
     guild,
     guildId: GUILD,
     user: { id: USER },
+    memberPermissions: { has: () => true },
     options: {
       getSubcommand: () => sub,
       getString: (name: string) => strings[name] ?? null,
@@ -80,6 +81,23 @@ describe('/cc', () => {
     await cc.execute(add as never, ctx);
     expect(add.showModal).not.toHaveBeenCalled();
     expect(add.reply).toHaveBeenCalledWith(expect.objectContaining({ content: 'custom-commands.manage.errors.invalid' }));
+  });
+
+  it('refuses command writes after integration overrides grant slash-command access', async () => {
+    const add = { ...slash('add', { type: 'trigger', name: 'denied' }), memberPermissions: { has: () => false } };
+    await cc.execute(add as never, ctx);
+    expect(add.showModal).not.toHaveBeenCalled();
+    expect(add.reply).toHaveBeenCalledWith(expect.objectContaining({ content: 'core.manageGuildRequired' }));
+    expect(await database.db.customCommand.count({ where: { guildId: GUILD, name: 'denied' } })).toBe(0);
+  });
+
+  it('refuses a pending modal submitted by another guild manager', async () => {
+    const add = slash('add', { type: 'trigger', name: 'stolen' });
+    await cc.execute(add as never, ctx);
+    const submit = { ...modal('cc:add:900000000000000009', 'stolen response'), user: { id: '300000000000000003' } };
+    await responseModalHandler.handle(submit as never, ctx);
+    expect(submit.reply).toHaveBeenCalledWith(expect.objectContaining({ content: 'custom-commands.manage.expired' }));
+    expect(await database.db.customCommand.count({ where: { guildId: GUILD, name: 'stolen' } })).toBe(0);
   });
 
   it('edits the response and the pattern, then deletes the command', async () => {

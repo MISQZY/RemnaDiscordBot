@@ -1,13 +1,24 @@
 import { ModuleRegistry } from '@bot/core';
 import { I18n } from '@bot/i18n';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { helpSections } from './commands/help.js';
+import { modules } from './commands/modules.js';
 import general from './index.js';
 
 const i18n = new I18n('ru');
 new ModuleRegistry([general]).registerLocales(i18n);
 
 describe('general module', () => {
+  it('refuses module changes without ManageGuild before reading settings', async () => {
+    const update = vi.fn();
+    const interaction = {
+      guildId: 'guild', memberPermissions: { has: () => false },
+      options: { getSubcommand: () => 'disable' }, reply: vi.fn().mockResolvedValue(undefined),
+    };
+    await modules.execute(interaction as never, { t: (key: string) => key, config: { update } } as never);
+    expect(update).not.toHaveBeenCalled();
+    expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({ content: 'core.manageGuildRequired' }));
+  });
   it('registers with valid defaults and commands', () => {
     const registry = new ModuleRegistry([general]);
     expect(registry.findCommand('ping')?.module.id).toBe('general');

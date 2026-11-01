@@ -1,4 +1,4 @@
-import { defineCommand, defineComponent, ephemeralReply as reply, type InteractionContext } from '@bot/core';
+import { requireManageGuild, defineCommand, defineComponent, ephemeralReply as reply, type InteractionContext } from '@bot/core';
 import { toGuildEntities as entities } from '@bot/discord';
 import {
   EmbedBuilder,
@@ -143,6 +143,7 @@ export const cc = defineCommand<CustomCommandsConfig>({
     if (!guild) return;
     const service = new CustomCommandService(ctx);
     const sub = interaction.options.getSubcommand();
+    if (sub !== 'list' && !(await requireManageGuild(interaction, ctx))) return;
 
     if (sub === 'list') {
       const commands = await service.list(guild.id);
@@ -222,7 +223,7 @@ export const responseModalHandler = defineComponent<CustomCommandsConfig>({
       if (action === 'add') {
         const raw = await ctx.redis.getdel(pendingKey(id!));
         const pending = raw ? Pending.safeParse(JSON.parse(raw)) : null;
-        if (!pending?.success || pending.data.guildId !== guild.id) return void (await reply(interaction, ctx.t('custom-commands.manage.expired')));
+        if (!pending?.success || pending.data.guildId !== guild.id || pending.data.userId !== interaction.user.id) return void (await reply(interaction, ctx.t('custom-commands.manage.expired')));
         const input = CommandInput.parse({ ...pending.data.input, response: { content } });
         const created = await service.create(guild.id, input, interaction.user.id, entities(guild));
         forgetTriggers(guild.id);

@@ -29,6 +29,7 @@ function setup({
   const guildChannel = channel && { ...channel, guild: { members: { me: {} } }, permissionsFor: () => ({ has: () => canPost }) };
   const interaction = {
     guildId: GUILD,
+    memberPermissions: { has: () => true },
     user: { id: '9' },
     options: {
       getSubcommandGroup: () => group,
@@ -52,6 +53,13 @@ function setup({
 const saved = (update: ReturnType<typeof vi.fn>) => (update.mock.calls[0] as unknown as [string, string, { config: AuditLogConfig }])[2].config;
 
 describe('/logs', () => {
+  it('refuses configuration writes without runtime ManageGuild permission', async () => {
+    const { interaction, ctx, update, reply } = setup({ sub: 'disable' });
+    interaction.memberPermissions.has = () => false;
+    await logs.execute(interaction as never, ctx);
+    expect(update).not.toHaveBeenCalled();
+    expect(reply).toHaveBeenCalledWith(expect.objectContaining({ content: 'core.manageGuildRequired' }));
+  });
   it('builds a valid Discord command', () => {
     expect(logs.data.toJSON().options?.map((o) => o.name)).toEqual(['show', 'set', 'disable', 'ignore', 'bots']);
   });

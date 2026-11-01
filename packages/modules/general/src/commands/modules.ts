@@ -1,4 +1,4 @@
-import { defineCommand, type InteractionContext } from '@bot/core';
+import { requireManageGuild, defineCommand, type InteractionContext } from '@bot/core';
 import { EmbedBuilder, InteractionContextType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import type { GeneralConfig } from '../config.js';
 
@@ -46,6 +46,7 @@ export const modules = defineCommand<GeneralConfig>({
   async execute(interaction, ctx) {
     const guildId = interaction.guildId!;
     const sub = interaction.options.getSubcommand();
+    if (sub !== 'list' && !(await requireManageGuild(interaction, ctx))) return;
 
     if (sub === 'list') {
       const lines = await Promise.all(

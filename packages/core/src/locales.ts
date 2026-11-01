@@ -6,6 +6,7 @@ export const CORE_NAMESPACE = 'core';
 
 export const coreLocales: Record<Locale, Dictionary> = {
   ru: {
+    manageGuildRequired: 'Для этого действия нужно право «Управлять сервером».',
     moduleDisabled: 'Модуль «{module}» отключён на этом сервере. Администратор может включить его: /modules enable {id}',
     vipRequired: 'Модуль «{module}» работает только на серверах с VIP. Активируйте VIP-ключ в панели управления.',
     cooldown: 'Подождите {seconds} с перед повторным использованием.',
@@ -14,6 +15,7 @@ export const coreLocales: Record<Locale, Dictionary> = {
     roleAboveYou: 'Роль «{role}» не ниже вашей высшей роли — выбрать её может только тот, кто выше.',
   },
   en: {
+    manageGuildRequired: 'You need Manage Server permission for this action.',
     moduleDisabled: 'The “{module}” module is disabled on this server. An admin can enable it with /modules enable {id}',
     vipRequired: 'The “{module}” module works only on servers with VIP. Activate a VIP key in the dashboard.',
     cooldown: 'Please wait {seconds}s before using this again.',

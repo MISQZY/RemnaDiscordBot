@@ -1,4 +1,4 @@
-import { defineCommand } from '@bot/core';
+import { requireManageGuild, defineCommand } from '@bot/core';
 import {
   channelMention,
   ChannelType,
@@ -49,6 +49,7 @@ export const automodCommand = defineCommand<AutomodConfig>({
   async execute(interaction, ctx) {
     const guildId = interaction.guildId!;
     const sub = interaction.options.getSubcommand();
+    if (sub !== 'status' && !(await requireManageGuild(interaction, ctx))) return;
     const onOff = (value: boolean) => ctx.t(value ? 'automod.on' : 'automod.off');
 
     if (sub === 'status') {
