@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { matchesFilter } from './config.js';
-import { announcementBody, backoffMs, freshItems, rememberItems } from './poll.js';
+import { announcementBody, backoffMs, freshItems, pollProvider, rememberItems } from './poll.js';
 import { channelPageUrl, parseYoutubeFeed, SourceFailure, TwitchProvider, YoutubeProvider, type Fetch, type FeedItem } from './providers.js';
 
 const CHANNEL_ID = 'UC_x5XG1OV2P6uZZ5FSM9Ttw';
@@ -22,6 +22,44 @@ const feed = `<?xml version="1.0" encoding="UTF-8"?>
 
 const response = (body: string | object, status = 200) =>
   new Response(typeof body === 'string' ? body : JSON.stringify(body), { status });
+
+describe('source polling concurrency', () => {
+  it('waits for sibling work before reporting a failed source and releasing the interval lease', async () => {
+    const sources = [{ id: 'bad', externalId: 'bad', failures: 0 }, { id: 'slow', externalId: 'slow', failures: 0 }];
+    let release!: () => void;
+    const update = vi.fn(async ({ where }: { where: { id: string } }) => {
+      if (where.id === 'bad') throw new Error('database unavailable');
+      await new Promise<void>((resolve) => { release = resolve; });
+    });
+    const pending = pollProvider({ db: { notificationSource: { findMany: async () => sources, update } }, logger: { warn: vi.fn() } } as never,
+      { id: 'feed', latest: async () => new Map(sources.map((source) => [source.externalId, new SourceFailure('unavailable', 'offline')])) } as never);
+    let settled = false;
+    void pending.then(() => { settled = true; }, () => { settled = true; });
+    await vi.waitFor(() => expect(update).toHaveBeenCalledTimes(2));
+    expect(settled).toBe(false);
+    release();
+    await expect(pending).rejects.toThrow('database unavailable');
+  });
+  it('continues other sources during a slow database update while bounding concurrent work', async () => {
+    const sources = Array.from({ length: 10 }, (_, id) => ({ id: String(id), externalId: String(id), failures: 0, settings: null }));
+    let release!: () => void;
+    let active = 0;
+    let peak = 0;
+    const update = vi.fn(async ({ where }: { where: { id: string } }) => {
+      active++;
+      peak = Math.max(peak, active);
+      if (where.id === '0') await new Promise<void>((resolve) => { release = resolve; });
+      else await new Promise((resolve) => setTimeout(resolve, 1));
+      active--;
+    });
+    const pending = pollProvider({ db: { notificationSource: { findMany: async () => sources, update } }, logger: { warn: vi.fn() } } as never,
+      { id: 'feed', latest: async () => new Map(sources.map((source) => [source.externalId, new SourceFailure('unavailable', 'offline')])) } as never);
+    await vi.waitFor(() => expect(update).toHaveBeenCalledTimes(10));
+    expect(peak).toBeLessThanOrEqual(5);
+    release();
+    expect(await pending).toBe(0);
+  });
+});
 
 describe('parseYoutubeFeed', () => {
   it('filters hashtags and phrases in the video description as well as the title', () => {

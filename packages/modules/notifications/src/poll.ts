@@ -1,5 +1,5 @@
 import { MessageTemplate } from '@bot/contracts';
-import { HttpError, type ModuleServices } from '@bot/core';
+import { eachLimit, HttpError, type ModuleServices } from '@bot/core';
 import type { NotificationSource, NotificationSubscription } from '@bot/db';
 import { renderMessage, toRestMessage } from '@bot/templates';
 import { DiscordAPIError, RESTJSONErrorCodes, Routes } from 'discord.js';
@@ -126,10 +126,17 @@ export async function pollProvider(ctx: ModuleServices<NotificationsConfig>, pro
     results = new Map(sources.map((s) => [s.externalId, failure]));
   }
   let announced = 0;
-  for (const source of sources) {
-    const result = results.get(source.externalId) ?? new SourceFailure('unavailable', 'No result from the provider');
-    announced += (await applyResult(ctx, provider, source, result, now)).posted;
-  }
+  let failure: { error: unknown } | undefined;
+  await eachLimit(sources, 5, async (source) => {
+    try {
+      const result = results.get(source.externalId) ?? new SourceFailure('unavailable', 'No result from the provider');
+      announced += (await applyResult(ctx, provider, source, result, now)).posted;
+    } catch (error) {
+      // Keep the interval lease until sibling deliveries finish, even if one source could not be saved.
+      failure ??= { error };
+    }
+  });
+  if (failure) throw failure.error;
   return announced;
 }
 
