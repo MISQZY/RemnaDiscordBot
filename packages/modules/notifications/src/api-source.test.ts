@@ -59,6 +59,13 @@ describe('ApiSettings', () => {
     expect(() => mergeSettings(ApiSettingsInput.parse({ url: 'https://api.example/', headers: [{ name: 'X-New', value: null }] }), stored)).toThrow('X-New');
   });
 
+  it('requires fresh header secrets when the target origin changes', () => {
+    const stored = settings({ headers: [{ name: 'X-Api-Key', value: 'hidden-secret' }] });
+    const moved = ApiSettingsInput.parse({ url: 'https://another.example/items', headers: [{ name: 'X-Api-Key', value: null }] });
+    expect(() => mergeSettings(moved, stored)).toThrow('X-Api-Key');
+    expect(mergeSettings({ ...moved, headers: [{ name: 'X-Api-Key', value: 'new-secret' }] }, stored).headers[0]!.value).toBe('new-secret');
+  });
+
   it('shows settings without header values', () => {
     expect(toSettingsDto(settings({ headers: [{ name: 'Authorization', value: 'secret' }] }))).toEqual({
       url: 'https://api.example/items',

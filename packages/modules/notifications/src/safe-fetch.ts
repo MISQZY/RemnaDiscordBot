@@ -189,6 +189,10 @@ function requestOnce(url: URL, headers: Record<string, string>, options: Require
       });
       body.on('end', () => resolve({ status, headers: response.headers, body: Buffer.concat(chunks) }));
       body.on('error', reject);
+      response.on('error', (err) => {
+        if (body !== response) body.destroy(err);
+        reject(err);
+      });
     });
     request.on('error', reject);
     // A socket kept alive from an earlier request is connected already; a new one gets until the handshake ends.
@@ -216,7 +220,8 @@ export function createSafeFetch(opts: SafeFetchOptions = {}): FetchText {
   const options = { ...DEFAULTS, ...opts };
   return async (address, extraHeaders = {}) => {
     const signal = AbortSignal.timeout(options.timeoutMs);
-    const headers = { 'user-agent': options.userAgent, 'accept-encoding': 'gzip, deflate, br', ...extraHeaders };
+    const defaults = { 'user-agent': options.userAgent, 'accept-encoding': 'gzip, deflate, br' };
+    let headers = { ...defaults, ...extraHeaders };
     let url = new URL(address);
     for (let redirects = 0; ; redirects++) {
       if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new FetchRefused(`${url.protocol} is not allowed`);
@@ -229,7 +234,10 @@ export function createSafeFetch(opts: SafeFetchOptions = {}): FetchText {
       const location = response.headers.location;
       if (response.status >= 300 && response.status < 400 && location) {
         if (redirects >= options.maxRedirects) throw new FetchRefused('Too many redirects');
-        url = new URL(location, url);
+        const next = new URL(location, url);
+        // Custom headers can carry arbitrary API keys, not just Authorization or Cookie.
+        if (next.origin !== url.origin) headers = { ...defaults };
+        url = next;
         continue;
       }
       const flat = Object.fromEntries(Object.entries(response.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(', ') : v]));

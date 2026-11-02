@@ -279,6 +279,26 @@ describe('createSafeFetch', () => {
     await expect(safeFetch(`${base}/loop`)).rejects.toThrow('Too many redirects');
   });
 
+  it('does not forward custom secrets to a different origin on redirect', async () => {
+    const target = createServer((req, res) => res.end(JSON.stringify(req.headers)));
+    await new Promise<void>((resolve) => target.listen(0, '127.0.0.1', resolve));
+    const destination = `http://127.0.0.1:${(target.address() as AddressInfo).port}`;
+    const redirect = createServer((_req, res) => res.writeHead(302, { location: destination }).end());
+    await new Promise<void>((resolve) => redirect.listen(0, '127.0.0.1', resolve));
+    try {
+      const safeFetch = createSafeFetch({ isAllowed: loopbackAllowed });
+      const result = await safeFetch(`http://127.0.0.1:${(redirect.address() as AddressInfo).port}`, {
+        Authorization: 'Bearer secret', 'X-Api-Key': 'another-secret', Cookie: 'sid=private',
+      });
+      const headers = JSON.parse(result.body) as Record<string, string>;
+      expect(headers.authorization).toBeUndefined();
+      expect(headers['x-api-key']).toBeUndefined();
+      expect(headers.cookie).toBeUndefined();
+    } finally {
+      await Promise.all([target, redirect].map((server) => new Promise<void>((resolve) => server.close(() => resolve()))));
+    }
+  });
+
   it('drops a connection whose TLS handshake hangs and tries once more on a new one', async () => {
     // Takes TCP connections and never answers the handshake, as a VPN waking up after idle did.
     const sockets: Socket[] = [];

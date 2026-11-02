@@ -70,8 +70,9 @@ export function sealSettings(settings: ApiSettings, box = secrets()): Prisma.Inp
 
 /** New settings with the values of headers left `null` taken from the stored ones; a new header needs its value. */
 export function mergeSettings(input: ApiSettingsInput, stored: ApiSettings | null): ApiSettings {
+  const sameOrigin = stored !== null && new URL(input.url).origin === new URL(stored.url).origin;
   const headers = input.headers.map(({ name, value }) => {
-    const kept = value ?? stored?.headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value;
+    const kept = value ?? (sameOrigin ? stored.headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value : undefined);
     if (kept === undefined) throw HttpError.badRequest(`The value of the ${name} header is missing`, [{ path: ['api', 'headers'], message: 'Value required' }]);
     return { name, value: kept };
   });
