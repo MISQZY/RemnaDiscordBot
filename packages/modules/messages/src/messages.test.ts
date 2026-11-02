@@ -32,7 +32,38 @@ describe('onMessage', () => {
   beforeEach(() => {
     clearStickyTimers();
   });
-  afterEach(() => clearStickyTimers());
+  afterEach(() => { clearStickyTimers(); vi.useRealTimers(); vi.restoreAllMocks(); });
+
+  it('shares a cold sticky lookup and refreshes one timer across a message burst', async () => {
+    vi.useFakeTimers();
+    const exists = vi.fn(async () => 1);
+    const allocate = vi.spyOn(globalThis, 'setTimeout');
+    const ctx = {
+      client: { user: { id: 'bot' } }, redis: { exists },
+      getConfig: async () => defaultMessagesConfig, logger: { warn: vi.fn() },
+    } as unknown as BotModuleContext<MessagesConfig>;
+    const message = { inGuild: () => true, author: { id: 'user' }, guildId: 'g', channelId: 'burst' } as unknown as Message;
+    await Promise.all(Array.from({ length: 100 }, () => onMessage(ctx, message)));
+    expect(exists).toHaveBeenCalledTimes(1);
+    expect(allocate).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(1);
+    clearStickyTimers();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('cannot recreate timers after shutdown while a sticky lookup is pending', async () => {
+    vi.useFakeTimers();
+    let release!: (exists: number) => void;
+    const ctx = {
+      client: { user: { id: 'bot' } }, redis: { exists: () => new Promise<number>((resolve) => { release = resolve; }) },
+      getConfig: async () => defaultMessagesConfig,
+    } as unknown as BotModuleContext<MessagesConfig>;
+    const pending = onMessage(ctx, { inGuild: () => true, author: { id: 'user' }, guildId: 'g', channelId: 'pending' } as unknown as Message);
+    clearStickyTimers();
+    release(1);
+    await pending;
+    expect(vi.getTimerCount()).toBe(0);
+  });
 
   it('ignores messages from the bot itself or outside guilds', async () => {
     const exists = vi.fn();
