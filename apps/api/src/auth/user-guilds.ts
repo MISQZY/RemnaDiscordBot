@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import { Snowflake, type UserGuild } from '@bot/contracts';
 import { RedisKeys } from '@bot/core';
 import type { PrismaClient } from '@bot/db';
@@ -49,14 +51,36 @@ export class UserGuildService {
   }
 
   private async refreshTokens(session: Session): Promise<DiscordTokens> {
+    const key = `lock:oauth-refresh:${session.id}`;
+    const owner = randomUUID();
+    const deadline = Date.now() + 12_000;
+    let locked = false;
     try {
-      const tokens = await this.oauth.refresh(session.refreshToken);
-      await this.sessions.save({ ...session, ...tokens });
+      // Process-local promises coalesce requests here; Redis also serializes API replicas.
+      for (;;) {
+        const latest = await this.sessions.get(session.id);
+        if (!latest) throw ApiError.unauthorized();
+        if (latest.expiresAt - REFRESH_MARGIN_MS > Date.now()) return latest;
+        locked = (await this.redis.set(key, owner, 'PX', 20_000, 'NX')) === 'OK';
+        if (locked) break;
+        if (Date.now() >= deadline) throw ApiError.discordUnavailable('Discord token refresh is still in progress');
+        await delay(50);
+      }
+      const current = await this.sessions.get(session.id);
+      if (!current) throw ApiError.unauthorized();
+      if (current.expiresAt - REFRESH_MARGIN_MS > Date.now()) return current;
+      const tokens = await this.oauth.refresh(current.refreshToken);
+      if (!(await this.sessions.save({ ...current, ...tokens }, { onlyIfExists: true }))) throw ApiError.unauthorized();
       return tokens;
     } catch (err) {
       // The refresh token was revoked — the session is no longer valid.
       if (err instanceof ApiError && err.code === 'UNAUTHORIZED') await this.sessions.destroy(session.id);
       throw err;
+    } finally {
+      if (locked) await this.redis.eval(
+        'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) end return 0',
+        1, key, owner,
+      );
     }
   }
 

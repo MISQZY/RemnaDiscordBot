@@ -55,13 +55,19 @@ export class SessionStore {
   }
 
   /** Saves the session and extends it (sliding expiration). */
-  async save(session: Session): Promise<void> {
+  async save(session: Session, { onlyIfExists = false } = {}): Promise<boolean> {
     const stored = {
       ...session,
       accessToken: this.cipher.encrypt(session.accessToken),
       refreshToken: this.cipher.encrypt(session.refreshToken),
     };
-    await this.redis.set(RedisKeys.session(session.id), JSON.stringify(stored), 'EX', session.client ? this.clientTtlSec : this.ttlSec);
+    const ttl = session.client ? this.clientTtlSec : this.ttlSec;
+    const key = RedisKeys.session(session.id);
+    // A refresh that finishes after logout must not recreate the revoked session.
+    const result = onlyIfExists
+      ? await this.redis.set(key, JSON.stringify(stored), 'EX', ttl, 'XX')
+      : await this.redis.set(key, JSON.stringify(stored), 'EX', ttl);
+    return result === 'OK';
   }
 
   async destroy(id: string): Promise<void> {
