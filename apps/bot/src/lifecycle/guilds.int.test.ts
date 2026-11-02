@@ -2,7 +2,7 @@ import { GuildSnapshotReader, GuildSnapshotWriter } from '@bot/discord';
 import { createLogger } from '@bot/logger';
 import { createTestDatabase, createTestRedis, type TestDatabase } from '@bot/testing';
 import type { Guild } from 'discord.js';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { GuildLifecycle } from './guilds.js';
 
 const GUILD = '111111111111111111';
@@ -73,5 +73,32 @@ describe('GuildLifecycle with database and Redis', () => {
       [other, null],
     ]);
     expect(await reader.isPresent(other)).toBe(true);
+  });
+});
+
+describe('startup guild batches with a database', () => {
+  let database: TestDatabase;
+  beforeAll(async () => { database = await createTestDatabase(); });
+  afterAll(async () => { await database.cleanup(); });
+
+  it('creates multiple batches, reactivates returning guilds and preserves active settings versions', async () => {
+    const previous = new Date('2020-01-01T00:00:00Z');
+    await database.db.guild.create({ data: { id: 'active', locale: 'en', timezone: 'UTC', updatedAt: previous } });
+    await database.db.guild.create({ data: { id: 'returning', locale: 'ru', leftAt: previous } });
+    const writeGuild = vi.fn(async () => {});
+    const lifecycle = new GuildLifecycle(database.db, { writeGuild } as unknown as GuildSnapshotWriter,
+      createLogger({ service: 'test', level: 'silent', pretty: false }));
+    const makeGuild = (id: string, preferredLocale: string) => ({ id, preferredLocale, available: true }) as Guild;
+    const guilds = [makeGuild('active', 'ru'), makeGuild('returning', 'en'),
+      ...Array.from({ length: 502 }, (_, i) => makeGuild(`new-${i}`, 'en-GB'))];
+    await lifecycle.syncAll(guilds);
+    expect(await database.db.guild.count()).toBe(504);
+    expect(await database.db.guild.findUnique({ where: { id: 'active' } })).toMatchObject({ locale: 'en', timezone: 'UTC', updatedAt: previous });
+    expect(await database.db.guild.findUnique({ where: { id: 'returning' } })).toMatchObject({ locale: 'ru', leftAt: null });
+    expect(await database.db.guild.findUnique({ where: { id: 'new-501' } })).toMatchObject({ locale: 'en', leftAt: null });
+    expect(writeGuild).toHaveBeenCalledTimes(504);
+    await lifecycle.syncAll(guilds);
+    expect(await database.db.guild.count()).toBe(504);
+    expect(await database.db.guild.findUnique({ where: { id: 'active' } })).toMatchObject({ updatedAt: previous });
   });
 });
