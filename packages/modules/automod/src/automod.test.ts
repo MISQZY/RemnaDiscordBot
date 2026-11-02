@@ -1,6 +1,7 @@
 import { createTestRedis } from '@bot/testing';
 import { AutoModerationActionType, AutoModerationRuleTriggerType, type APIAutoModerationRule } from 'discord.js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import * as patternBuilders from './patterns.js';
 import { isExempt, isSpared } from './bot.js';
 import { AutomodConfig, defaultAutomodConfig } from './config.js';
 import { badLinks, bannedWord, capsPercent, emojiCount, inviteCodes, staticViolation } from './filters.js';
@@ -12,6 +13,18 @@ const filters = defaultAutomodConfig.filters;
 const all = () => true;
 
 describe('message filters', () => {
+  it('prepares a word list once per config snapshot and picks up replacement settings', () => {
+    const build = vi.spyOn(patternBuilders, 'wordsPattern');
+    try {
+      const rule = { ...filters.words, words: ['oldword'] };
+      for (let i = 0; i < 100; i++) expect(bannedWord('normal message', rule)).toBeNull();
+      expect(build).toHaveBeenCalledTimes(1);
+      const changed = { ...rule, words: ['newword'] };
+      expect(bannedWord('newword', changed)).toBe('newword');
+      expect(bannedWord('oldword', changed)).toBeNull();
+      expect(build).toHaveBeenCalledTimes(2);
+    } finally { build.mockRestore(); }
+  });
   it('finds invite codes and links, leaving invites to their own filter', () => {
     expect(inviteCodes('join https://discord.gg/abc and discord.com/invite/x-y')).toEqual(['abc', 'x-y']);
     const links = { ...filters.links, mode: 'all' as const, allowedDomains: ['youtube.com'] };

@@ -9,6 +9,9 @@ const INVITE = /(?:discord(?:app)?\.com\/invite|discord\.gg|dsc\.gg)\/([\w-]+)/g
 const URL = /\bhttps?:\/\/([^\s/?#<>]+)/gi;
 const CUSTOM_EMOJI = /<a?:\w+:\d+>/g;
 const EMOJI = /\p{Extended_Pictographic}/gu;
+type WordFilter = AutomodConfig['filters']['words'];
+// Keep prepared sources with config snapshots; compiled expressions remain in core's bounded LRU.
+const wordSources = new WeakMap<WordFilter, string | null>();
 
 export function inviteCodes(text: string): string[] {
   return [...text.matchAll(INVITE)].map((m) => m[1]!);
@@ -49,7 +52,11 @@ export function emojiCount(text: string): number {
 
 /** The banned word or pattern found in the text, or `null`. */
 export function bannedWord(text: string, filter: AutomodConfig['filters']['words']): string | null {
-  const source = wordsPattern(filter.words);
+  let source = wordSources.get(filter);
+  if (source === undefined) {
+    source = wordsPattern(filter.words);
+    wordSources.set(filter, source);
+  }
   const words = source ? safeRegex(source) : null;
   const found = words && safeMatch(words, text);
   if (found) return found.groups[0] ?? found.match;
