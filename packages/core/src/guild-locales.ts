@@ -10,6 +10,7 @@ import { LRUCache } from 'lru-cache';
  */
 export class GuildLocales {
   private readonly cache = new LRUCache<string, Locale>({ max: 50_000, ttl: 10 * 60_000 });
+  private readonly loading = new Map<string, Promise<Locale>>();
 
   constructor(
     private readonly db: PrismaClient,
@@ -19,13 +20,20 @@ export class GuildLocales {
   async get(guildId: string): Promise<Locale> {
     const cached = this.cache.get(guildId);
     if (cached) return cached;
-    const row = await this.db.guild.findUnique({ where: { id: guildId }, select: { locale: true } });
-    const locale = this.i18n.resolveLocale(row?.locale);
-    this.cache.set(guildId, locale);
-    return locale;
+    let pending = this.loading.get(guildId);
+    if (!pending) {
+      pending = this.db.guild.findUnique({ where: { id: guildId }, select: { locale: true } }).then((row) => {
+        const locale = this.i18n.resolveLocale(row?.locale);
+        if (this.loading.get(guildId) === pending) this.cache.set(guildId, locale);
+        return locale;
+      }).finally(() => { if (this.loading.get(guildId) === pending) this.loading.delete(guildId); });
+      this.loading.set(guildId, pending);
+    }
+    return pending;
   }
 
   invalidate(guildId: string): void {
     this.cache.delete(guildId);
+    this.loading.delete(guildId);
   }
 }

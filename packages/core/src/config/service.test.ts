@@ -26,6 +26,27 @@ function setup(modules = [createTestModule('leveling')]) {
 }
 
 describe('ConfigService', () => {
+  it('shares cold full-config reads without exposing a shared mutable result map', async () => {
+    const { service, store } = setup([createTestModule('mod1'), createTestModule('mod2')]);
+    const result = await Promise.all(Array.from({ length: 100 }, () => service.getAll(GUILD)));
+    expect(store.finds).toBe(1);
+    expect(result.every((configs) => configs.size === 2)).toBe(true);
+    result[0]!.clear();
+    expect(result[1]!.size).toBe(2);
+  });
+
+  it('does not put an individual config selected before invalidation into Redis', async () => {
+    const { service, store, sharedCache } = setup();
+    let release!: (value: StoredConfig | null) => void;
+    const selected = new Promise<StoredConfig | null>((resolve) => { release = resolve; });
+    const find = vi.spyOn(store, 'find').mockReturnValueOnce(selected);
+    const pending = service.get(GUILD, 'leveling');
+    await vi.waitFor(() => expect(find).toHaveBeenCalledOnce());
+    service.invalidate({ guildId: GUILD, moduleId: 'leveling' });
+    release({ enabled: true, config: { xpPerMessage: 10, announce: true }, version: 1, updatedAt: STORED_AT, applied: true, applyError: null });
+    await pending;
+    expect(sharedCache.entries.has(`${GUILD}:leveling`)).toBe(false);
+  });
   it('returns defaults when nothing is stored', async () => {
     const { service } = setup();
     expect(await service.get(GUILD, 'leveling')).toEqual({

@@ -54,6 +54,7 @@ export class ConfigService {
   private readonly local: LRUCache<string, ResolvedConfig>;
   /** Loads under way: a burst of events of one guild waits for one read of Redis or the database, not one each. */
   private readonly loading = new Map<string, Promise<ResolvedConfig>>();
+  private readonly loadingAll = new Map<string, Promise<Map<string, ResolvedConfig>>>();
   /** Moves on every invalidation: a load that started before one must not put the old config back in the cache. */
   private generation = 0;
 
@@ -83,7 +84,9 @@ export class ConfigService {
     let pending = this.loading.get(key);
     if (!pending) {
       const module = this.requireModule(moduleId);
-      pending = (async () => this.resolve(module, guildId, await this.load(guildId, moduleId)))().finally(() => this.loading.delete(key));
+      pending = (async () => this.resolve(module, guildId, await this.load(guildId, moduleId)))().finally(() => {
+        if (this.loading.get(key) === pending) this.loading.delete(key);
+      });
       this.loading.set(key, pending);
     }
     const resolved = await pending;
@@ -96,6 +99,20 @@ export class ConfigService {
   }
 
   async getAll(guildId: string): Promise<Map<string, ResolvedConfig>> {
+    let pending = this.loadingAll.get(guildId);
+    if (!pending) {
+      pending = this.loadAll(guildId).finally(() => {
+        if (this.loadingAll.get(guildId) === pending) this.loadingAll.delete(guildId);
+      });
+      this.loadingAll.set(guildId, pending);
+    }
+    const result = await pending;
+    return new Map([...result].map(([id, resolved]) => [
+      id, resolved.enabled && this.vip.locked(guildId, id) ? { ...resolved, enabled: false } : resolved,
+    ]));
+  }
+
+  private async loadAll(guildId: string): Promise<Map<string, ResolvedConfig>> {
     const generation = this.generation;
     const modules = this.options.registry.all();
     const result = new Map<string, ResolvedConfig>();
@@ -161,14 +178,7 @@ export class ConfigService {
       }
     }
 
-    const finalResult = new Map<string, ResolvedConfig>();
-    for (const [id, resolved] of result.entries()) {
-      finalResult.set(
-        id,
-        resolved.enabled && this.vip.locked(guildId, id) ? { ...resolved, enabled: false } : resolved,
-      );
-    }
-    return finalResult;
+    return result;
   }
 
   async enabledModules(guildId: string): Promise<string[]> {
@@ -222,6 +232,7 @@ export class ConfigService {
   /** Drops the local cache — called on a pub/sub message. */
   invalidate({ guildId, moduleId }: ConfigInvalidation): void {
     this.generation++;
+    this.loadingAll.delete(guildId);
     for (const key of this.loading.keys()) if (key === `${guildId}:${moduleId}` || (!moduleId && key.startsWith(`${guildId}:`))) this.loading.delete(key);
     if (moduleId) {
       this.local.delete(`${guildId}:${moduleId}`);
@@ -239,12 +250,16 @@ export class ConfigService {
   }
 
   private async load(guildId: string, moduleId: string): Promise<StoredConfig | null> {
+    const generation = this.generation;
     const { sharedCache, store } = this.options;
     const shared = await sharedCache?.get(guildId, moduleId);
     if (shared !== undefined) return shared;
 
     const stored = await store.find(guildId, moduleId);
-    await sharedCache?.set(guildId, moduleId, stored);
+    if (sharedCache && generation === this.generation) {
+      await sharedCache.set(guildId, moduleId, stored);
+      if (generation !== this.generation) await sharedCache.delete(guildId, moduleId);
+    }
     return stored;
   }
 
