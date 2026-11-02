@@ -1,10 +1,12 @@
+import type { Message } from 'discord.js';
 import type { Player, Track } from 'lavalink-client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defaultMusicConfig } from './config.js';
+import { nowplaying, queue, runtime } from './commands.js';
 import { progressBar } from './format.js';
 import { MusicService } from './service.js';
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => { runtime.service = null; vi.restoreAllMocks(); });
 
 function fixture() {
   const data = new Map<string, unknown>();
@@ -106,5 +108,72 @@ describe('now playing updates', () => {
     await f.internal.announce(f.player, f.track as Track);
     expect(f.message.delete).toHaveBeenCalledOnce();
     expect(f.data.has('nowPlaying')).toBe(false);
+  });
+});
+
+describe('music session cleanup', () => {
+  it.each([queue, nowplaying])('records the public $data.name command reply for cleanup', async (command) => {
+    const f = fixture();
+    runtime.service = f.service;
+    vi.spyOn(f.service, 'available', 'get').mockReturnValue(true);
+    const interaction = {
+      guildId: 'guild', options: { getInteger: () => null },
+      reply: vi.fn(async () => ({ resource: { message: f.message } })),
+    };
+    await command.execute(interaction as never, { tGuild: (key: string) => key } as never);
+    expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({ withResponse: true }));
+    await f.internal.clearSessionMessages(f.player);
+    expect(f.message.delete).toHaveBeenCalledOnce();
+  });
+
+  it('removes all recorded replies and the player embed when the player is destroyed', async () => {
+    const f = fixture();
+    await f.internal.announce(f.player, f.track);
+    const queue = { delete: vi.fn(async () => {}) };
+    await f.service.trackSessionMessage(f.player as unknown as Player, queue as unknown as Message);
+    f.disconnect();
+    f.service.manager.emit('playerDestroy', f.player as unknown as Player, 'Disconnected');
+    await vi.waitFor(() => expect(f.message.delete).toHaveBeenCalledOnce());
+    expect(queue.delete).toHaveBeenCalledOnce();
+    await f.internal.refreshNowPlaying(f.player, true);
+    expect(f.message.edit).not.toHaveBeenCalled();
+  });
+
+  it('deletes late replies from a closed session without attaching them to its replacement', async () => {
+    const f = fixture();
+    await f.internal.clearSessionMessages(f.player);
+    const late = { delete: vi.fn(async () => {}) };
+    await f.service.trackSessionMessage(f.player as unknown as Player, late as unknown as Message);
+    expect(late.delete).toHaveBeenCalledOnce();
+  });
+
+  it('bounds concurrent deletes and continues past messages that were already deleted', async () => {
+    const f = fixture();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let active = 0;
+    let maxActive = 0;
+    const messages = Array.from({ length: 12 }, (_, index) => ({ delete: vi.fn(async () => {
+      active++;
+      maxActive = Math.max(maxActive, active);
+      await gate;
+      active--;
+      if (index === 0) throw new Error('Unknown Message');
+    }) }));
+    for (const message of messages) await f.service.trackSessionMessage(f.player as unknown as Player, message as unknown as Message);
+    const cleanup = f.internal.clearSessionMessages(f.player);
+    expect(active).toBe(5);
+    release();
+    await cleanup;
+    expect(maxActive).toBe(5);
+    for (const message of messages) expect(message.delete).toHaveBeenCalledOnce();
+  });
+
+  it('ends playback when the bot is removed from voice, without reconnecting', async () => {
+    const f = fixture();
+    await f.service.onVoiceStateUpdate({ channelId: 'voice' } as never,
+      { id: 'bot', channelId: null, guild: { id: 'guild' } } as never);
+    expect(f.player.destroy).toHaveBeenCalledWith('Disconnected');
+    expect(f.service.manager.options.playerOptions?.onDisconnect).toMatchObject({ autoReconnect: false, destroyPlayer: true });
   });
 });

@@ -10,6 +10,7 @@ import {
   PermissionFlagsBits,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
+  type InteractionReplyOptions,
   type MessageComponentInteraction,
   type ModalSubmitInteraction,
   type VoiceBasedChannel,
@@ -87,8 +88,14 @@ async function controlSession(interaction: Repliable, ctx: Ctx, { allowRequester
   return { ...s, player: s.player };
 }
 
+async function sessionReply(interaction: ChatInputCommandInteraction, options: InteractionReplyOptions, player = runtime.service?.getPlayer(interaction.guildId!)) {
+  const music = runtime.service;
+  const response = await interaction.reply({ ...options, ...(player ? {} : { flags: MessageFlags.Ephemeral }), withResponse: true });
+  if (music && player && response.resource?.message) await music.trackSessionMessage(player, response.resource.message);
+}
+
 const reply = (interaction: ChatInputCommandInteraction, content: string) =>
-  interaction.reply({ content, allowedMentions: { parse: [] } });
+  sessionReply(interaction, { content, allowedMentions: { parse: [] } });
 
 export const play = defineCommand<MusicConfig>({
   data: new SlashCommandBuilder()
@@ -144,8 +151,13 @@ export const play = defineCommand<MusicConfig>({
     await interaction.deferReply();
     const query = interaction.options.getString('query', true);
     const allowPlaylist = interaction.options.getBoolean('playlist') ?? false;
-    const result = await s.music.enqueue(s.member, s.voice, interaction.channelId, query, s.config, { allowPlaylist });
-    const edit = (content: string) => interaction.editReply({ content, allowedMentions: { parse: [] } });
+    let responsePlayer = s.player;
+    const result = await s.music.enqueue(s.member, s.voice, interaction.channelId, query, s.config, { allowPlaylist },
+      (player) => { responsePlayer = player; });
+    const edit = async (content: string) => {
+      const message = await interaction.editReply({ content, allowedMentions: { parse: [] } });
+      if (responsePlayer) await s.music.trackSessionMessage(responsePlayer, message);
+    };
     switch (result.kind) {
       case 'track':
         await edit(
@@ -217,7 +229,7 @@ export const stop = defineCommand<MusicConfig>({
       return;
     }
     await s.music.control(s.member.guild.id, { action: 'stop' });
-    await reply(interaction, ctx.tGuild('music.stopped', { user: `<@${s.member.id}>` }));
+    await interaction.reply({ content: ctx.tGuild('music.stopped', { user: `<@${s.member.id}>` }), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
   },
 });
 
@@ -243,7 +255,7 @@ export const nowplaying = defineCommand<MusicConfig>({
       return;
     }
     const { embeds, components } = nowPlayingMessage(ctx.tGuild, player, track);
-    await interaction.reply({ embeds, components, allowedMentions: { parse: [] } });
+    await sessionReply(interaction, { embeds, components, allowedMentions: { parse: [] } }, player);
   },
 });
 
@@ -291,7 +303,7 @@ export const queue = defineCommand<MusicConfig>({
       await deny(interaction, ctx, 'music.errors.nothingPlaying');
       return;
     }
-    await interaction.reply(queuePage(ctx, player, (interaction.options.getInteger('page') ?? 1) - 1));
+    await sessionReply(interaction, queuePage(ctx, player, (interaction.options.getInteger('page') ?? 1) - 1), player);
   },
 });
 

@@ -90,6 +90,8 @@ export class MusicService {
   private checkingSources: Promise<void> | null = null;
   private readonly operations = new Map<string, Promise<unknown>>();
   private readonly publications = new Map<string, { timer: NodeJS.Timeout; done: Promise<void>; resolve: () => void }>();
+  private readonly sessionMessages = new WeakMap<Player, Set<Message>>();
+  private readonly closedSessions = new WeakSet<Player>();
 
   /** A guild's queue changes must finish in order, including connect/play. */
   private serial<T>(guildId: string, run: () => Promise<T>): Promise<T> {
@@ -118,7 +120,7 @@ export class MusicService {
           const u = user as Partial<Requester> & { username?: string };
           return { id: u.id ?? '', username: u.username ?? '' } satisfies Requester;
         },
-        onDisconnect: { autoReconnect: true, destroyPlayer: false },
+        onDisconnect: { autoReconnect: false, destroyPlayer: true },
         onEmptyQueue: { destroyAfterMs: EMPTY_QUEUE_LEAVE_MS },
       },
     });
@@ -170,6 +172,8 @@ export class MusicService {
     for (const player of [...this.manager.players.values()]) {
       try {
         await this.saveForResume(player);
+        await this.clearSessionMessages(player);
+        await this.clearNowPlaying(player);
         await player.destroy('ClusterShutdown', true);
       } catch (err) {
         this.ctx.logger.warn({ err, guildId: player.guildId }, 'Player not saved on shutdown');
@@ -187,6 +191,7 @@ export class MusicService {
     query: string,
     config: MusicConfig,
     options?: CleanQueryOptions,
+    onPlayer?: (player: Player) => void,
   ): Promise<EnqueueResult> {
     const clean = cleanMusicQuery(query, options);
     if (!playableQuery(clean)) return { kind: 'badLink' };
@@ -211,18 +216,21 @@ export class MusicService {
     return this.serial(member.guild.id, () => {
       // A stop or reconnect while the provider searched must not resurrect the old session.
       if (previousPlayer && this.getPlayer(member.guild.id) !== previousPlayer) return Promise.resolve({ kind: 'empty' } as const);
-      return this.enqueueResult(member, voice, textChannelId, config, result);
+      return this.enqueueResult(member, voice, textChannelId, config, result, onPlayer);
     });
   }
 
   private async enqueueResult(
     member: GuildMember, voice: VoiceBasedChannel, textChannelId: string,
     config: MusicConfig, result: SearchResult | UnresolvedSearchResult,
+    onPlayer?: (player: Player) => void,
   ): Promise<EnqueueResult> {
     const player = this.manager.createPlayer({
       guildId: member.guild.id, voiceChannelId: voice.id, textChannelId,
       selfDeaf: true, volume: config.defaultVolume,
     });
+    // Bind deferred command replies before connect/play can finish or destroy the session.
+    onPlayer?.(player);
 
     const cleanupIdle = async () => {
       if (!player.queue.current && player.queue.tracks.length === 0) await player.destroy('NothingQueued');
@@ -345,6 +353,10 @@ export class MusicService {
     const guildId = newState.guild.id;
     const player = this.getPlayer(guildId);
     if (!player?.voiceChannelId) return;
+    if (newState.id === this.ctx.client.user?.id && oldState.channelId && !newState.channelId) {
+      await Promise.all([this.clearNowPlaying(player), this.clearSessionMessages(player), player.destroy('Disconnected')]);
+      return;
+    }
     if (oldState.channelId !== player.voiceChannelId && newState.channelId !== player.voiceChannelId) return;
 
     const channel = newState.guild.channels.cache.get(player.voiceChannelId);
@@ -416,6 +428,7 @@ export class MusicService {
       this.aloneTimers.delete(player.guildId);
       void ctx.redis.del(MusicKeys.state(player.guildId)).catch(() => {});
       void this.clearNowPlaying(player);
+      void this.clearSessionMessages(player);
       ctx.logger.debug({ guildId: player.guildId, reason }, 'Player destroyed');
     });
   }
@@ -473,10 +486,10 @@ export class MusicService {
     const locale = await this.ctx.guildLocales.get(player.guildId);
     const t = (key: string, vars?: Record<string, string | number>) => this.ctx.i18n.t(locale, key, vars);
     try {
-      if (this.getPlayer(player.guildId) !== player || player.queue.current !== track) return;
+      if (this.closedSessions.has(player) || this.getPlayer(player.guildId) !== player || player.queue.current !== track) return;
       const payload = nowPlayingMessage(t, player, track);
       const message: Message = await channel.send(payload);
-      if (this.getPlayer(player.guildId) !== player || player.queue.current !== track) {
+      if (this.closedSessions.has(player) || this.getPlayer(player.guildId) !== player || player.queue.current !== track) {
         await message.delete().catch(() => {});
         return;
       }
@@ -493,7 +506,7 @@ export class MusicService {
   private async refreshNowPlaying(player: Player, force = false): Promise<void> {
     const posted = player.getData<NowPlaying | undefined>(NOW_PLAYING_KEY);
     const track = player.queue.current;
-    if (!posted || !track || this.getPlayer(player.guildId) !== player) return;
+    if (!posted || !track || this.closedSessions.has(player) || this.getPlayer(player.guildId) !== player) return;
     if (posted.updating) {
       posted.dirty ||= force;
       return;
@@ -519,6 +532,29 @@ export class MusicService {
         void this.refreshNowPlaying(player, true);
       }
     }
+  }
+
+  /** Capture the player before replying, so a late response cannot leak into the next session. */
+  async trackSessionMessage(player: Player, message: Message): Promise<void> {
+    if (this.closedSessions.has(player) || this.getPlayer(player.guildId) !== player) {
+      await message.delete().catch(() => {});
+      return;
+    }
+    let messages = this.sessionMessages.get(player);
+    if (!messages) this.sessionMessages.set(player, messages = new Set());
+    messages.add(message);
+  }
+
+  private async clearSessionMessages(player: Player): Promise<void> {
+    this.closedSessions.add(player);
+    const messages = this.sessionMessages.get(player);
+    this.sessionMessages.delete(player);
+    if (!messages) return;
+    const remaining = messages.values();
+    // Delete only this bot's recorded replies, with bounded REST concurrency and no history scans.
+    await Promise.all(Array.from({ length: Math.min(5, messages.size) }, async () => {
+      for (const message of remaining) await message.delete().catch(() => {});
+    }));
   }
 
   /** Removes the previous "now playing" message, so its channel keeps only the current one. */
