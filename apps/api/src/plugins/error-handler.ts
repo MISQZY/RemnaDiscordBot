@@ -3,6 +3,7 @@ import { HttpError, UnknownModuleError } from '@bot/core';
 import type { FastifyError, FastifyInstance } from 'fastify';
 import { hasZodFastifySchemaValidationErrors, isResponseSerializationError } from 'fastify-type-provider-zod';
 import { z } from 'zod';
+import { requestLogPath } from '../request-log.js';
 
 type Details = NonNullable<ApiErrorBody['error']['details']>;
 
@@ -53,7 +54,7 @@ export function registerErrorHandler(app: FastifyInstance): void {
 
   app.setNotFoundHandler((request, reply) =>
     reply.status(404).send({
-      error: { code: 'NOT_FOUND', message: `Route ${request.method} ${request.url} not found`, requestId: request.id },
+      error: { code: 'NOT_FOUND', message: `Route ${request.method} ${requestLogPath(request.url)} not found`, requestId: request.id },
     } satisfies ApiErrorBody),
   );
 }

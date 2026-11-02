@@ -21,10 +21,11 @@ import { statusRoutes } from './routes/status.js';
 import { vipRoutes } from './routes/vip.js';
 import { healthRoutes } from './routes/health.js';
 import { jobsRoutes } from './routes/jobs.js';
+import { requestLogPath } from './request-log.js';
 
 /** Fastify's request log line, without the query: OAuth codes and states travel in it (`/v1/auth/callback`). */
 function logRequest(request: FastifyRequest) {
-  return { method: request.method, url: request.url.split('?')[0], host: request.host, remoteAddress: request.ip };
+  return { method: request.method, url: requestLogPath(request.url), host: request.host, remoteAddress: request.ip };
 }
 
 export async function buildServer(deps: ApiDeps): Promise<FastifyInstance> {
