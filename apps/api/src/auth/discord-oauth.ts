@@ -94,7 +94,17 @@ export class HttpDiscordOAuth implements DiscordOAuth {
   }
 
   private async request<T>(path: string, init: RequestInit): Promise<T> {
-    const response = await fetch(`${DISCORD_API}${path}`, init);
+    let response: Response;
+    try {
+      response = await fetch(`${DISCORD_API}${path}`, {
+        ...init,
+        signal: AbortSignal.timeout(10_000),
+        // OAuth form bodies contain the client secret and must never follow redirects.
+        redirect: 'error',
+      });
+    } catch {
+      throw ApiError.discordUnavailable();
+    }
     if (response.status === 401 || response.status === 400) {
       throw ApiError.unauthorized('Discord authorization failed');
     }
@@ -104,6 +114,11 @@ export class HttpDiscordOAuth implements DiscordOAuth {
       throw ApiError.discordRateLimited(body?.retry_after ?? Number(response.headers.get('retry-after') ?? 1));
     }
     if (!response.ok) throw ApiError.discordUnavailable(`Discord API responded with ${response.status}`);
-    return (response.status === 204 ? undefined : await response.json()) as T;
+    if (response.status === 204) return undefined as T;
+    try {
+      return await response.json() as T;
+    } catch {
+      throw ApiError.discordUnavailable('Discord API returned an invalid response');
+    }
   }
 }
