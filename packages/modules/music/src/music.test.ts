@@ -32,6 +32,7 @@ describe('formatting', () => {
     expect(progressBar(0, 100, 10)).toBe('🔘▬▬▬▬▬▬▬▬▬');
     expect(progressBar(100, 100, 10)).toBe('▬▬▬▬▬▬▬▬▬🔘');
     expect([...progressBar(50, 100, 10).replace('🔘', '*')]).toHaveLength(10);
+    expect(progressBar(-10, 100, 10)).toBe('🔘▬▬▬▬▬▬▬▬▬');
   });
 
   it('strips markdown that would break a link title', () => {
@@ -152,6 +153,7 @@ describe('MusicService.control', () => {
       volume: 80,
       repeatMode: 'off',
       position: 0,
+      getData: vi.fn(),
       queue: {
         current: { info: { title: 'Now', isSeekable: true, duration: 60_000 }, pluginInfo: {} },
         tracks: [{ info: { title: 'A' } }, { info: { title: 'B' } }],

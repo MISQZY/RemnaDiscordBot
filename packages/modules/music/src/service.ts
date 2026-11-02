@@ -49,6 +49,12 @@ export type EnqueueResult =
 interface NowPlaying {
   channelId: string;
   messageId: string;
+  message: Message;
+  t: Parameters<typeof nowPlayingMessage>[0];
+  rendered: string;
+  nextUpdateAt: number;
+  updating: boolean;
+  dirty: boolean;
 }
 
 /** What a restart keeps of a player: where it played and the tracks with their encoded data. */
@@ -65,6 +71,7 @@ interface ResumeSnapshot {
 
 /** Player data: the current "now playing" message and the channel it was posted to. */
 const NOW_PLAYING_KEY = 'nowPlaying';
+const MESSAGE_UPDATE_MS = 10_000;
 const SEARCH_TIMEOUT_MS = 8_000;
 /** The player waits this long on an empty queue before leaving. */
 const EMPTY_QUEUE_LEAVE_MS = 120_000;
@@ -327,6 +334,7 @@ export class MusicService {
       }
     }
     await this.publishState(player);
+    void this.refreshNowPlaying(player, true);
     return true;
   }
 
@@ -387,9 +395,15 @@ export class MusicService {
       void this.publishState(player);
       void this.clearNowPlaying(player);
     });
-    manager.on('playerClientUpdate', (_old, player) => void this.publishState(player));
+    manager.on('playerClientUpdate', (_old, player) => {
+      void this.publishState(player);
+      void this.refreshNowPlaying(player, true);
+    });
     // Keep position snapshots fresh, including during tracks longer than the Redis TTL.
-    manager.on('playerUpdate', (_old, player) => void this.publishState(player));
+    manager.on('playerUpdate', (_old, player) => {
+      void this.publishState(player);
+      void this.refreshNowPlaying(player);
+    });
     manager.on('playerDestroy', (player, reason) => {
       const publication = this.publications.get(player.guildId);
       if (publication) {
@@ -459,10 +473,51 @@ export class MusicService {
     const locale = await this.ctx.guildLocales.get(player.guildId);
     const t = (key: string, vars?: Record<string, string | number>) => this.ctx.i18n.t(locale, key, vars);
     try {
-      const message: Message = await channel.send(nowPlayingMessage(t, player, track));
-      player.setData(NOW_PLAYING_KEY, { channelId: channel.id, messageId: message.id } satisfies NowPlaying);
+      if (this.getPlayer(player.guildId) !== player || player.queue.current !== track) return;
+      const payload = nowPlayingMessage(t, player, track);
+      const message: Message = await channel.send(payload);
+      if (this.getPlayer(player.guildId) !== player || player.queue.current !== track) {
+        await message.delete().catch(() => {});
+        return;
+      }
+      player.setData(NOW_PLAYING_KEY, {
+        channelId: channel.id, messageId: message.id, message, t,
+        rendered: JSON.stringify(payload), nextUpdateAt: Date.now() + MESSAGE_UPDATE_MS, updating: false, dirty: false,
+      } satisfies NowPlaying);
     } catch (err) {
       this.ctx.logger.debug({ err, guildId: player.guildId }, 'Now playing message not sent');
+    }
+  }
+
+  /** Lavalink supplies the clock; unchanged/paused embeds need no REST requests or extra timers. */
+  private async refreshNowPlaying(player: Player, force = false): Promise<void> {
+    const posted = player.getData<NowPlaying | undefined>(NOW_PLAYING_KEY);
+    const track = player.queue.current;
+    if (!posted || !track || this.getPlayer(player.guildId) !== player) return;
+    if (posted.updating) {
+      posted.dirty ||= force;
+      return;
+    }
+    if (!force && (player.paused || track.info.isStream || Date.now() < posted.nextUpdateAt)) return;
+    const payload = nowPlayingMessage(posted.t, player, track);
+    const rendered = JSON.stringify(payload);
+    if (rendered === posted.rendered) return;
+    posted.updating = true;
+    posted.nextUpdateAt = Date.now() + MESSAGE_UPDATE_MS;
+    try {
+      await posted.message.edit(payload);
+      posted.rendered = rendered;
+    } catch (err) {
+      // Deleted messages and lost channel access must not cause endless retries.
+      if ([10003, 10008, 50001, 50013].includes(Number((err as { code?: number })?.code)) &&
+        player.getData(NOW_PLAYING_KEY) === posted) player.deleteData(NOW_PLAYING_KEY);
+      this.ctx.logger.debug({ err, guildId: player.guildId }, 'Now playing message not updated');
+    } finally {
+      posted.updating = false;
+      if (posted.dirty) {
+        posted.dirty = false;
+        void this.refreshNowPlaying(player, true);
+      }
     }
   }
 
@@ -471,8 +526,7 @@ export class MusicService {
     const posted = player.getData<NowPlaying | undefined>(NOW_PLAYING_KEY);
     if (!posted) return;
     player.deleteData(NOW_PLAYING_KEY);
-    const channel = await this.sendableChannel(posted.channelId);
-    if (channel && 'messages' in channel) await channel.messages.delete(posted.messageId).catch(() => {});
+    await posted.message.delete().catch(() => {});
   }
 
   // ─── Dashboard control and restarts ─────────────────────────────────────

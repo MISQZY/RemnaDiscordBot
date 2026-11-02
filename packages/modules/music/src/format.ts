@@ -28,9 +28,9 @@ export function parseTimestamp(input: string): number | null {
   return seconds * 1000;
 }
 
-export function progressBar(position: number, duration: number, width = 14): string {
+export function progressBar(position: number, duration: number, width = 8): string {
   if (duration <= 0) return '▬'.repeat(width);
-  const filled = Math.min(width - 1, Math.floor((position / duration) * width));
+  const filled = Math.max(0, Math.min(width - 1, Math.floor((position / duration) * width)));
   return `${'▬'.repeat(filled)}🔘${'▬'.repeat(width - filled - 1)}`;
 }
 
