@@ -62,6 +62,7 @@ export class SubscriptionService {
       throw new SubscriptionError('limit', HttpError.badRequest(`A guild can have at most ${MAX_SUBSCRIPTIONS} subscriptions`));
     }
     this.validate(entities, input.channelId, input.mentionRoleId);
+    if (input.deliveryMode === 'thread') this.validateThreadParent(entities, input.channelId);
 
     // A webhook and an API source are the subscription's own, named by the user; the others share one found on their platform.
     const name = input.query.slice(0, WEBHOOK_NAME_LENGTH);
@@ -79,6 +80,7 @@ export class SubscriptionService {
           guildId,
           sourceId: source.id,
           channelId: input.channelId,
+          deliveryMode: input.deliveryMode ?? 'channel',
           mentionRoleId: input.mentionRoleId,
           // The default template is in the server's language.
           message: (input.message ?? {
@@ -113,8 +115,13 @@ export class SubscriptionService {
   async update(guildId: string, id: string, input: SubscriptionUpdate, entities: GuildEntities): Promise<SubscriptionDto> {
     const existing = await this.find(guildId, id);
     this.validate(entities, input.channelId, input.mentionRoleId);
+    if ((input.deliveryMode ?? existing.deliveryMode) === 'thread' && (input.channelId !== undefined || input.deliveryMode !== undefined)) {
+      this.validateThreadParent(entities, input.channelId ?? existing.channelId);
+    }
     const { db } = this.services;
     const { api, ...fields } = input;
+    const destinationChanged = (input.channelId !== undefined && input.channelId !== existing.channelId) ||
+      (input.deliveryMode !== undefined && input.deliveryMode !== existing.deliveryMode);
     let sourceId: string | undefined;
     if (api) {
       if (existing.source.provider !== 'api') throw HttpError.badRequest('Only API sources have API settings');
@@ -136,7 +143,7 @@ export class SubscriptionService {
         ...(sourceId ? { sourceId } : {}),
         ...(fields.message ? { message: fields.message as Prisma.InputJsonValue } : {}),
         // The last delivery's failure was about the old channel.
-        ...(input.channelId && input.channelId !== existing.channelId ? { deliveryError: null } : {}),
+        ...(destinationChanged ? { deliveryError: null, threadId: null } : {}),
       },
       include: { source: true },
     });
@@ -171,6 +178,15 @@ export class SubscriptionService {
       create: { provider, externalId: info.externalId, name: info.name },
       update: { name: info.name },
     });
+  }
+
+  private validateThreadParent(entities: GuildEntities, channelId: string): void {
+    const parent = entities.channels.find((channel) => channel.id === channelId);
+    if (!parent || (parent.type !== 0 && parent.type !== 5)) {
+      throw new SubscriptionError('references', HttpError.badRequest('Choose a text or announcement channel for subscription threads', [
+        { path: ['channelId'], message: 'Threads need a text or announcement parent channel' },
+      ]));
+    }
   }
 
   private validate(entities: GuildEntities, channelId: string | undefined, mentionRoleId: string | null | undefined): void {

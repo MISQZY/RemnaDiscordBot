@@ -1,10 +1,11 @@
 import { MessageTemplate } from '@bot/contracts';
-import type { ModuleServices } from '@bot/core';
+import { HttpError, type ModuleServices } from '@bot/core';
 import type { NotificationSource, NotificationSubscription } from '@bot/db';
 import { renderMessage, toRestMessage } from '@bot/templates';
 import { DiscordAPIError, RESTJSONErrorCodes, Routes } from 'discord.js';
 import { matchesFilter, storedFilter, type DeliveryError, type NotificationsConfig, type SourceError } from './config.js';
 import { SourceFailure, type FeedItem, type FeedResult, type Provider } from './providers.js';
+import { postToSubscriptionThread } from './thread-delivery.js';
 
 /**
  * Announcement body; only the subscription's role is pinged, not any role from the template. `locale` — the guild's,
@@ -62,13 +63,14 @@ export function rememberItems(items: FeedItem[], seenIds: readonly string[] | nu
 const asIds = (value: unknown): string[] | null => (Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : null);
 
 function deliveryError(err: unknown): DeliveryError {
+  if (err instanceof HttpError && err.statusCode === 403) return 'noAccess';
   if (!(err instanceof DiscordAPIError)) return 'failed';
   if (err.code === RESTJSONErrorCodes.UnknownChannel) return 'channelNotFound';
   if (err.code === RESTJSONErrorCodes.MissingAccess || err.code === RESTJSONErrorCodes.MissingPermissions) return 'noAccess';
   return 'failed';
 }
 
-type Deliverable = Pick<NotificationSubscription, 'id' | 'guildId' | 'channelId' | 'mentionRoleId' | 'message' | 'filter'>;
+type Deliverable = Pick<NotificationSubscription, 'id' | 'guildId' | 'channelId' | 'mentionRoleId' | 'message' | 'filter'> & { deliveryMode?: string };
 
 /**
  * Announces an item to a subscription and records how it went: `posted`, `skipped` (the filter or the module said
@@ -80,7 +82,9 @@ export async function deliver(ctx: ModuleServices<NotificationsConfig>, subscrip
   let error: DeliveryError | null = null;
   try {
     const locale = await ctx.guildLocales.get(subscription.guildId);
-    await ctx.rest.post(Routes.channelMessages(subscription.channelId), { body: announcementBody(subscription, item.vars, locale) });
+    const body = announcementBody(subscription, item.vars, locale);
+    if (subscription.deliveryMode === 'thread') await postToSubscriptionThread(ctx, subscription.id, body, locale);
+    else await ctx.rest.post(Routes.channelMessages(subscription.channelId), { body });
   } catch (err) {
     error = deliveryError(err);
     ctx.logger.warn({ err, subscriptionId: subscription.id }, 'Notification not delivered');

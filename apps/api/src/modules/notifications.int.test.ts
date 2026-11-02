@@ -1,3 +1,4 @@
+import { RedisKeys } from '@bot/core';
 import { modules } from '@bot/module-list';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { CHANNEL_ID, createTestApp, GUILD_ID, login, ROLE_ID, seedGuildSnapshot, type TestApp } from '../testing/app.js';
@@ -155,4 +156,26 @@ describe('notifications API', () => {
     expect(refused.json()).toMatchObject({ error: { code: 'VIP_REQUIRED' } });
     t.deps.config.vip.set({ modules: [], features: [], guilds: [] });
   });
+  it('stores thread mode and resets the destination thread when mode or channel changes', async () => {
+    const created = await send('POST', '/subscriptions', {
+      provider: 'webhook', query: 'Threaded source', channelId: CHANNEL_ID, deliveryMode: 'thread',
+    });
+    expect(created.statusCode).toBe(201);
+    const sub = created.json<{ id: string; deliveryMode: string; threadId: string | null }>();
+    expect(sub).toMatchObject({ deliveryMode: 'thread', threadId: null });
+    await t.database.db.notificationSubscription.update({ where: { id: sub.id }, data: { threadId: '900000000000000009' } });
+    expect((await send('PATCH', `/subscriptions/${sub.id}`, { enabled: false })).json()).toMatchObject({ threadId: '900000000000000009' });
+    expect((await send('PATCH', `/subscriptions/${sub.id}`, { deliveryMode: 'channel' })).json()).toMatchObject({ deliveryMode: 'channel', threadId: null });
+    await t.database.db.notificationSubscription.update({ where: { id: sub.id }, data: { deliveryMode: 'thread', threadId: '900000000000000009' } });
+    const otherId = '500000000000000006';
+    await t.redis.set(RedisKeys.guildChannels(GUILD_ID), JSON.stringify([
+      { id: CHANNEL_ID, name: 'general', type: 0, parentId: null, position: 0 },
+      { id: otherId, name: 'other', type: 0, parentId: null, position: 1 },
+    ]));
+    const changed = await send('PATCH', `/subscriptions/${sub.id}`, { channelId: otherId });
+    expect(changed.statusCode).toBe(200);
+    expect(changed.json()).toMatchObject({ channelId: otherId, deliveryMode: 'thread', threadId: null });
+    await send('DELETE', `/subscriptions/${sub.id}`);
+  });
+
 });

@@ -26,9 +26,9 @@ const subscriptionOption = (o: SlashCommandStringOption) =>
   o.setName('subscription').setDescription('Subscription').setRequired(true).setAutocomplete(true);
 
 /** Whether the bot can post notifications to the channel. */
-function canPost(channel: GuildBasedChannel): boolean {
+function canPost(channel: GuildBasedChannel, threaded = false): boolean {
   const me = channel.guild.members.me;
-  return Boolean(me && channel.permissionsFor(me).has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks]));
+  return Boolean(me && channel.permissionsFor(me).has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks, ...(threaded ? [PermissionFlagsBits.CreatePublicThreads, PermissionFlagsBits.SendMessagesInThreads] : [])]));
 }
 
 function problemText(ctx: Ctx, err: unknown): string | null {
@@ -58,6 +58,7 @@ export function notifyCommand(providers: () => Map<ProviderId, Provider>) {
           .addChannelOption((o) =>
             o.setName('channel').setDescription('Where to post').setRequired(true).addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement),
           )
+          .addStringOption((o) => o.setName('delivery').setDescription('Where to deliver updates').addChoices({ name: 'Channel', value: 'channel' }, { name: 'Subscription thread', value: 'thread' }))
           .addRoleOption((o) => o.setName('role').setDescription('Role to mention'))
           .addStringOption((o) => o.setName('message').setDescription('Text: {channel.name}, {video.url}, {stream.url}, {item.url}…').setMaxLength(2000)),
       )
@@ -67,6 +68,7 @@ export function notifyCommand(providers: () => Map<ProviderId, Provider>) {
           .setDescription('Change a subscription')
           .addStringOption(subscriptionOption)
           .addChannelOption((o) => o.setName('channel').setDescription('Where to post').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement))
+          .addStringOption((o) => o.setName('delivery').setDescription('Where to deliver updates').addChoices({ name: 'Channel', value: 'channel' }, { name: 'Subscription thread', value: 'thread' }))
           .addRoleOption((o) => o.setName('role').setDescription('Role to mention'))
           .addBooleanOption((o) => o.setName('no-mention').setDescription('Mention nobody'))
           .addStringOption((o) => o.setName('message').setDescription('New text').setMaxLength(2000))
@@ -103,7 +105,7 @@ export function notifyCommand(providers: () => Map<ProviderId, Provider>) {
               ? ctx.t(`notifications.manage.deliveryErrors.${s.delivery.error}`)
               : null;
         const line = (s: SubscriptionDto) => {
-          const text = `${s.enabled ? '🟢' : '⚪'} ${label(s)} → ${channelMention(s.channelId)}${s.mentionRoleId ? ` · ${roleMention(s.mentionRoleId)}` : ''}`;
+          const text = `${s.enabled ? '🟢' : '⚪'} ${label(s)} → ${channelMention(s.deliveryMode === 'thread' && s.threadId ? s.threadId : s.channelId)}${s.mentionRoleId ? ` · ${roleMention(s.mentionRoleId)}` : ''}`;
           const why = s.enabled ? problem(s) : null;
           return why ? `${text}
   ⚠️ ${why}` : text;
@@ -117,8 +119,8 @@ export function notifyCommand(providers: () => Map<ProviderId, Provider>) {
       }
 
       const channel = interaction.options.getChannel('channel') as GuildBasedChannel | null;
-      if (channel && !canPost(channel)) {
-        await interaction.reply({ content: ctx.t('notifications.manage.noAccess', { channel: channelMention(channel.id) }), ...ephemeral });
+      if (channel && !canPost(channel, interaction.options.getString('delivery') === 'thread')) {
+        await interaction.reply({ content: ctx.t(interaction.options.getString('delivery') === 'thread' ? 'notifications.manage.noThreadAccess' : 'notifications.manage.noAccess', { channel: channelMention(channel.id) }), ...ephemeral });
         return;
       }
       const rawMessage = interaction.options.getString('message');
@@ -135,12 +137,13 @@ export function notifyCommand(providers: () => Map<ProviderId, Provider>) {
               provider: interaction.options.getString('platform', true) as ProviderId,
               query: interaction.options.getString('source', true).trim(),
               channelId: channel!.id,
+              deliveryMode: (interaction.options.getString('delivery') ?? 'channel') as 'channel' | 'thread',
               mentionRoleId: interaction.options.getRole('role')?.id ?? null,
               message,
             },
             toGuildEntities(guild),
           );
-          await answer(ctx.t('notifications.manage.added', { source: label(created), channel: channelMention(created.channelId) }));
+          await answer(ctx.t(created.deliveryMode === 'thread' ? 'notifications.manage.addedThread' : 'notifications.manage.added', { source: label(created), channel: channelMention(created.channelId) }));
           return;
         }
 
@@ -155,11 +158,13 @@ export function notifyCommand(providers: () => Map<ProviderId, Provider>) {
         const role = interaction.options.getRole('role');
         const noMention = interaction.options.getBoolean('no-mention');
         const enabled = interaction.options.getBoolean('enabled');
+        const deliveryMode = interaction.options.getString('delivery') as 'channel' | 'thread' | null;
         const updated = await service.update(
           guild.id,
           id,
           {
             ...(channel ? { channelId: channel.id } : {}),
+            ...(deliveryMode ? { deliveryMode } : {}),
             ...(role ? { mentionRoleId: role.id } : noMention ? { mentionRoleId: null } : {}),
             ...(message ? { message } : {}),
             ...(enabled !== null ? { enabled } : {}),

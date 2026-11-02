@@ -51,11 +51,14 @@ export function matchesFilter(filter: SubscriptionFilter, text: string): boolean
 /** A stored filter; one that is missing or broken lets everything through. */
 export const storedFilter = (value: unknown): SubscriptionFilter => SubscriptionFilter.catch(NO_FILTER).parse(value ?? NO_FILTER);
 
+export const DeliveryMode = z.enum(['channel', 'thread']);
+
 export const SubscriptionCreate = z.object({
   provider: Provider,
   /** Channel link, ID or name (`@handle` for YouTube, login for Twitch); a feed's or a site's link; a webhook's name. */
   query: z.string().trim().min(1).max(500),
   channelId: Snowflake,
+  deliveryMode: DeliveryMode.optional(),
   mentionRoleId: Snowflake.nullable().default(null),
   message: MessageTemplate.optional(),
   filter: SubscriptionFilter.optional(),
@@ -67,6 +70,7 @@ export type SubscriptionCreate = z.infer<typeof SubscriptionCreate>;
 export const SubscriptionUpdate = z
   .object({
     channelId: Snowflake,
+    deliveryMode: DeliveryMode,
     mentionRoleId: Snowflake.nullable(),
     message: MessageTemplate,
     filter: SubscriptionFilter,
@@ -89,6 +93,8 @@ export const SubscriptionDto = z.object({
     error: SourceError.nullable(),
   }),
   channelId: Snowflake,
+  deliveryMode: DeliveryMode,
+  threadId: Snowflake.nullable(),
   mentionRoleId: Snowflake.nullable(),
   message: MessageTemplate,
   filter: SubscriptionFilter,
@@ -138,6 +144,8 @@ export function toDto(row: NotificationSubscription & { source: NotificationSour
       error: source.lastError === null ? null : SourceError.catch('unavailable').parse(source.lastError),
     },
     channelId: row.channelId,
+    deliveryMode: DeliveryMode.parse(row.deliveryMode),
+    threadId: row.threadId,
     mentionRoleId: row.mentionRoleId,
     message: MessageTemplate.parse(row.message),
     filter: storedFilter(row.filter),

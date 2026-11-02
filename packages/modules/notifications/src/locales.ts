@@ -3,6 +3,7 @@ import type { Dictionary } from '@bot/i18n';
 
 export const locales: Record<Locale, Dictionary> = {
   ru: {
+    thread: { name: 'Оповещения', started: 'Оповещения: {name}. Новые публикации будут в ветке этого сообщения.' },
     commands: {
       notify: {
         description: 'Оповещения о YouTube, Twitch и RSS',
@@ -14,6 +15,7 @@ export const locales: Record<Locale, Dictionary> = {
             platform: { name: 'площадка', description: 'Где следить', choices: { youtube: 'YouTube', twitch: 'Twitch', feed: 'RSS / Atom' } },
             source: { name: 'источник', description: 'Ссылка на канал, @handle, логин Twitch или ссылка на ленту или сайт' },
             channel: { name: 'канал', description: 'Куда писать' },
+            delivery: { name: 'доставка', description: 'Куда отправлять оповещения', choices: { channel: 'В канал', thread: 'В ветку подписки' } },
             role: { name: 'роль', description: 'Какую роль упоминать' },
             message: { name: 'текст', description: 'Текст: {channel.name}, {video.url}, {stream.url}, {item.url}…' },
           },
@@ -24,6 +26,7 @@ export const locales: Record<Locale, Dictionary> = {
           options: {
             subscription: { name: 'подписка', description: 'Подписка' },
             channel: { name: 'канал', description: 'Куда писать' },
+            delivery: { name: 'доставка', description: 'Куда отправлять оповещения', choices: { channel: 'В канал', thread: 'В ветку подписки' } },
             role: { name: 'роль', description: 'Какую роль упоминать' },
             'no-mention': { name: 'без-упоминания', description: 'Никого не упоминать' },
             message: { name: 'текст', description: 'Новый текст' },
@@ -46,6 +49,8 @@ export const locales: Record<Locale, Dictionary> = {
       footer: '{count} из {max}',
       noAccess: 'Бот не может писать в {channel}: нужны права «Просмотр канала», «Отправка сообщений» и «Встраивать ссылки».',
       added: 'Подписка на {source} добавлена — оповещения будут в {channel}.',
+      addedThread: 'Подписка на {source} добавлена — оповещения будут в постоянной ветке канала {channel}.',
+      noThreadAccess: 'Бот не может создать ветку в {channel}: нужны права «Просмотр канала», «Отправка сообщений», «Встраивать ссылки», «Создавать публичные ветки» и «Отправлять сообщения в ветках».',
       updated: 'Подписка на {source} изменена.',
       removed: 'Подписка на **{source}** удалена.',
       sourceErrors: {
@@ -72,6 +77,7 @@ export const locales: Record<Locale, Dictionary> = {
     },
   },
   en: {
+    thread: { name: 'Notifications', started: 'Notifications: {name}. New updates will be posted in this message’s thread.' },
     commands: {
       notify: {
         description: 'YouTube, Twitch and RSS notifications',
@@ -83,6 +89,7 @@ export const locales: Record<Locale, Dictionary> = {
             platform: { name: 'platform', description: 'Where to watch', choices: { youtube: 'YouTube', twitch: 'Twitch', feed: 'RSS / Atom' } },
             source: { name: 'source', description: 'Channel link, @handle, Twitch login or a feed or site link' },
             channel: { name: 'channel', description: 'Where to post' },
+            delivery: { name: 'delivery', description: 'Where to deliver updates', choices: { channel: 'Channel', thread: 'Subscription thread' } },
             role: { name: 'role', description: 'Role to mention' },
             message: { name: 'message', description: 'Text: {channel.name}, {video.url}, {stream.url}, {item.url}…' },
           },
@@ -93,6 +100,7 @@ export const locales: Record<Locale, Dictionary> = {
           options: {
             subscription: { name: 'subscription', description: 'Subscription' },
             channel: { name: 'channel', description: 'Where to post' },
+            delivery: { name: 'delivery', description: 'Where to deliver updates', choices: { channel: 'Channel', thread: 'Subscription thread' } },
             role: { name: 'role', description: 'Role to mention' },
             'no-mention': { name: 'no-mention', description: 'Mention nobody' },
             message: { name: 'message', description: 'New text' },
@@ -115,6 +123,8 @@ export const locales: Record<Locale, Dictionary> = {
       footer: '{count} of {max}',
       noAccess: 'The bot cannot post in {channel}: it needs View Channel, Send Messages and Embed Links.',
       added: 'Subscribed to {source} — notifications go to {channel}.',
+      addedThread: 'Subscribed to {source} — notifications go to a persistent thread in {channel}.',
+      noThreadAccess: 'The bot cannot create a thread in {channel}: it needs View Channel, Send Messages, Embed Links, Create Public Threads and Send Messages in Threads.',
       updated: 'Subscription to {source} updated.',
       removed: 'Unsubscribed from **{source}**.',
       sourceErrors: {

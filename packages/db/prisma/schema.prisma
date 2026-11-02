@@ -506,6 +506,9 @@ model NotificationSubscription {
   guildId       String
   sourceId      String
   channelId     String
+  /// Delivery to the channel itself or one persistent public thread per subscription.
+  deliveryMode  String    @default("channel")
+  threadId      String?
   mentionRoleId String?
   /// MessageTemplate of the announcement.
   message       Json
