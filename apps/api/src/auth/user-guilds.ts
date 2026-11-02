@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Snowflake, type UserGuild } from '@bot/contracts';
-import { RedisKeys } from '@bot/core';
+import { eachLimit, RedisKeys } from '@bot/core';
 import type { PrismaClient } from '@bot/db';
 import type { GuildSnapshotReader } from '@bot/discord';
 import { Routes, type REST } from 'discord.js';
@@ -26,6 +26,7 @@ const REFRESH_MARGIN_MS = 60_000;
 export class UserGuildService {
   private readonly fetching = new Map<string, Promise<DiscordPartialGuild[]>>();
   private readonly refreshing = new Map<string, Promise<DiscordTokens>>();
+  private readonly memberRolesLoading = new Map<string, Promise<string[]>>();
 
   constructor(
     private readonly redis: Redis,
@@ -87,16 +88,23 @@ export class UserGuildService {
   async list(session: Session, { refresh = false } = {}): Promise<UserGuild[]> {
     const guilds = await this.discordGuilds(session, { stale: !refresh, refresh });
     const present = await this.snapshots.presentMany(guilds.map((guild) => guild.id));
-    const result = await Promise.all(
-      guilds.map(async (guild, i) => {
-        const botPresent = present[i]!;
-        let isModerator = false;
-        if (botPresent && !canManageGuild(guild)) {
-          isModerator = await this.checkModeratorRole(guild.id, session.userId);
-        }
-        return toUserGuild(guild, botPresent, isModerator);
-      }),
-    );
+    const needsRoles = guilds.filter((guild, i) => present[i] && !canManageGuild(guild));
+    const modRoles = new Map<string, string[]>();
+    if (this.db && needsRoles.length) {
+      try {
+        const rows = await this.db.guild.findMany({ where: { id: { in: needsRoles.map((guild) => guild.id) } }, select: { id: true, modRoleIds: true } });
+        for (const row of rows) modRoles.set(row.id, z.array(Snowflake).safeParse(row.modRoleIds).data ?? []);
+      } catch { /* A failed permission lookup must not grant access. */ }
+    }
+    const result: UserGuild[] = Array(guilds.length);
+    await eachLimit(guilds.map((guild, i) => ({ guild, i })), 5, async ({ guild, i }) => {
+      const botPresent = present[i]!;
+      let isModerator = false;
+      if (botPresent && !canManageGuild(guild)) {
+        isModerator = await this.checkModeratorRole(guild.id, session.userId, modRoles.get(guild.id) ?? []);
+      }
+      result[i] = toUserGuild(guild, botPresent, isModerator);
+    });
     // Manageable and moderatable guilds first, then by name.
     return result.sort(
       (a, b) =>
@@ -117,14 +125,26 @@ export class UserGuildService {
     return toUserGuild(guild, botPresent, isModerator);
   }
 
-  async checkModeratorRole(guildId: string, userId: string): Promise<boolean> {
+  async checkModeratorRole(guildId: string, userId: string, knownModRoleIds?: string[]): Promise<boolean> {
     if (!this.db) return false;
     try {
-      const guildRow = await this.db.guild.findUnique({ where: { id: guildId }, select: { modRoleIds: true } });
-      const modRoleIds = z.array(Snowflake).safeParse(guildRow?.modRoleIds).data ?? [];
+      const guildRow = knownModRoleIds === undefined ? await this.db.guild.findUnique({ where: { id: guildId }, select: { modRoleIds: true } }) : null;
+      const modRoleIds = knownModRoleIds ?? z.array(Snowflake).safeParse(guildRow?.modRoleIds).data ?? [];
       if (modRoleIds.length === 0) return false;
 
-      const cacheKey = RedisKeys.guildMemberRoles(guildId, userId);
+      const memberRoleIds = await this.memberRoles(guildId, userId);
+      const roleSet = new Set(memberRoleIds);
+      return modRoleIds.some((id) => roleSet.has(id));
+    } catch {
+      return false;
+    }
+  }
+
+  private memberRoles(guildId: string, userId: string): Promise<string[]> {
+    const cacheKey = RedisKeys.guildMemberRoles(guildId, userId);
+    const pending = this.memberRolesLoading.get(cacheKey);
+    if (pending) return pending;
+    const work = (async () => {
       const cached = await this.redis.get(cacheKey);
       let memberRoleIds: string[] | null = cached ? JSON.parse(cached) : null;
 
@@ -138,12 +158,10 @@ export class UserGuildService {
         }
       }
 
-      if (!memberRoleIds || memberRoleIds.length === 0) return false;
-      const roleSet = new Set(memberRoleIds);
-      return modRoleIds.some((id) => roleSet.has(id));
-    } catch {
-      return false;
-    }
+      return memberRoleIds ?? [];
+    })().finally(() => this.memberRolesLoading.delete(cacheKey));
+    this.memberRolesLoading.set(cacheKey, work);
+    return work;
   }
 
   private async discordGuilds(session: Session, { stale, refresh = false }: { stale: boolean; refresh?: boolean }): Promise<DiscordPartialGuild[]> {

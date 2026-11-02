@@ -1,5 +1,5 @@
 import { Snowflake } from '@bot/contracts';
-import { RedisKeys } from '@bot/core';
+import { eachLimit, RedisKeys } from '@bot/core';
 import { DiscordAPIError, RESTJSONErrorCodes, Routes, type REST } from 'discord.js';
 import type { Redis } from 'ioredis';
 import { z } from 'zod';
@@ -23,8 +23,18 @@ const UNKNOWN = '-';
 const MAX_FETCH = 50;
 const PARALLEL = 5;
 
+function cachedUser(raw: string | null): UserInfo | null | undefined {
+  if (raw === UNKNOWN) return null;
+  if (raw === null) return undefined;
+  try {
+    const parsed = UserInfo.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : undefined;
+  } catch { return undefined; }
+}
+
 /** Names of Discord users by ID — from Redis, otherwise from Discord REST (works without the gateway). */
 export class UserDirectory {
+  private readonly loading = new Map<string, Promise<UserInfo | null>>();
   constructor(
     private readonly redis: Redis,
     private readonly rest: REST,
@@ -40,22 +50,32 @@ export class UserDirectory {
     const cached = await this.redis.mget(unique.map(RedisKeys.user));
     cached.forEach((raw, i) => {
       const id = unique[i]!;
-      if (raw === null) missing.push(id);
-      else if (raw !== UNKNOWN) result[id] = UserInfo.parse(JSON.parse(raw));
+      const info = cachedUser(raw);
+      if (info === undefined) missing.push(id);
+      else if (info) result[id] = info;
     });
 
     if (!fetchMissing || missing.length === 0) return result;
 
     const toFetch = missing.slice(0, MAX_FETCH);
-    for (let i = 0; i < toFetch.length; i += PARALLEL) {
-      await Promise.all(
-        toFetch.slice(i, i + PARALLEL).map(async (id) => {
-          const info = await this.fetch(id);
-          if (info) result[id] = info;
-        }),
-      );
-    }
+    await eachLimit(toFetch, PARALLEL, async (id) => {
+      const info = await this.fetchOnce(id);
+      if (info) result[id] = info;
+    });
     return result;
+  }
+
+  private fetchOnce(id: string): Promise<UserInfo | null> {
+    let work = this.loading.get(id);
+    if (!work) {
+      work = (async () => {
+        // A queued ID may have been loaded by another resolve() since the initial MGET.
+        const cached = cachedUser(await this.redis.get(RedisKeys.user(id)));
+        return cached === undefined ? this.fetch(id) : cached;
+      })().finally(() => this.loading.delete(id));
+      this.loading.set(id, work);
+    }
+    return work;
   }
 
   private async fetch(id: string): Promise<UserInfo | null> {
