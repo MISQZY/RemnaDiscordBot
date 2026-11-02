@@ -16,10 +16,27 @@ declare module 'fastify' {
 export interface SessionPluginOptions {
   store: SessionStore;
   secret: string;
+  trustedOrigins: string[];
+}
+
+/** Cookie writes from browsers must come from the API or its configured dashboard. */
+export function cookieWriteAllowed(request: Pick<FastifyRequest, 'method' | 'headers'>, trustedOrigins: string[]): boolean {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return true;
+  const source = request.headers.origin ?? request.headers.referer;
+  if (source !== undefined) {
+    try {
+      return trustedOrigins.includes(new URL(source).origin);
+    } catch {
+      return false;
+    }
+  }
+  // Non-browser clients may omit browser metadata; a browser claiming another site may not.
+  const site = request.headers['sec-fetch-site'];
+  return site === undefined || site === 'same-origin';
 }
 
 /** Loads the session from the signed cookie or an external client's bearer token before route handlers. */
-export const sessionPlugin = fp<SessionPluginOptions>(async (app: FastifyInstance, { store, secret }) => {
+export const sessionPlugin = fp<SessionPluginOptions>(async (app: FastifyInstance, { store, secret, trustedOrigins }) => {
   await app.register(cookie, { secret });
   app.decorateRequest('session', null);
 
@@ -38,6 +55,9 @@ export const sessionPlugin = fp<SessionPluginOptions>(async (app: FastifyInstanc
     if (!unsigned.valid || !unsigned.value) return;
     const session = await store.get(unsigned.value);
     request.session = session && !session.client ? session : null;
+    if (request.session && !cookieWriteAllowed(request, trustedOrigins)) {
+      throw ApiError.forbidden('Cookie writes require a trusted origin');
+    }
   });
 });
 

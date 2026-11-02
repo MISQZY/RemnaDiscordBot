@@ -67,6 +67,7 @@ export async function buildServer(deps: ApiDeps): Promise<FastifyInstance> {
   await app.register(sessionPlugin, {
     store: sessions,
     secret: deps.options.sessionSecret,
+    trustedOrigins: [deps.options.publicUrl, deps.options.webOrigin].map((url) => new URL(url).origin),
   });
   if (deps.options.rateLimitPerMinute > 0) await registerRateLimit(app, deps.redis, deps.options.rateLimitPerMinute);
 

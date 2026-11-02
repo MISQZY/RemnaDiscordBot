@@ -171,6 +171,25 @@ describe('auth routes', () => {
     });
   });
 
+  it.each([
+    { origin: 'http://evil.test' },
+    { origin: 'http://sibling.web.test', 'sec-fetch-site': 'same-site' },
+    { origin: 'null' },
+    { 'sec-fetch-site': 'cross-site' },
+    { 'sec-fetch-site': 'same-site' },
+  ])('refuses cookie writes from an untrusted browser: %s', async (headers) => {
+    const cookie = await login(t);
+    const response = await t.app.inject({ method: 'POST', url: '/v1/auth/logout', headers: { cookie, ...headers } });
+    expect(response.statusCode).toBe(403);
+    expect((await t.app.inject({ url: '/v1/me', headers: { cookie } })).statusCode).toBe(200);
+  });
+
+  it('permits cookie writes from the configured dashboard', async () => {
+    const cookie = await login(t);
+    const response = await t.app.inject({ method: 'POST', url: '/v1/auth/logout', headers: { cookie, origin: 'http://web.test' } });
+    expect(response.statusCode).toBe(204);
+  });
+
   it('builds the bot invite link', async () => {
     const response = await t.app.inject('/v1/auth/invite?guildId=300000000000000003');
     const url = new URL(response.json<{ url: string }>().url);
