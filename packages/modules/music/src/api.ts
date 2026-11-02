@@ -124,6 +124,15 @@ export function musicApi(app: FastifyInstance, ctx: ApiModuleContext<MusicConfig
 
 /** Public view of the player: accessible without credentials when music is enabled. */
 export function musicPublicApi(app: FastifyInstance, ctx: ModuleServices<MusicConfig>): void {
+  app.get('/sources', { schema: { tags: ['music'], response: { 200: SourcesState } } }, async () => {
+    const raw = await ctx.redis.get(MusicKeys.sources);
+    try {
+      const parsed = raw ? SourcesState.safeParse(JSON.parse(raw)) : null;
+      return parsed?.success ? parsed.data : { sources: [], checkedAt: null };
+    } catch {
+      return { sources: [], checkedAt: null };
+    }
+  });
   app.get(
     '/player',
     {

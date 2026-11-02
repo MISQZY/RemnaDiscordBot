@@ -65,7 +65,25 @@ export function announceChannelId(config: MusicConfig, player: Pick<Player, 'tex
 }
 
 export function nowPlayingMessage(t: T, player: Player, track: Track) {
-  return { embeds: [nowPlayingEmbed(t, player, track)], components: [playerButtons(player)], allowedMentions: { parse: [] } };
+  const components = [playerButtons(player)];
+  const url = publicPlayerUrl(player.guildId);
+  if (url) components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(url).setLabel(t('music.nowPlaying.openPlayer')),
+  ));
+  return { embeds: [nowPlayingEmbed(t, player, track)], components, allowedMentions: { parse: [] } };
+}
+
+/** The public web player; RANK_CARD_URL also identifies existing RemnaWeb deployments. */
+export function publicPlayerUrl(guildId: string, env: NodeJS.ProcessEnv = process.env): string | null {
+  const callback = env.LINK_CLIENTS?.split(',').map((entry) => entry.trim().split(':').slice(2).join(':'))
+    .find((url) => { try { return new URL(url).pathname === '/api/discord/link/callback'; } catch { return false; } });
+  const base = env.MUSIC_PLAYER_URL || env.RANK_CARD_URL || callback;
+  if (!base) return null;
+  try {
+    const url = new URL(base);
+    if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) return null;
+    return new URL(`/discord/player/${guildId}`, url.origin).href;
+  } catch { return null; }
 }
 
 /** `off → queue → track → off` for the repeat button. */

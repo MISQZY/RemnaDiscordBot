@@ -6,10 +6,10 @@ import { canControl } from './commands.js';
 import { defaultMusicConfig, type MusicConfig } from './config.js';
 import { escapeTitle, formatDuration, parseLavalinkNodes, parseTimestamp, progressBar } from './format.js';
 import music from './index.js';
-import { announceChannelId, nextRepeatMode } from './messages.js';
+import { announceChannelId, nextRepeatMode, playerButtons, publicPlayerUrl } from './messages.js';
 import { MusicService } from './service.js';
 import { supportedSources } from './sources.js';
-import { ControlMessage } from './state.js';
+import { ControlMessage, MusicKeys } from './state.js';
 import { cleanMusicQuery, playableQuery, requesterOf, trackView } from './tracks.js';
 
 const GUILD = '111111111111111111';
@@ -54,6 +54,25 @@ describe('LAVALINK_NODES', () => {
 });
 
 describe('search sources', () => {
+  it('does not advertise empty searches, errors or sources on disconnected nodes', async () => {
+    const set = vi.fn(async () => 'OK');
+    const service = Object.create(MusicService.prototype) as MusicService;
+    Object.assign(service, {
+      checkingSources: null,
+      ctx: { redis: { set }, logger: { warn: vi.fn() } },
+      manager: { nodeManager: { nodes: new Map([
+        ['online', { id: 'online', connected: true, info: { sourceManagers: ['youtube', 'soundcloud', 'bandcamp'] },
+          search: vi.fn(async ({ source }: { source: string }) => source === 'ytsearch' || source === 'ytmsearch'
+            ? { loadType: 'search', tracks: [{}] }
+            : { loadType: source === 'bcsearch' ? 'error' : 'empty', tracks: [] }) }],
+        ['offline', { connected: false, info: { sourceManagers: ['deezer'] }, search: vi.fn() }],
+      ]) } },
+    });
+    await Promise.all([service.checkSources(), service.checkSources()]);
+    const published = set.mock.calls.find((call: unknown[]) => call[0] === MusicKeys.sources) as unknown as [string, string];
+    expect(JSON.parse(published[1]).sources).toEqual(['youtube', 'youtubemusic']);
+    expect(set).toHaveBeenCalledTimes(2);
+  });
   it('offers only sources whose source managers the node has', () => {
     expect(supportedSources(['soundcloud', 'bandcamp', 'http'])).toEqual(['soundcloud', 'bandcamp']);
     expect(supportedSources(['youtube', 'spotify', 'yandexmusic'])).toEqual(['youtube', 'youtubemusic', 'spotify', 'yandexmusic']);
@@ -156,6 +175,8 @@ describe('MusicService.control', () => {
   function service(player: ReturnType<typeof fakePlayer> | undefined) {
     const s = Object.create(MusicService.prototype) as MusicService;
     Object.assign(s, {
+      operations: new Map(),
+      publications: new Map(),
       ctx: { redis: { set: vi.fn(async () => 'OK') }, logger: { debug: vi.fn() } },
       manager: { getPlayer: () => player },
     });
@@ -164,6 +185,17 @@ describe('MusicService.control', () => {
 
   it('does nothing without a player', async () => {
     expect(await service(undefined).control(GUILD, { action: 'skip' })).toBe(false);
+  });
+
+  it('disables previous without playback history even when the upcoming queue is populated', () => {
+    const player = fakePlayer();
+    const s = service(player);
+    expect(player.queue.tracks).toHaveLength(2);
+    expect(s.stateOf(player as never).hasPrevious).toBe(false);
+    expect(playerButtons(player as never).toJSON().components[0]).toMatchObject({ custom_id: 'music:previous', disabled: true });
+    player.queue.previous.push({} as never);
+    expect(s.stateOf(player as never).hasPrevious).toBe(true);
+    expect(playerButtons(player as never).toJSON().components[0]).toMatchObject({ disabled: false });
   });
 
   it('steers the player and publishes its state', async () => {
@@ -179,6 +211,45 @@ describe('MusicService.control', () => {
     expect(player.queue.remove).toHaveBeenCalledWith(1);
     expect(await s.control(GUILD, { action: 'previous' })).toBe(false);
     expect((s as unknown as { ctx: { redis: { set: ReturnType<typeof vi.fn> } } }).ctx.redis.set).toHaveBeenCalled();
+  });
+
+  it('serializes simultaneous controls so a slow action cannot overtake the next one', async () => {
+    const player = fakePlayer();
+    const s = service(player);
+    let release!: () => void;
+    player.pause.mockImplementation(async () => { await new Promise<void>((resolve) => { release = resolve; }); });
+    const paused = s.control(GUILD, { action: 'pause' });
+    const volume = s.control(GUILD, { action: 'volume', value: 50 });
+    await vi.waitFor(() => expect(player.pause).toHaveBeenCalled());
+    expect(player.setVolume).not.toHaveBeenCalled();
+    release();
+    await Promise.all([paused, volume]);
+    expect(player.setVolume).toHaveBeenCalledWith(50);
+  });
+
+  it('keeps controls responsive during provider searches and does not destroy playback on empty results', async () => {
+    const player = fakePlayer();
+    let finishSearch!: (result: { loadType: string; tracks: unknown[] }) => void;
+    const search = vi.fn(() => new Promise<{ loadType: string; tracks: unknown[] }>((resolve) => { finishSearch = resolve; }));
+    Object.assign(player, { node: { search } });
+    const s = service(player);
+    const pending = s.enqueue({ id: USER, user: { username: 'listener' }, guild: { id: GUILD } } as never,
+      { id: 'vc' } as never, 'text', 'song', defaultMusicConfig);
+    expect(await s.control(GUILD, { action: 'volume', value: 40 })).toBe(true);
+    expect(player.setVolume).toHaveBeenCalledWith(40);
+    finishSearch({ loadType: 'empty', tracks: [] });
+    expect(await pending).toEqual({ kind: 'empty' });
+    expect(player.destroy).not.toHaveBeenCalled();
+  });
+});
+
+describe('public player link', () => {
+  it('uses the web origin without leaking renderer paths, query strings or credentials', () => {
+    expect(publicPlayerUrl(GUILD, { MUSIC_PLAYER_URL: 'https://web.example/path?q=x' })).toBe(`https://web.example/discord/player/${GUILD}`);
+    expect(publicPlayerUrl(GUILD, { RANK_CARD_URL: 'https://web.example/api/discord/cards/rank' })).toBe(`https://web.example/discord/player/${GUILD}`);
+    expect(publicPlayerUrl(GUILD, { LINK_CLIENTS: 'web:secret:https://web.example/api/discord/link/callback' })).toBe(`https://web.example/discord/player/${GUILD}`);
+    expect(publicPlayerUrl(GUILD, { MUSIC_PLAYER_URL: 'https://secret@web.example' })).toBeNull();
+    expect(publicPlayerUrl(GUILD, {})).toBeNull();
   });
 });
 

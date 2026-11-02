@@ -80,6 +80,18 @@ export class MusicService {
   private sourcesTimer: NodeJS.Timeout | null = null;
   private rawListener?: (packet: { t?: string; d?: unknown }) => void;
   private resumed = false;
+  private checkingSources: Promise<void> | null = null;
+  private readonly operations = new Map<string, Promise<unknown>>();
+  private readonly publications = new Map<string, { timer: NodeJS.Timeout; done: Promise<void>; resolve: () => void }>();
+
+  /** A guild's queue changes must finish in order, including connect/play. */
+  private serial<T>(guildId: string, run: () => Promise<T>): Promise<T> {
+    const previous = this.operations.get(guildId) ?? Promise.resolve();
+    const next = previous.catch(() => undefined).then(run);
+    this.operations.set(guildId, next);
+    void next.finally(() => { if (this.operations.get(guildId) === next) this.operations.delete(guildId); }).catch(() => undefined);
+    return next;
+  }
 
   constructor(
     private readonly ctx: Ctx,
@@ -171,32 +183,43 @@ export class MusicService {
   ): Promise<EnqueueResult> {
     const clean = cleanMusicQuery(query, options);
     if (!playableQuery(clean)) return { kind: 'badLink' };
-    const player = this.manager.createPlayer({
-      guildId: member.guild.id,
-      voiceChannelId: voice.id,
-      textChannelId,
-      selfDeaf: true,
-      volume: config.defaultVolume,
-    });
     const requester: Requester = { id: member.id, username: member.user.username };
+    const previousPlayer = this.getPlayer(member.guild.id);
+    const node = previousPlayer?.node ?? this.manager.nodeManager.leastUsedNodes()[0];
+    if (!node) return { kind: 'failed', message: '' };
 
     let result: SearchResult | UnresolvedSearchResult;
     try {
-      result = await withTimeout(player.search({ query: clean, source: SEARCH_PLATFORMS[config.searchSource] }, requester), SEARCH_TIMEOUT_MS);
+      // A slow provider must not hold the queue lock or delay pause/skip controls.
+      result = await withTimeout(node.search({ query: clean, source: SEARCH_PLATFORMS[config.searchSource] }, requester), SEARCH_TIMEOUT_MS);
     } catch (err) {
       this.ctx.logger.debug({ err, guildId: member.guild.id }, 'Music search failed');
-      if (!player.queue.current) await player.destroy('SearchFailed');
       return { kind: 'failed', message: err instanceof Error ? err.message : String(err) };
     }
+
+    if (result.loadType === 'error' || result.loadType === 'empty' || result.tracks.length === 0) {
+      return result.loadType === 'error' ? { kind: 'failed', message: result.exception?.message ?? '' } : { kind: 'empty' };
+    }
+
+    return this.serial(member.guild.id, () => {
+      // A stop or reconnect while the provider searched must not resurrect the old session.
+      if (previousPlayer && this.getPlayer(member.guild.id) !== previousPlayer) return Promise.resolve({ kind: 'empty' } as const);
+      return this.enqueueResult(member, voice, textChannelId, config, result);
+    });
+  }
+
+  private async enqueueResult(
+    member: GuildMember, voice: VoiceBasedChannel, textChannelId: string,
+    config: MusicConfig, result: SearchResult | UnresolvedSearchResult,
+  ): Promise<EnqueueResult> {
+    const player = this.manager.createPlayer({
+      guildId: member.guild.id, voiceChannelId: voice.id, textChannelId,
+      selfDeaf: true, volume: config.defaultVolume,
+    });
 
     const cleanupIdle = async () => {
       if (!player.queue.current && player.queue.tracks.length === 0) await player.destroy('NothingQueued');
     };
-
-    if (result.loadType === 'error' || result.loadType === 'empty' || result.tracks.length === 0) {
-      await cleanupIdle();
-      return result.loadType === 'error' ? { kind: 'failed', message: result.exception?.message ?? '' } : { kind: 'empty' };
-    }
 
     const fits = (t: Track | UnresolvedTrack) =>
       config.maxTrackDurationSec === 0 || t.info.isStream || (t.info.duration ?? 0) <= config.maxTrackDurationSec * 1000;
@@ -254,6 +277,10 @@ export class MusicService {
 
   /** Executes a player action from a command, a button or the dashboard. False — nothing to act on. */
   async control(guildId: string, action: ControlAction): Promise<boolean> {
+    return this.serial(guildId, () => this.applyControl(guildId, action));
+  }
+
+  private async applyControl(guildId: string, action: ControlAction): Promise<boolean> {
     const player = this.getPlayer(guildId);
     if (!player) return false;
     switch (action.action) {
@@ -361,7 +388,15 @@ export class MusicService {
       void this.clearNowPlaying(player);
     });
     manager.on('playerClientUpdate', (_old, player) => void this.publishState(player));
+    // Keep position snapshots fresh, including during tracks longer than the Redis TTL.
+    manager.on('playerUpdate', (_old, player) => void this.publishState(player));
     manager.on('playerDestroy', (player, reason) => {
+      const publication = this.publications.get(player.guildId);
+      if (publication) {
+        clearTimeout(publication.timer);
+        publication.resolve();
+        this.publications.delete(player.guildId);
+      }
       const timer = this.aloneTimers.get(player.guildId);
       if (timer) clearTimeout(timer);
       this.aloneTimers.delete(player.guildId);
@@ -382,12 +417,27 @@ export class MusicService {
       repeatMode: player.repeatMode,
       queue: player.queue.tracks.slice(0, STATE_QUEUE_PREVIEW).map(trackView),
       queueSize: player.queue.tracks.length,
+      hasPrevious: player.queue.previous.length > 0,
       updatedAt: Date.now(),
     };
   }
 
   private async publishState(player: Player): Promise<void> {
+    const pending = this.publications.get(player.guildId);
+    if (pending) return pending.done;
+    let resolve!: () => void;
+    const done = new Promise<void>((finish) => { resolve = finish; });
+    const timer = setTimeout(() => {
+      this.publications.delete(player.guildId);
+      void this.writeState(player).finally(resolve);
+    }, 25);
+    this.publications.set(player.guildId, { timer, done, resolve });
+    return done;
+  }
+
+  private async writeState(player: Player): Promise<void> {
     try {
+      if (this.getPlayer(player.guildId) !== player) return;
       await this.ctx.redis.set(MusicKeys.state(player.guildId), JSON.stringify(this.stateOf(player)), 'EX', STATE_TTL_SEC);
     } catch (err) {
       this.ctx.logger.debug({ err, guildId: player.guildId }, 'Player state not published');
@@ -432,6 +482,12 @@ export class MusicService {
    * credentials, a region block). One cluster checks a round; a node connecting or dropping is checked at once.
    */
   async checkSources(force = false): Promise<void> {
+    if (this.checkingSources) return this.checkingSources;
+    this.checkingSources = this.probeSources(force).finally(() => { this.checkingSources = null; });
+    return this.checkingSources;
+  }
+
+  private async probeSources(force: boolean): Promise<void> {
     const { redis, logger } = this.ctx;
     try {
       const locked = await redis.set(MusicKeys.sourcesLock, '1', 'PX', PROBE_INTERVAL_MS - 30_000, 'NX');
@@ -445,7 +501,7 @@ export class MusicService {
           untested.map(async (source) => {
             try {
               const result = await withTimeout(node.search({ query: PROBE_QUERY, source: SEARCH_PLATFORMS[source] }, requester), SEARCH_TIMEOUT_MS);
-              if (result.loadType !== 'error') return source;
+              if ((result.loadType === 'search' || result.loadType === 'track' || result.loadType === 'playlist') && result.tracks.length > 0) return source;
               logger.warn({ node: node.id, source, exception: result.exception }, 'Music source answers with an error');
             } catch (err) {
               logger.warn({ err, node: node.id, source }, 'Music source does not answer');

@@ -50,6 +50,7 @@ export const locales: Record<Locale, Dictionary> = {
     live: 'эфир',
     nowPlaying: {
       title: 'Сейчас играет',
+      openPlayer: 'Открыть плеер',
       paused: 'На паузе',
       queue: '{count, plural, one {В очереди # трек} few {В очереди # трека} other {В очереди # треков}}',
       queueEmpty: 'Очередь пуста',
@@ -145,6 +146,7 @@ export const locales: Record<Locale, Dictionary> = {
     live: 'live',
     nowPlaying: {
       title: 'Now playing',
+      openPlayer: 'Open player',
       paused: 'Paused',
       queue: '{count, plural, one {# track queued} other {# tracks queued}}',
       queueEmpty: 'Queue is empty',

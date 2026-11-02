@@ -40,6 +40,8 @@ export const PlayerState = z.object({
   repeatMode: z.enum(['off', 'track', 'queue']),
   queue: z.array(TrackView),
   queueSize: z.number().int(),
+  /** Playback history is separate from the upcoming queue; older snapshots have no history flag. */
+  hasPrevious: z.boolean().default(false),
   updatedAt: z.number().int(),
 });
 export type PlayerState = z.infer<typeof PlayerState>;

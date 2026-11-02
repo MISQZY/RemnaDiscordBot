@@ -1744,6 +1744,285 @@
         }
       }
     },
+    "/v1/public/guilds/{guildId}/modules/music/sources": {
+      "get": {
+        "tags": [
+          "music"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "guildId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "soundcloud",
+                          "bandcamp",
+                          "youtube",
+                          "youtubemusic",
+                          "deezer",
+                          "spotify",
+                          "yandexmusic"
+                        ]
+                      }
+                    },
+                    "checkedAt": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "sources",
+                    "checkedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/public/guilds/{guildId}/modules/music/player": {
+      "get": {
+        "summary": "The guild's public player state",
+        "tags": [
+          "music"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "guildId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "active": {
+                      "type": "boolean"
+                    },
+                    "state": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "voiceChannelId": {
+                          "nullable": true,
+                          "type": "string",
+                          "pattern": "^\\d{17,20}$"
+                        },
+                        "textChannelId": {
+                          "nullable": true,
+                          "type": "string",
+                          "pattern": "^\\d{17,20}$"
+                        },
+                        "current": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "title": {
+                              "type": "string"
+                            },
+                            "author": {
+                              "type": "string"
+                            },
+                            "uri": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "artworkUrl": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "durationMs": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "isStream": {
+                              "type": "boolean"
+                            },
+                            "requesterId": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^\\d{17,20}$"
+                            }
+                          },
+                          "required": [
+                            "title",
+                            "author",
+                            "uri",
+                            "artworkUrl",
+                            "durationMs",
+                            "isStream",
+                            "requesterId"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "positionMs": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "paused": {
+                          "type": "boolean"
+                        },
+                        "volume": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "repeatMode": {
+                          "type": "string",
+                          "enum": [
+                            "off",
+                            "track",
+                            "queue"
+                          ]
+                        },
+                        "queue": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "title": {
+                                "type": "string"
+                              },
+                              "author": {
+                                "type": "string"
+                              },
+                              "uri": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "artworkUrl": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "durationMs": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "isStream": {
+                                "type": "boolean"
+                              },
+                              "requesterId": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^\\d{17,20}$"
+                              }
+                            },
+                            "required": [
+                              "title",
+                              "author",
+                              "uri",
+                              "artworkUrl",
+                              "durationMs",
+                              "isStream",
+                              "requesterId"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "queueSize": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "hasPrevious": {
+                          "default": false,
+                          "type": "boolean"
+                        },
+                        "updatedAt": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "voiceChannelId",
+                        "textChannelId",
+                        "current",
+                        "positionMs",
+                        "paused",
+                        "volume",
+                        "repeatMode",
+                        "queue",
+                        "queueSize",
+                        "hasPrevious",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "canControl": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "guild": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "icon": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "icon"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "active",
+                    "state",
+                    "canControl"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/guilds/{guildId}/modules": {
       "get": {
         "summary": "State of all guild modules",
@@ -19144,6 +19423,18 @@
                         "type": "string",
                         "pattern": "^\\d{17,20}$"
                       },
+                      "deliveryMode": {
+                        "type": "string",
+                        "enum": [
+                          "channel",
+                          "thread"
+                        ]
+                      },
+                      "threadId": {
+                        "nullable": true,
+                        "type": "string",
+                        "pattern": "^\\d{17,20}$"
+                      },
                       "mentionRoleId": {
                         "nullable": true,
                         "type": "string",
@@ -19437,6 +19728,8 @@
                       "provider",
                       "source",
                       "channelId",
+                      "deliveryMode",
+                      "threadId",
                       "mentionRoleId",
                       "message",
                       "filter",
@@ -19484,6 +19777,13 @@
                   "channelId": {
                     "type": "string",
                     "pattern": "^\\d{17,20}$"
+                  },
+                  "deliveryMode": {
+                    "type": "string",
+                    "enum": [
+                      "channel",
+                      "thread"
+                    ]
                   },
                   "mentionRoleId": {
                     "default": null,
@@ -19794,6 +20094,18 @@
                       "type": "string",
                       "pattern": "^\\d{17,20}$"
                     },
+                    "deliveryMode": {
+                      "type": "string",
+                      "enum": [
+                        "channel",
+                        "thread"
+                      ]
+                    },
+                    "threadId": {
+                      "nullable": true,
+                      "type": "string",
+                      "pattern": "^\\d{17,20}$"
+                    },
                     "mentionRoleId": {
                       "nullable": true,
                       "type": "string",
@@ -20087,6 +20399,8 @@
                     "provider",
                     "source",
                     "channelId",
+                    "deliveryMode",
+                    "threadId",
                     "mentionRoleId",
                     "message",
                     "filter",
@@ -20120,6 +20434,13 @@
                   "channelId": {
                     "type": "string",
                     "pattern": "^\\d{17,20}$"
+                  },
+                  "deliveryMode": {
+                    "type": "string",
+                    "enum": [
+                      "channel",
+                      "thread"
+                    ]
                   },
                   "mentionRoleId": {
                     "nullable": true,
@@ -20436,6 +20757,18 @@
                       "type": "string",
                       "pattern": "^\\d{17,20}$"
                     },
+                    "deliveryMode": {
+                      "type": "string",
+                      "enum": [
+                        "channel",
+                        "thread"
+                      ]
+                    },
+                    "threadId": {
+                      "nullable": true,
+                      "type": "string",
+                      "pattern": "^\\d{17,20}$"
+                    },
                     "mentionRoleId": {
                       "nullable": true,
                       "type": "string",
@@ -20729,6 +21062,8 @@
                     "provider",
                     "source",
                     "channelId",
+                    "deliveryMode",
+                    "threadId",
                     "mentionRoleId",
                     "message",
                     "filter",
@@ -20871,6 +21206,18 @@
                       "type": "string",
                       "pattern": "^\\d{17,20}$"
                     },
+                    "deliveryMode": {
+                      "type": "string",
+                      "enum": [
+                        "channel",
+                        "thread"
+                      ]
+                    },
+                    "threadId": {
+                      "nullable": true,
+                      "type": "string",
+                      "pattern": "^\\d{17,20}$"
+                    },
                     "mentionRoleId": {
                       "nullable": true,
                       "type": "string",
@@ -21164,6 +21511,8 @@
                     "provider",
                     "source",
                     "channelId",
+                    "deliveryMode",
+                    "threadId",
                     "mentionRoleId",
                     "message",
                     "filter",
@@ -21333,6 +21682,18 @@
                           "additionalProperties": false
                         },
                         "channelId": {
+                          "type": "string",
+                          "pattern": "^\\d{17,20}$"
+                        },
+                        "deliveryMode": {
+                          "type": "string",
+                          "enum": [
+                            "channel",
+                            "thread"
+                          ]
+                        },
+                        "threadId": {
+                          "nullable": true,
                           "type": "string",
                           "pattern": "^\\d{17,20}$"
                         },
@@ -21629,6 +21990,8 @@
                         "provider",
                         "source",
                         "channelId",
+                        "deliveryMode",
+                        "threadId",
                         "mentionRoleId",
                         "message",
                         "filter",
@@ -21813,6 +22176,10 @@
                           "minimum": -9007199254740991,
                           "maximum": 9007199254740991
                         },
+                        "hasPrevious": {
+                          "default": false,
+                          "type": "boolean"
+                        },
                         "updatedAt": {
                           "type": "integer",
                           "minimum": -9007199254740991,
@@ -21829,14 +22196,42 @@
                         "repeatMode",
                         "queue",
                         "queueSize",
+                        "hasPrevious",
                         "updatedAt"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "canControl": {
+                      "default": false,
+                      "type": "boolean"
+                    },
+                    "guild": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "icon": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "icon"
                       ],
                       "additionalProperties": false
                     }
                   },
                   "required": [
                     "active",
-                    "state"
+                    "state",
+                    "canControl"
                   ],
                   "additionalProperties": false
                 }
