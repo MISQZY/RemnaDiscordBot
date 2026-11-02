@@ -223,9 +223,14 @@ export class IntervalRunner {
   }
 
   start(): void {
+    if (this.timers.length > 0) return;
     for (const module of this.registry.all()) {
       for (const [name, task] of Object.entries(module.intervals ?? {})) {
-        const timer = setInterval(() => void this.runOnce(module.id, name), task.everyMs);
+        const timer = setInterval(() => {
+          void this.runOnce(module.id, name).catch((err: unknown) => {
+            this.services.logger.error({ err, moduleId: module.id, interval: name }, 'Interval task could not start');
+          });
+        }, task.everyMs);
         timer.unref();
         this.timers.push(timer);
       }
@@ -234,5 +239,6 @@ export class IntervalRunner {
 
   stop(): void {
     for (const timer of this.timers) clearInterval(timer);
+    this.timers.length = 0;
   }
 }
