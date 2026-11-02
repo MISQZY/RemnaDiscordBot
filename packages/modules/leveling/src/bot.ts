@@ -8,6 +8,9 @@ import { LevelingService, messageXp, rewardChanges } from './service.js';
 type Ctx = BotModuleContext<LevelingConfig>;
 
 const cooldownKey = (guildId: string, userId: string) => `leveling:cd:${guildId}:${userId}`;
+const COOLDOWN_CACHE_MAX = 50_000;
+// Cache only cooldowns acquired by this Redis client; Redis remains authoritative on every miss.
+const cooldowns = new WeakMap<Ctx['redis'], Map<string, number>>();
 
 /** Level reward roles: grants reached ones and removes the rest (when rewards don't stack). */
 export async function syncRewards(member: GuildMember, level: number, config: LevelingConfig, logger: Ctx['logger']): Promise<void> {
@@ -51,8 +54,17 @@ export async function onMessage(ctx: Ctx, message: Message): Promise<void> {
   if (config.ignoredChannelIds.includes(message.channelId) || roleIds.some((id) => config.ignoredRoleIds.includes(id))) return;
 
   if (config.cooldownSec > 0) {
-    const fresh = await ctx.redis.set(cooldownKey(message.guildId, message.author.id), '1', 'EX', config.cooldownSec, 'NX');
+    const key = cooldownKey(message.guildId, message.author.id);
+    const startedAt = Date.now();
+    let known = cooldowns.get(ctx.redis);
+    if (!known) { known = new Map(); cooldowns.set(ctx.redis, known); }
+    if ((known.get(key) ?? 0) > startedAt) return;
+    known.delete(key);
+    const fresh = await ctx.redis.set(key, '1', 'EX', config.cooldownSec, 'NX');
     if (!fresh) return;
+    if (known.size >= COOLDOWN_CACHE_MAX) known.delete(known.keys().next().value!);
+    // Starting before the round trip makes the local deadline conservative when Redis is slow.
+    known.set(key, startedAt + config.cooldownSec * 1000);
   }
 
   const amount = messageXp(config, { roleIds, channelId: message.channelId });
