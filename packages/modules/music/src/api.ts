@@ -12,6 +12,7 @@ const PlayerResponse = z.object({
   active: z.boolean(),
   state: PlayerState.nullable(),
   canControl: z.boolean().default(false),
+  guild: z.object({ id: z.string(), name: z.string(), icon: z.string().nullable() }).nullable().optional(),
 });
 
 /** The dashboard's player: state written by the bot, actions sent to the cluster that has the player. */
@@ -45,6 +46,7 @@ export function musicApi(app: FastifyInstance, ctx: ApiModuleContext<MusicConfig
   async function checkCanControl(request: FastifyRequest, id: string): Promise<boolean> {
     if (request.guild?.canManage) return true;
     const config = await ctx.getConfig(id);
+    if (config.djRoleIds.length === 0) return true;
     const userId = ctx.currentUserId(request);
     return await userHasDjRole(id, userId, config.djRoleIds);
   }
@@ -63,7 +65,14 @@ export function musicApi(app: FastifyInstance, ctx: ApiModuleContext<MusicConfig
       const id = guildId(request);
       const state = await readState(id);
       const canControl = await checkCanControl(request, id);
-      return { active: state !== null, state, canControl };
+      const metaRaw = await ctx.redis.get(RedisKeys.guildMeta(id));
+      const meta = metaRaw ? (JSON.parse(metaRaw) as { id: string; name: string; icon?: string | null }) : null;
+      return {
+        active: state !== null,
+        state,
+        canControl,
+        guild: meta ? { id: meta.id, name: meta.name, icon: meta.icon ?? null } : null,
+      };
     },
   );
 

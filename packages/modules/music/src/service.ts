@@ -203,13 +203,12 @@ export class MusicService {
     const room = config.maxQueueSize - player.queue.tracks.length;
 
     if (result.loadType === 'playlist') {
-      const allowed = result.tracks.filter(fits);
+      let allowed = result.tracks.filter(fits);
       if (result.playlist?.selectedTrack) {
         const sel = result.playlist.selectedTrack;
         const idx = allowed.findIndex((t) => t.info.identifier === sel.info.identifier || (t.info.uri && t.info.uri === sel.info.uri));
         if (idx > 0) {
-          const [selected] = allowed.splice(idx, 1);
-          if (selected) allowed.unshift(selected);
+          allowed = [...allowed.slice(idx), ...allowed.slice(0, idx)];
         }
       }
       const added = allowed.slice(0, Math.max(0, room));
