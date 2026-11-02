@@ -10,7 +10,7 @@ import { announceChannelId, nextRepeatMode } from './messages.js';
 import { MusicService } from './service.js';
 import { supportedSources } from './sources.js';
 import { ControlMessage } from './state.js';
-import { playableQuery, requesterOf, trackView } from './tracks.js';
+import { cleanMusicQuery, playableQuery, requesterOf, trackView } from './tracks.js';
 
 const GUILD = '111111111111111111';
 const USER = '222222222222222222';
@@ -248,5 +248,48 @@ describe('playableQuery', () => {
     ]) {
       expect(playableQuery(url), url).toBe(false);
     }
+  });
+});
+
+describe('cleanMusicQuery', () => {
+  it('leaves plain search text untouched', () => {
+    expect(cleanMusicQuery('never gonna give you up')).toBe('never gonna give you up');
+  });
+
+  it('strips auto-generated YouTube Mix / Radio (RD...) playlists from video links', () => {
+    expect(
+      cleanMusicQuery('https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RDAMVMdQw4w9WgXcQ&start_radio=1'),
+    ).toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+
+    expect(
+      cleanMusicQuery('https://music.youtube.com/watch?v=dQw4w9WgXcQ&list=RDAMVMdQw4w9WgXcQ'),
+    ).toBe('https://music.youtube.com/watch?v=dQw4w9WgXcQ');
+
+    expect(
+      cleanMusicQuery('https://youtu.be/dQw4w9WgXcQ?list=RDdQw4w9WgXcQ&si=tracking'),
+    ).toBe('https://youtu.be/dQw4w9WgXcQ');
+  });
+
+  it('strips regular playlists from video links unless allowPlaylist is true', () => {
+    const videoWithPlaylist = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLrEnWoR732-BHrPp_QLgkCoOW32JarNT5&index=3';
+    expect(cleanMusicQuery(videoWithPlaylist)).toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    expect(cleanMusicQuery(videoWithPlaylist, { allowPlaylist: false })).toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    expect(cleanMusicQuery(videoWithPlaylist, { allowPlaylist: true })).toBe(
+      'https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLrEnWoR732-BHrPp_QLgkCoOW32JarNT5',
+    );
+  });
+
+  it('preserves pure playlist links', () => {
+    const purePlaylist = 'https://www.youtube.com/playlist?list=PLrEnWoR732-BHrPp_QLgkCoOW32JarNT5';
+    expect(cleanMusicQuery(purePlaylist)).toBe(purePlaylist);
+    expect(cleanMusicQuery(purePlaylist, { allowPlaylist: false })).toBe(purePlaylist);
+  });
+
+  it('cleans tracking parameters from Spotify and SoundCloud set links', () => {
+    expect(cleanMusicQuery('https://open.spotify.com/track/123?si=abc456')).toBe('https://open.spotify.com/track/123');
+    expect(cleanMusicQuery('https://soundcloud.com/artist/song?in=artist/sets/album')).toBe('https://soundcloud.com/artist/song');
+    expect(cleanMusicQuery('https://soundcloud.com/artist/song?in=artist/sets/album', { allowPlaylist: true })).toBe(
+      'https://soundcloud.com/artist/song?in=artist/sets/album',
+    );
   });
 });

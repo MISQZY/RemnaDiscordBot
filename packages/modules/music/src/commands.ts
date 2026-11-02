@@ -97,6 +97,9 @@ export const play = defineCommand<MusicConfig>({
     .setContexts(InteractionContextType.Guild)
     .addStringOption((o) =>
       o.setName('query').setDescription('Link or search text').setRequired(true).setMaxLength(500).setAutocomplete(true),
+    )
+    .addBooleanOption((o) =>
+      o.setName('playlist').setDescription('Load entire playlist if link contains both track and playlist').setRequired(false),
     ),
   cooldownMs: 2_000,
 
@@ -140,7 +143,8 @@ export const play = defineCommand<MusicConfig>({
 
     await interaction.deferReply();
     const query = interaction.options.getString('query', true);
-    const result = await s.music.enqueue(s.member, s.voice, interaction.channelId, query, s.config);
+    const allowPlaylist = interaction.options.getBoolean('playlist') ?? false;
+    const result = await s.music.enqueue(s.member, s.voice, interaction.channelId, query, s.config, { allowPlaylist });
     const edit = (content: string) => interaction.editReply({ content, allowedMentions: { parse: [] } });
     switch (result.kind) {
       case 'track':

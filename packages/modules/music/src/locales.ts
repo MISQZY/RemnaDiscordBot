@@ -6,7 +6,10 @@ export const locales: Record<Locale, Dictionary> = {
     commands: {
       play: {
         description: 'Включить трек или плейлист',
-        options: { query: { name: 'запрос', description: 'Ссылка или текст для поиска' } },
+        options: {
+          query: { name: 'запрос', description: 'Ссылка или текст для поиска' },
+          playlist: { name: 'плейлист', description: 'Загрузить весь плейлист, если ссылка содержит трек и плейлист' },
+        },
       },
       skip: {
         description: 'Пропустить текущий трек',
@@ -98,7 +101,10 @@ export const locales: Record<Locale, Dictionary> = {
     commands: {
       play: {
         description: 'Play a track or a playlist',
-        options: { query: { name: 'query', description: 'Link or search text' } },
+        options: {
+          query: { name: 'query', description: 'Link or search text' },
+          playlist: { name: 'playlist', description: 'Load entire playlist if link contains both track and playlist' },
+        },
       },
       skip: {
         description: 'Skip the current track',

@@ -1,6 +1,6 @@
 import { defineModule, EntityChecker } from '@bot/core';
 import { GatewayIntentBits } from 'discord.js';
-import { musicApi, stopWhenDisabled } from './api.js';
+import { musicApi, musicPublicApi, stopWhenDisabled } from './api.js';
 import { buttons, commands, runtime } from './commands.js';
 import { defaultMusicConfig, MusicConfig } from './config.js';
 import { parseLavalinkNodes } from './format.js';
@@ -11,6 +11,7 @@ import { MusicService } from './service.js';
 export { MusicConfig } from './config.js';
 export { SourcesState } from './sources.js';
 export { ControlAction, PlayerState, TrackView } from './state.js';
+export { musicPublicApi } from './api.js';
 
 /** Music through a Lavalink node: queue, player buttons, DJ roles and dashboard control. */
 export default defineModule({
@@ -47,5 +48,6 @@ export default defineModule({
     },
   },
   api: musicApi,
+  publicApi: musicPublicApi,
   onSaved: stopWhenDisabled,
 });

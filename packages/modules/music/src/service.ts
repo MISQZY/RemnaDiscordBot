@@ -33,7 +33,7 @@ import {
   type ControlAction,
   type PlayerState,
 } from './state.js';
-import { playableQuery, trackView, type Requester } from './tracks.js';
+import { cleanMusicQuery, playableQuery, trackView, type CleanQueryOptions, type Requester } from './tracks.js';
 
 type Ctx = BotModuleContext<MusicConfig>;
 
@@ -167,8 +167,10 @@ export class MusicService {
     textChannelId: string,
     query: string,
     config: MusicConfig,
+    options?: CleanQueryOptions,
   ): Promise<EnqueueResult> {
-    if (!playableQuery(query)) return { kind: 'badLink' };
+    const clean = cleanMusicQuery(query, options);
+    if (!playableQuery(clean)) return { kind: 'badLink' };
     const player = this.manager.createPlayer({
       guildId: member.guild.id,
       voiceChannelId: voice.id,
@@ -180,7 +182,7 @@ export class MusicService {
 
     let result: SearchResult | UnresolvedSearchResult;
     try {
-      result = await withTimeout(player.search({ query, source: SEARCH_PLATFORMS[config.searchSource] }, requester), SEARCH_TIMEOUT_MS);
+      result = await withTimeout(player.search({ query: clean, source: SEARCH_PLATFORMS[config.searchSource] }, requester), SEARCH_TIMEOUT_MS);
     } catch (err) {
       this.ctx.logger.debug({ err, guildId: member.guild.id }, 'Music search failed');
       if (!player.queue.current) await player.destroy('SearchFailed');
@@ -202,6 +204,14 @@ export class MusicService {
 
     if (result.loadType === 'playlist') {
       const allowed = result.tracks.filter(fits);
+      if (result.playlist?.selectedTrack) {
+        const sel = result.playlist.selectedTrack;
+        const idx = allowed.findIndex((t) => t.info.identifier === sel.info.identifier || (t.info.uri && t.info.uri === sel.info.uri));
+        if (idx > 0) {
+          const [selected] = allowed.splice(idx, 1);
+          if (selected) allowed.unshift(selected);
+        }
+      }
       const added = allowed.slice(0, Math.max(0, room));
       if (added.length === 0) {
         await cleanupIdle();

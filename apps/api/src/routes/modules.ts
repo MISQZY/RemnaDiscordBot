@@ -449,7 +449,7 @@ export function moduleRoutes(deps: ApiDeps, userGuilds: UserGuildService): Fasti
           async (moduleScope) => {
             moduleScope.addHook('preHandler', async (request) => {
               const reading = request.method === 'GET' || request.method === 'HEAD';
-              if (!reading && module.id !== 'moderation' && !request.guild?.canManage) {
+              if (!reading && module.id !== 'moderation' && module.id !== 'music' && !request.guild?.canManage) {
                 throw ApiError.forbidden('You cannot manage this guild');
               }
             });

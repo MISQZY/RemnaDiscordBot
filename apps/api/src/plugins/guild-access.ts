@@ -34,6 +34,10 @@ export function requireGuildAccess(userGuilds: UserGuildService, level: GuildAcc
       throw ApiError.forbidden('You cannot manage this guild');
     }
     if (level === 'moderator' && !guild.canManage && !guild.isModerator) {
+      if (request.url.includes('/modules/music/player')) {
+        request.guild = guild;
+        return;
+      }
       throw ApiError.forbidden('You cannot moderate this guild');
     }
     request.guild = guild;
