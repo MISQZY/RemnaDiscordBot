@@ -54,11 +54,14 @@ export class SecretBox {
   /** The plain value and the index of the key that opened it; -1 for a value stored before sealing. */
   private unseal(value: string): { plain: string; keyIndex: number } {
     if (!SecretBox.isSealed(value)) return { plain: value, keyIndex: -1 };
-    const [iv, tag, encrypted] = value.slice(PREFIX.length).split('.').map((part) => Buffer.from(part, 'base64url'));
-    if (!iv || !tag || !encrypted) throw new Error('Malformed sealed value');
+    const parts = value.slice(PREFIX.length).split('.');
+    if (parts.length !== 3 || parts.some((part) => !/^[A-Za-z0-9_-]*$/.test(part))) throw new Error('Malformed sealed value');
+    const [iv, tag, encrypted] = parts.map((part) => Buffer.from(part, 'base64url'));
+    if (!iv || iv.length !== 12 || !tag || tag.length !== 16 || !encrypted ||
+        [iv, tag, encrypted].some((part, i) => part.toString('base64url') !== parts[i])) throw new Error('Malformed sealed value');
     for (const [keyIndex, key] of this.keys.entries()) {
       try {
-        const decipher = createDecipheriv('aes-256-gcm', key, iv);
+        const decipher = createDecipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
         decipher.setAuthTag(tag);
         return { plain: Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8'), keyIndex };
       } catch {

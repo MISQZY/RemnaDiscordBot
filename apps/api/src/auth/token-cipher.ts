@@ -16,9 +16,12 @@ export class TokenCipher {
   }
 
   decrypt(payload: string): string {
-    const [iv, tag, encrypted] = payload.split('.').map((part) => Buffer.from(part, 'base64url'));
-    if (!iv || !tag || !encrypted) throw new Error('Malformed encrypted token');
-    const decipher = createDecipheriv('aes-256-gcm', this.key, iv);
+    const parts = payload.split('.');
+    if (parts.length !== 3 || parts.some((part) => !/^[A-Za-z0-9_-]*$/.test(part))) throw new Error('Malformed encrypted token');
+    const [iv, tag, encrypted] = parts.map((part) => Buffer.from(part, 'base64url'));
+    if (!iv || iv.length !== 12 || !tag || tag.length !== 16 || !encrypted ||
+        [iv, tag, encrypted].some((part, i) => part.toString('base64url') !== parts[i])) throw new Error('Malformed encrypted token');
+    const decipher = createDecipheriv('aes-256-gcm', this.key, iv, { authTagLength: 16 });
     decipher.setAuthTag(tag);
     return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
   }

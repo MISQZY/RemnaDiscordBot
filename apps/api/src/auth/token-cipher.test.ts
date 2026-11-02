@@ -15,9 +15,21 @@ describe('TokenCipher', () => {
   it('rejects tampered payloads and other keys', () => {
     const payload = cipher.encrypt('discord-token');
     const [iv, tag, data] = payload.split('.');
-    const tampered = [iv, tag, `${data!.slice(0, -2)}AA`].join('.');
+    const changed = Buffer.from(data!, 'base64url');
+    changed[0] = changed[0]! ^ 1;
+    const tampered = [iv, tag, changed.toString('base64url')].join('.');
 
     expect(() => cipher.decrypt(tampered)).toThrow();
     expect(() => new TokenCipher('another-secret-that-is-long-enough').decrypt(payload)).toThrow();
+  });
+
+  it('requires the full authentication tag and rejects alternate encodings', () => {
+    const payload = cipher.encrypt('discord-token');
+    const [iv, tag, data] = payload.split('.');
+    const truncated = Buffer.from(tag!, 'base64url').subarray(0, 4).toString('base64url');
+    expect(() => cipher.decrypt([iv, truncated, data].join('.'))).toThrow();
+    expect(() => cipher.decrypt(`${payload}.extra`)).toThrow();
+    expect(() => cipher.decrypt(`${payload}!`)).toThrow();
+    expect(cipher.decrypt(cipher.encrypt(''))).toBe('');
   });
 });

@@ -37,6 +37,17 @@ describe('SecretBox', () => {
     expect(() => new SecretBox(['k']).open('sb1.broken')).toThrow('Malformed');
   });
 
+  it('requires a complete GCM tag and one canonical encoding', () => {
+    const box = new SecretBox(['key-one']);
+    const sealed = box.seal('private');
+    const [prefix, iv, tag, data] = sealed.split('.');
+    const shortTag = Buffer.from(tag!, 'base64url').subarray(0, 4).toString('base64url');
+    expect(() => box.open([prefix, iv, shortTag, data].join('.'))).toThrow('Malformed');
+    expect(() => box.open(`${sealed}.extra`)).toThrow('Malformed');
+    expect(() => box.open(`${sealed}!`)).toThrow('Malformed');
+    expect(box.open(box.seal(''))).toBe('');
+  });
+
   it('takes SECRETS_KEY first, then SECRETS_KEY_OLD and the bot token', () => {
     const sealed = new SecretBox(['from-token']).seal('v');
     const env = { SECRETS_KEY: 'k'.repeat(32), SECRETS_KEY_OLD: 'o'.repeat(32), DISCORD_TOKEN: 'from-token' };
