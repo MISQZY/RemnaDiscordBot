@@ -169,6 +169,23 @@ describe('auth routes', () => {
       expect((await t.app.inject({ method: 'POST', url: '/v1/auth/logout', headers: { authorization } })).statusCode).toBe(204);
       expect((await t.app.inject({ url: '/v1/me', headers: { authorization } })).statusCode).toBe(401);
     });
+
+    it('retires an old session without revoking the Discord authorization used by the new session', async () => {
+      const oldCode = (await clientLogin()).searchParams.get('code')!;
+      const old = (await exchange(oldCode)).json<{ token: string }>();
+      const newCode = (await clientLogin()).searchParams.get('code')!;
+      const current = (await exchange(newCode)).json<{ token: string }>();
+      const revokedBefore = [...t.oauth.revoked];
+
+      const response = await t.app.inject({
+        method: 'POST', url: '/v1/auth/logout?revoke=false', headers: { authorization: `Bearer ${old.token}` },
+      });
+
+      expect(response.statusCode).toBe(204);
+      expect(t.oauth.revoked).toEqual(revokedBefore);
+      expect((await t.app.inject({ url: '/v1/me', headers: { authorization: `Bearer ${old.token}` } })).statusCode).toBe(401);
+      expect((await t.app.inject({ url: '/v1/me', headers: { authorization: `Bearer ${current.token}` } })).statusCode).toBe(200);
+    });
   });
 
   it.each([

@@ -185,12 +185,22 @@ export function authRoutes({ db, redis, oauth, sessions, options }: AuthRouteDep
 
     app.post(
       '/v1/auth/logout',
-      { schema: { tags: ['auth'], summary: 'Log out', response: { 204: z.null() } } },
+      {
+        schema: {
+          tags: ['auth'],
+          summary: 'Log out',
+          querystring: z.object({ revoke: z.enum(['true', 'false']).default('true') }),
+          response: { 204: z.null() },
+        },
+      },
       async (request, reply) => {
         const session = request.session;
         if (session) {
           await sessions.destroy(session.id);
-          await oauth.revoke(session.accessToken).catch((err: unknown) => request.log.warn({ err }, 'Token revoke failed'));
+          // Discord revocation invalidates every token of the authorization, including newer sessions.
+          if (request.query.revoke === 'true') {
+            await oauth.revoke(session.accessToken).catch((err: unknown) => request.log.warn({ err }, 'Token revoke failed'));
+          }
         }
         clearSessionCookie(reply);
         return reply.status(204).send(null);
