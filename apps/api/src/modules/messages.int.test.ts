@@ -56,7 +56,7 @@ describe('messages', () => {
 
     // Turning it off drops the pending run.
     await send('PUT', `/scheduled/${created.json().id}`, { ...created.json(), enabled: false });
-    expect(await t.database.db.scheduledAction.count()).toBe(0);
+    expect(await t.database.db.scheduledAction.count({ where: { doneAt: null } })).toBe(0);
   });
 
 

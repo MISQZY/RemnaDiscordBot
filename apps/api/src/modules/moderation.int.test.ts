@@ -122,7 +122,7 @@ describe('moderation', () => {
 
     expect(revoked.json()).toMatchObject({ number: 2, type: 'unban', moderatorId: expect.any(String) });
     expect(t.rest.calls.some((c) => c.method === 'delete' && c.route === `/guilds/${GUILD_ID}/bans/${TARGET}`)).toBe(true);
-    expect(await t.database.db.scheduledAction.count()).toBe(0);
+    expect(await t.database.db.scheduledAction.count({ where: { doneAt: null } })).toBe(0);
     expect((await send('GET', '/cases/1')).json()).toMatchObject({ active: false, revokeReason: 'appeal' });
   });
 
@@ -194,7 +194,7 @@ describe('moderation', () => {
     // Send Messages (2048) is allowed again; the overwrite existed before, so it stays.
     expect(t.rest.calls.find((c) => c.method === 'put')).toMatchObject({ body: { allow: '2048', deny: '0' } });
     expect(await t.database.db.channelLockdown.count()).toBe(0);
-    expect(await t.database.db.scheduledAction.count({ where: { type: 'moderation:unlock' } })).toBe(0);
+    expect(await t.database.db.scheduledAction.count({ where: { type: 'moderation:unlock', doneAt: null } })).toBe(0);
   });
 
   it('locks only channels of its own server', async () => {

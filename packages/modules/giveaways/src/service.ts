@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { HttpError, type CoreServices } from '@bot/core';
-import { Prisma, type Giveaway } from '@bot/db';
+import type { Prisma, Giveaway } from '@bot/db';
 import { ButtonStyle, ComponentType, DiscordAPIError, RESTJSONErrorCodes, Routes, type APIEmbed, type APIGuildMember } from 'discord.js';
 import { z } from 'zod';
 import type { GiveawayDto, GiveawayInput, GiveawaysConfig } from './config.js';
@@ -139,18 +139,19 @@ export class GiveawayService {
    */
   async toggleEntry(giveaway: Giveaway, userId: string): Promise<boolean> {
     const { db } = this.services;
+    const t = await this.translator(giveaway.guildId);
     return db.$transaction(async (tx) => {
+      const open = await tx.giveaway.updateMany({ where: { id: giveaway.id, status: 'running' }, data: { entries: { increment: 0 } } });
+      if (open.count === 0) throw HttpError.badRequest(t('giveaways.over'));
       const left = await tx.giveawayEntry.deleteMany({ where: { giveawayId: giveaway.id, userId } });
       if (left.count > 0) {
         await tx.giveaway.update({ where: { id: giveaway.id }, data: { entries: { decrement: left.count } } });
         return false;
       }
-      try {
-        await tx.giveawayEntry.create({ data: { giveawayId: giveaway.id, userId } });
+      const added = await tx.$executeRaw`INSERT INTO "GiveawayEntry" ("giveawayId", "userId", "createdAt")
+        VALUES (${giveaway.id}, ${userId}, ${new Date()}) ON CONFLICT ("giveawayId", "userId") DO NOTHING`;
+      if (added > 0) {
         await tx.giveaway.update({ where: { id: giveaway.id }, data: { entries: { increment: 1 } } });
-      } catch (err) {
-        // A click at the same moment entered already.
-        if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002')) throw err;
       }
       return true;
     });
@@ -184,35 +185,52 @@ export class GiveawayService {
 
   /** Draws the winners and announces them; `count` — a reroll of that many new winners. */
   async end(giveaway: Giveaway, config: GiveawaysConfig, { reroll }: { reroll?: number } = {}): Promise<Giveaway> {
-    const { db, rest, scheduler, logger } = this.services;
+    const { db, scheduler } = this.services;
     if (giveaway.status === 'cancelled') throw HttpError.badRequest('The giveaway was cancelled');
     if (!reroll && giveaway.status === 'ended') throw HttpError.badRequest('The giveaway has ended already');
     if (reroll && giveaway.status !== 'ended') throw HttpError.badRequest('Only an ended giveaway can be rerolled');
-    // The end job and /giveaway end may come at once: only the one that moves it out of `running` draws.
-    if (!reroll) {
-      const claimed = await db.giveaway.updateMany({ where: { id: giveaway.id, status: 'running' }, data: { status: 'ended', endsAt: new Date() } });
-      if (claimed.count === 0) throw HttpError.badRequest('The giveaway has ended already');
-    }
-
     const entrants = (await db.giveawayEntry.findMany({ where: { giveawayId: giveaway.id }, select: { userId: true } })).map((e) => e.userId);
     const previous = Ids.parse(giveaway.winnerIds);
     const winners = await drawEligible(entrants, reroll ?? giveaway.winners, new Set(previous), this.eligibility(giveaway));
-    const updated = await db.giveaway.update({
-      where: { id: giveaway.id },
-      data: { winnerIds: [...previous, ...winners] as Prisma.InputJsonValue },
+    const t = await this.translator(giveaway.guildId);
+    // Winners, the final state and their delivery job commit together. A failed draw remains retryable.
+    const { updated, delivery } = await db.$transaction(async (tx) => {
+      const claimed = await tx.giveaway.updateMany({
+        where: { id: giveaway.id, status: reroll ? 'ended' : 'running', drawVersion: giveaway.drawVersion },
+        data: { status: 'ended', ...(!reroll && { endsAt: new Date() }), winnerIds: [...previous, ...winners], drawVersion: { increment: 1 } },
+      });
+      if (claimed.count === 0) throw HttpError.badRequest(t('giveaways.over'));
+      const delivery = await tx.giveawayDelivery.create({ data: { giveawayId: giveaway.id, winnerIds: winners, reroll: Boolean(reroll) } });
+      await tx.scheduledAction.create({ data: {
+        guildId: giveaway.guildId, type: 'giveaways:announce', payload: { id: delivery.id }, runAt: new Date(), key: `giveaway:announce:${delivery.id}`,
+      } });
+      return { updated: await tx.giveaway.findUniqueOrThrow({ where: { id: giveaway.id } }), delivery };
     });
     await scheduler.cancel(endKey(giveaway.id));
-    await this.refresh(updated, config);
+    // Delivery remains in the queue if Discord is unavailable now.
+    await this.announce(delivery.id, config).catch((err: unknown) => this.services.logger.warn({ err, id: delivery.id }, 'Giveaway announcement queued for retry'));
+    return updated;
+  }
 
+  async announce(id: string, config: GiveawaysConfig): Promise<void> {
+    const { db, rest, logger } = this.services;
+    const delivery = await db.giveawayDelivery.findUnique({ where: { id }, include: { giveaway: true } });
+    if (!delivery || delivery.deliveredAt) return;
+    const giveaway = delivery.giveaway;
+    const winners = Ids.parse(delivery.winnerIds);
+    await this.refresh(giveaway, config);
     const t = await this.translator(giveaway.guildId);
     const mentions = winners.map((id) => `<@${id}>`).join(', ');
     await rest.post(Routes.channelMessages(giveaway.channelId), {
       body: {
-        content: winners.length > 0 ? t(reroll ? 'giveaways.rerolled' : 'giveaways.won', { users: mentions, prize: giveaway.prize }) : t('giveaways.noEntries', { prize: giveaway.prize }),
+        content: winners.length > 0 ? t(delivery.reroll ? 'giveaways.rerolled' : 'giveaways.won', { users: mentions, prize: giveaway.prize }) : t('giveaways.noEntries', { prize: giveaway.prize }),
+        nonce: delivery.id,
+        enforce_nonce: true,
         allowed_mentions: { users: winners },
         ...(giveaway.messageId ? { message_reference: { message_id: giveaway.messageId, fail_if_not_exists: false } } : {}),
       },
     });
+    await db.giveawayDelivery.updateMany({ where: { id, deliveredAt: null }, data: { deliveredAt: new Date() } });
     if (config.dmWinners) {
       for (const userId of winners) {
         try {
@@ -223,7 +241,6 @@ export class GiveawayService {
         }
       }
     }
-    return updated;
   }
 
   async cancel(giveaway: Giveaway, config: GiveawaysConfig): Promise<Giveaway> {

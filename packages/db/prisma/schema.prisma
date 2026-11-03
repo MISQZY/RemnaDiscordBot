@@ -81,6 +81,8 @@ model ScheduledAction {
   doneAt      DateTime?
   /// The job is taken by a worker until this moment; after that it can be claimed again.
   lockedUntil DateTime?
+  /// Fences acknowledgements from an earlier worker after its lease has expired.
+  lockToken   String?
   attempts    Int       @default(0)
   lastError   String?
   createdAt   DateTime  @default(now())
@@ -335,6 +337,8 @@ model Giveaway {
   status          String   @default("running")
   /// Every winner drawn so far, rerolls included.
   winnerIds       Json     @default("[]")
+  drawVersion     Int      @default(0)
+  deliveries      GiveawayDelivery[]
   entries         Int      @default(0)
   createdAt       DateTime @default(now())
 
@@ -347,6 +351,19 @@ model GiveawayEntry {
   createdAt  DateTime @default(now())
 
   @@id([giveawayId, userId])
+}
+
+/// A persisted draw announcement, created atomically with its winners.
+model GiveawayDelivery {
+  id          String   @id @default(cuid())
+  giveawayId  String
+  giveaway    Giveaway @relation(fields: [giveawayId], references: [id], onDelete: Cascade)
+  winnerIds   Json
+  reroll      Boolean  @default(false)
+  deliveredAt DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([giveawayId])
 }
 
 /// Who invited a member, found by the invite whose use count grew (invites module).

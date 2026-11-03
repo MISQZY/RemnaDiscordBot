@@ -226,16 +226,30 @@ describe('scheduler and job runner', () => {
   });
 
   it('does not retry a timed-out job while it may still run, and counts it done when it finishes late', async () => {
-    const runner = new JobRunner(services, registry, { timeoutMs: 20, lockMs: 60_000 });
+    const runner = new JobRunner(services, registry, { batchSize: 1, timeoutMs: 20, lockMs: 120 });
     const action = await services.scheduler.schedule({ guildId: GUILD, moduleId: 'moderation', job: 'hang', payload: {}, runAt: past() });
 
     expect(await runner.tick()).toBe(1);
     const failed = await database.db.scheduledAction.findUniqueOrThrow({ where: { id: action.id } });
     expect(failed.doneAt).toBeNull();
-    expect(failed.runAt.getTime()).toBeGreaterThan(Date.now() + 50_000);
+    expect(failed.lockToken).not.toBeNull();
+    expect(failed.lastError).toContain('Job timed out');
+    expect(runner.getStatus().inFlight).toBe(1);
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    expect(await services.scheduler.claimDue({ limit: 1, lockMs: 120, maxAttempts: 5 })).toHaveLength(0);
+    expect(await runner.tick()).toBe(0);
 
     finishHang();
     await vi.waitFor(async () => expect((await database.db.scheduledAction.findUniqueOrThrow({ where: { id: action.id } })).doneAt).not.toBeNull());
+  });
+
+  it('records a configuration lookup failure instead of stranding the final attempt', async () => {
+    const runner = new JobRunner(services, registry, { maxAttempts: 1 });
+    const action = await services.scheduler.schedule({ guildId: GUILD, moduleId: 'moderation', job: 'unban', payload: {}, runAt: past() });
+    const lookup = vi.spyOn(services.config, 'isEnabled').mockRejectedValueOnce(new Error('Config unavailable'));
+    await runner.tick();
+    lookup.mockRestore();
+    expect(await database.db.scheduledAction.findUniqueOrThrow({ where: { id: action.id } })).toMatchObject({ doneAt: expect.any(Date), lastError: 'Config unavailable', lockToken: null });
   });
 
   it('caps retry delay at one hour', () => {

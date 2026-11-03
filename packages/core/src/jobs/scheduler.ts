@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { Prisma, PrismaClient, ScheduledAction } from '@bot/db';
 
 export interface ScheduleRequest {
@@ -31,6 +32,7 @@ export class Scheduler {
       runAt,
       doneAt: null,
       lockedUntil: null,
+      lockToken: null,
       attempts: 0,
       lastError: null,
     };
@@ -39,7 +41,7 @@ export class Scheduler {
       try {
         return await this.db.$transaction(async (tx) => {
           // Always retire the old ID: a worker may claim a pending row while it is being replaced.
-          await tx.scheduledAction.updateMany({ where: { key }, data: { key: null, doneAt: new Date(), lastError: null } });
+          await tx.scheduledAction.updateMany({ where: { key }, data: { key: null, doneAt: new Date(), lastError: null, lockToken: null, lockedUntil: null } });
           return tx.scheduledAction.create({ data: { ...data, key } });
         });
       } catch (err) {
@@ -52,7 +54,10 @@ export class Scheduler {
 
   /** Cancels a job that has not run yet. Returns whether it existed. */
   async cancel(key: string): Promise<boolean> {
-    const { count } = await this.db.scheduledAction.deleteMany({ where: { key, doneAt: null } });
+    const { count } = await this.db.scheduledAction.updateMany({
+      where: { key, doneAt: null },
+      data: { key: null, doneAt: new Date(), lastError: null, lockToken: null, lockedUntil: null },
+    });
     return count > 0;
   }
 
@@ -100,6 +105,7 @@ export class Scheduler {
           attempts: 0,
           runAt: new Date(),
           lockedUntil: null,
+          lockToken: null,
         },
       });
       return count === 1 ? tx.scheduledAction.findUnique({ where: { id } }) : null;
@@ -108,6 +114,11 @@ export class Scheduler {
 
   async claimDue({ limit, lockMs, maxAttempts }: ClaimOptions): Promise<ScheduledAction[]> {
     const now = new Date();
+    // A worker may have crashed during its last allowed attempt, before it could record a failure.
+    await this.db.scheduledAction.updateMany({
+      where: { doneAt: null, attempts: { gte: maxAttempts }, OR: [{ lockedUntil: null }, { lockedUntil: { lt: now } }] },
+      data: { doneAt: now, lockedUntil: null, lockToken: null, lastError: 'Attempt limit reached after the worker lease expired' },
+    });
     const candidates = await this.db.scheduledAction.findMany({
       where: {
         doneAt: null,
@@ -117,46 +128,59 @@ export class Scheduler {
       },
       orderBy: { runAt: 'asc' },
       take: limit,
-      select: { id: true, lockedUntil: true },
+      select: { id: true, lockedUntil: true, lockToken: true },
     });
 
     const claimResults = await Promise.all(
       candidates.map(async (candidate) => {
+        const lockToken = randomUUID();
         const { count } = await this.db.scheduledAction.updateMany({
-          where: { id: candidate.id, doneAt: null, lockedUntil: candidate.lockedUntil },
-          data: { lockedUntil: new Date(now.getTime() + lockMs), attempts: { increment: 1 } },
+          where: { id: candidate.id, doneAt: null, lockedUntil: candidate.lockedUntil, lockToken: candidate.lockToken, attempts: { lt: maxAttempts }, runAt: { lte: now } },
+          data: { lockedUntil: new Date(now.getTime() + lockMs), lockToken, attempts: { increment: 1 } },
         });
-        return count === 1 ? candidate.id : null;
+        return count === 1 ? { id: candidate.id, lockToken } : null;
       }),
     );
-    const claimed = claimResults.filter((id): id is string => id !== null);
+    const claimed = claimResults.filter((claim) => claim !== null);
     if (claimed.length === 0) return [];
-    return this.db.scheduledAction.findMany({ where: { id: { in: claimed } }, orderBy: { runAt: 'asc' } });
+    return this.db.scheduledAction.findMany({ where: { OR: claimed, doneAt: null }, orderBy: { runAt: 'asc' } });
   }
 
   /** Jobs still waiting longer than `graceMs` after their run time — workers are down or cannot keep up. */
-  async countOverdue(graceMs: number, maxAttempts: number): Promise<number> {
+  async countOverdue(graceMs: number, _maxAttempts: number): Promise<number> {
     return this.db.scheduledAction.count({
-      where: { doneAt: null, attempts: { lt: maxAttempts }, runAt: { lt: new Date(Date.now() - graceMs) } },
+      where: { doneAt: null, runAt: { lt: new Date(Date.now() - graceMs) } },
     });
   }
 
-  async complete(id: string): Promise<void> {
-    await this.db.scheduledAction.update({ where: { id }, data: { doneAt: new Date(), lockedUntil: null, lastError: null } });
+  async renew(id: string, lockToken: string, lockMs: number): Promise<boolean> {
+    const { count } = await this.db.scheduledAction.updateMany({
+      where: { id, lockToken, doneAt: null, lockedUntil: { gt: new Date() } },
+      data: { lockedUntil: new Date(Date.now() + lockMs) },
+    });
+    return count === 1;
+  }
+
+  async noteTimeout(id: string, lockToken: string, message: string): Promise<void> {
+    await this.db.scheduledAction.updateMany({ where: { id, lockToken, doneAt: null }, data: { lastError: message } });
+  }
+
+  async complete(id: string, lockToken?: string): Promise<void> {
+    await this.db.scheduledAction.updateMany({ where: { id, doneAt: null, ...(lockToken !== undefined && { lockToken }) }, data: { doneAt: new Date(), lockedUntil: null, lockToken: null, lastError: null } });
   }
 
   /** Not run now, on purpose (the module is off): moved to `runAt`, the claim's attempt given back. */
-  async postpone(id: string, runAt: Date): Promise<void> {
-    await this.db.scheduledAction.update({ where: { id }, data: { runAt, lockedUntil: null, attempts: { decrement: 1 } } });
+  async postpone(id: string, runAt: Date, lockToken?: string): Promise<void> {
+    await this.db.scheduledAction.updateMany({ where: { id, doneAt: null, ...(lockToken !== undefined && { lockToken }) }, data: { runAt, lockedUntil: null, lockToken: null, attempts: { decrement: 1 } } });
   }
 
   /** Failure: retry at `retryAt` or, when `null`, give up for good (`doneAt` + `lastError`). */
-  async fail(id: string, error: string, retryAt: Date | null): Promise<void> {
-    await this.db.scheduledAction.update({
-      where: { id },
+  async fail(id: string, error: string, retryAt: Date | null, lockToken?: string): Promise<void> {
+    await this.db.scheduledAction.updateMany({
+      where: { id, doneAt: null, ...(lockToken !== undefined && { lockToken }) },
       data: retryAt
-        ? { runAt: retryAt, lockedUntil: null, lastError: error }
-        : { doneAt: new Date(), lockedUntil: null, lastError: error },
+        ? { runAt: retryAt, lockedUntil: null, lockToken: null, lastError: error }
+        : { doneAt: new Date(), lockedUntil: null, lockToken: null, lastError: error },
     });
   }
 }

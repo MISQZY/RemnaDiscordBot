@@ -37,6 +37,10 @@ export default defineModule({
     },
   },
   jobs: {
+    announce: {
+      whenDisabled: 'run',
+      run: async (payload, ctx) => new GiveawayService(ctx).announce(EndPayload.parse(payload).id, await ctx.getConfig(ctx.guildId)),
+    },
     // A giveaway that ends while the module is off draws once it is on again.
     end: {
       whenDisabled: 'postpone',

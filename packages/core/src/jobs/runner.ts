@@ -56,6 +56,7 @@ export class JobRunner {
   private started = false;
   private lastTickAt: Date | null = null;
   private readonly inFlight = new Set<Promise<void>>();
+  private readonly lingering = new Set<Promise<void>>();
   private readonly options: Required<JobRunnerOptions>;
 
   constructor(
@@ -73,7 +74,7 @@ export class JobRunner {
   getStatus(): { running: boolean; inFlight: number; lastTickAt: string | null } {
     return {
       running: this.isRunning(),
-      inFlight: this.inFlight.size,
+      inFlight: this.inFlight.size + this.lingering.size,
       lastTickAt: this.lastTickAt ? this.lastTickAt.toISOString() : null,
     };
   }
@@ -89,11 +90,13 @@ export class JobRunner {
   /** Claims due jobs for the free slots and starts them; the polling loop does not wait for them. */
   private async fill(): Promise<Promise<void>[]> {
     const { batchSize, lockMs, maxAttempts } = this.options;
-    const free = batchSize - this.inFlight.size;
+    const free = batchSize - this.inFlight.size - this.lingering.size;
     if (free <= 0) return [];
     const actions = await this.services.scheduler.claimDue({ limit: free, lockMs, maxAttempts });
     return actions.map((action) => {
-      const run = this.run(action).finally(() => this.inFlight.delete(run));
+      const run = this.run(action)
+        .catch((err: unknown) => this.services.logger.error({ err, actionId: action.id }, 'Job result could not be recorded'))
+        .finally(() => this.inFlight.delete(run));
       this.inFlight.add(run);
       return run;
     });
@@ -120,51 +123,56 @@ export class JobRunner {
 
   private async run(action: ScheduledAction): Promise<void> {
     const { scheduler, logger } = this.services;
+    const token = action.lockToken!;
     const entry = this.registry.findJob(action.type);
     if (!entry) {
-      await scheduler.fail(action.id, `Unknown job type ${action.type}`, null);
+      await scheduler.fail(action.id, `Unknown job type ${action.type}`, null, token);
       metrics.jobs.inc({ job: action.type, status: 'unknown' });
       logger.error({ actionId: action.id, type: action.type }, 'Unknown job type');
       return;
     }
 
-    const { run, whenDisabled } = entry.item;
-    try {
+    const controller = new AbortController();
+    const renew = setInterval(() => {
+      void scheduler.renew(action.id, token, this.options.lockMs).then((owned) => {
+        if (!owned) controller.abort();
+      }).catch((err: unknown) => {
+        controller.abort();
+        logger.warn({ err, actionId: action.id }, 'Job lease renewal failed');
+      });
+    }, Math.max(1, Math.floor(this.options.lockMs / 3)));
+    renew.unref();
+    const ctx = { ...moduleServices(this.services, entry.module), guildId: action.guildId, signal: controller.signal };
+    const work = (async () => {
+      const { run, whenDisabled } = entry.item;
       if (whenDisabled !== 'run' && !(await this.services.config.isEnabled(action.guildId, entry.module.id))) {
-        if (whenDisabled === 'postpone') await scheduler.postpone(action.id, new Date(Date.now() + POSTPONE_MS));
-        else await scheduler.complete(action.id);
+        if (whenDisabled === 'postpone') await scheduler.postpone(action.id, new Date(Date.now() + POSTPONE_MS), token);
+        else await scheduler.complete(action.id, token);
         metrics.jobs.inc({ job: action.type, status: whenDisabled === 'postpone' ? 'postponed' : 'skipped' });
         return;
       }
-    } catch (err) {
-      // The config could not be read: the claim's lock runs out and the job is taken again.
-      logger.warn({ err, actionId: action.id, type: action.type }, 'Job module state unknown');
-      return;
-    }
-
-    const controller = new AbortController();
-    const ctx = { ...moduleServices(this.services, entry.module), guildId: action.guildId, signal: controller.signal };
-    const work = Promise.resolve().then(() => run(action.payload, ctx));
-    try {
-      await withTimeout(work, this.options.timeoutMs, controller);
-      await scheduler.complete(action.id);
+      if (controller.signal.aborted) throw new Error('Job lease lost before execution');
+      await run(action.payload, ctx);
+      await scheduler.complete(action.id, token);
       metrics.jobs.inc({ job: action.type, status: 'ok' });
-    } catch (err) {
+    })().catch(async (err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       const giveUp = action.attempts >= this.options.maxAttempts;
-      let retryAt = new Date(Date.now() + retryDelayMs(action.attempts));
-      if (err instanceof JobTimeout) {
-        // A timeout only stops waiting: a job that ignores `signal` goes on. It is not retried while it might still
-        // run (not before its lock would have run out), and finishing late completes it — no second run of a draw.
-        retryAt = new Date(Math.max(retryAt.getTime(), Date.now() + this.options.lockMs));
-        void work.then(
-          () => scheduler.complete(action.id),
-          () => undefined,
-        );
-      }
-      await scheduler.fail(action.id, message, giveUp ? null : retryAt);
+      await scheduler.fail(action.id, message, giveUp ? null : new Date(Date.now() + retryDelayMs(action.attempts)), token);
       metrics.jobs.inc({ job: action.type, status: giveUp ? 'given_up' : 'retry' });
       logger.warn({ err, actionId: action.id, type: action.type, attempts: action.attempts, giveUp }, 'Job failed');
+    }).finally(() => clearInterval(renew));
+    try {
+      await withTimeout(work, this.options.timeoutMs, controller);
+    } catch (err) {
+      if (!(err instanceof JobTimeout)) throw err;
+      // A handler ignoring abort retains its slot and lease until it settles. A crash releases the lease by expiry.
+      const pending = work.catch((late: unknown) => logger.error({ err: late, actionId: action.id }, 'Late job result failed'))
+        .finally(() => this.lingering.delete(pending));
+      this.lingering.add(pending);
+      await scheduler.noteTimeout(action.id, token, err.message);
+      metrics.jobs.inc({ job: action.type, status: 'timeout' });
+      logger.warn({ err, actionId: action.id }, 'Job timed out; waiting for the handler to settle');
     }
   }
 }

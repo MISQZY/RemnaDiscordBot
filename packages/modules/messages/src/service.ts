@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { MessageTemplate } from '@bot/contracts';
 import { HttpError, type CoreServices } from '@bot/core';
 import type { Prisma, ScheduledMessage, StickyMessage } from '@bot/db';
@@ -134,10 +135,16 @@ export class MessageService {
   async runScheduled(id: string, now = new Date()): Promise<void> {
     const { db, rest, logger, config } = this.services;
     const row = await db.scheduledMessage.findUnique({ where: { id } });
-    if (!row?.enabled) return;
+    if (!row?.enabled || row.nextRunAt > now) return;
     try {
-      if (await config.isEnabled(row.guildId, 'messages')) await rest.post(Routes.channelMessages(row.channelId), { body: await this.body(row.guildId, MessageTemplate.parse(row.message)) });
+      if (await config.isEnabled(row.guildId, 'messages')) await rest.post(Routes.channelMessages(row.channelId), { body: {
+        ...await this.body(row.guildId, MessageTemplate.parse(row.message)),
+        nonce: createHash('sha256').update(`${row.id}:${row.nextRunAt.toISOString()}`).digest('hex').slice(0, 24),
+        enforce_nonce: true,
+      } });
     } catch (err) {
+      const permanent = new Set<number>([RESTJSONErrorCodes.UnknownChannel, RESTJSONErrorCodes.MissingAccess, RESTJSONErrorCodes.MissingPermissions]);
+      if (!(err instanceof DiscordAPIError && permanent.has(Number(err.code)))) throw err;
       // A deleted channel or lost access: the run is skipped, the next one still planned.
       logger.warn({ err, id }, 'Scheduled message not posted');
     }

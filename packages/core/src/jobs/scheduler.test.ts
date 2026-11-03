@@ -17,11 +17,11 @@ function setup() {
       rows.push(made);
       return made;
     },
-    updateMany: async ({ where, data }: { where: { key?: string; id?: string; doneAt?: { not: null }; lastError?: { not: null }; lockedUntil?: null }; data: object }) => {
+    updateMany: async ({ where, data }: { where: { key?: string; id?: string; doneAt?: { not: null } | null; lastError?: { not: null }; lockedUntil?: null }; data: object }) => {
       const matching = rows.filter((r) =>
         (where.key === undefined || r.key === where.key) &&
         (where.id === undefined || r.id === where.id) &&
-        (!where.doneAt || r.doneAt !== null) &&
+        (where.doneAt === undefined || (where.doneAt === null ? r.doneAt === null : r.doneAt !== null)) &&
         (!where.lastError || r.lastError != null) &&
         (where.lockedUntil === undefined || r.lockedUntil === null),
       );
@@ -143,8 +143,11 @@ describe('failed jobs management', () => {
     await scheduler.complete(action.id);
     expect(await scheduler.retry(action.id)).toBeNull();
     await scheduler.fail(action.id, 'Failed', null);
-    expect(await scheduler.retry(action.id)).not.toBeNull();
     expect(await scheduler.retry(action.id)).toBeNull();
+    const failed = await schedule();
+    await scheduler.fail(failed.id, 'Failed', null);
+    expect(await scheduler.retry(failed.id)).not.toBeNull();
+    expect(await scheduler.retry(failed.id)).toBeNull();
   });
 
   it('finds failed jobs, retries and cancels them', async () => {
