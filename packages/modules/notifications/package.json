@@ -25,7 +25,7 @@
     "@bot/i18n": "workspace:*",
     "@bot/templates": "workspace:*",
     "discord.js": "14.27.0",
-    "fast-xml-parser": "5.2.5",
+    "fast-xml-parser": "5.12.0",
     "zod": "4.6.7"
   },
   "devDependencies": {
