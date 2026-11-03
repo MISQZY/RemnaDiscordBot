@@ -12,6 +12,7 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "test:postgres": "vitest run --config vitest.postgres.config.ts",
     "check": "turbo run lint typecheck test test:integration",
     "deploy-commands": "pnpm --filter @bot/bot deploy-commands",
     "db:generate": "pnpm --filter @bot/db db:generate",

@@ -112,7 +112,7 @@ pnpm dev                      # бот, воркер и API в watch-режим�
 - `createTestRedis()` — изолированный `ioredis-mock`; `startMemoryRedisServer()` — тот же мок по протоколу Redis для нескольких процессов.
 - API тестируется через `app.inject` с фейковым Discord OAuth.
 
-Миграции Postgres тестами не проверяются: CI применяет их к пустой базе и сверяет со схемой (`prisma migrate diff`).
+`TEST_DATABASE_URL=postgresql://...@localhost:5432/test pnpm test:postgres` проверяет миграции и конкурентные операции на PostgreSQL в отдельной случайной схеме, удаляемой после тестов. `TEST_REDIS_URL=redis://localhost:6379` дополнительно включает проверку периодических задач на настоящем Redis. В CI обе проверки обязательны; тесты не принимают адрес удалённой БД.
 
 ## Продакшн
 
