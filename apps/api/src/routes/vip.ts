@@ -82,7 +82,10 @@ export function vipRoutes({ db, redis, registry, config, options, snapshots }: A
             return module !== undefined && !module.alwaysEnabled;
           }),
         };
-        await store.replace(state);
+        if (!(await store.replace(state))) {
+          request.log.info({ revision: state.revision }, 'Stale VIP snapshot refused');
+          throw ApiError.conflict();
+        }
         config.vip.set(state);
         await publishVipChanged(redis);
         return reply.status(204).send(null);

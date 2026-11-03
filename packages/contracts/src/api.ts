@@ -172,6 +172,7 @@ export type VipFeature = z.infer<typeof VipFeature>;
  * and which guilds have it until when (`null` — forever). Dashboards from before the features send none.
  */
 export const VipState = z.object({
+  revision: z.number().int().nonnegative().max(2_147_483_647).optional(),
   modules: z.array(ModuleId).max(100),
   features: z.array(VipFeature).max(VipFeature.options.length).default([]),
   guilds: z.array(z.object({ guildId: Snowflake, expiresAt: z.iso.datetime().nullable() })).max(100_000),

@@ -5,7 +5,7 @@ import { z } from 'zod';
 export interface VipStore {
   load(): Promise<VipState>;
   /** Replaces the whole state: guilds not in it lose VIP. */
-  replace(state: VipState): Promise<void>;
+  replace(state: VipState): Promise<boolean>;
 }
 
 const SETTINGS_ID = 'default';
@@ -28,16 +28,18 @@ export class PrismaVipStore implements VipStore {
     };
   }
 
-  async replace(state: VipState): Promise<void> {
+  async replace(state: VipState): Promise<boolean> {
     const modules = state.modules as Prisma.InputJsonValue;
     const features = state.features as Prisma.InputJsonValue;
-    await this.db.$transaction(async (tx) => {
+    return this.db.$transaction(async (tx) => {
       // Every replacement writes this row first, serializing the read and diff across API replicas.
-      await tx.vipSettings.upsert({
+      const current = await tx.vipSettings.upsert({
         where: { id: SETTINGS_ID },
-        create: { id: SETTINGS_ID, modules, features },
-        update: { modules, features },
+        create: { id: SETTINGS_ID },
+        update: { revision: { increment: 0 } },
       });
+      if ((current.revision > 0 && state.revision === undefined) || (state.revision !== undefined && state.revision <= current.revision)) return false;
+      await tx.vipSettings.update({ where: { id: SETTINGS_ID }, data: { modules, features, ...(state.revision !== undefined && { revision: state.revision }) } });
       const currentGuilds = await tx.guildVip.findMany();
       const currentMap = new Map(currentGuilds.map((g) => [g.guildId, g.expiresAt?.getTime() ?? null]));
       const targetGuildIds = new Set(state.guilds.map((g) => g.guildId));
@@ -57,6 +59,7 @@ export class PrismaVipStore implements VipStore {
           update: { expiresAt },
         });
       }
+      return true;
     });
   }
 }

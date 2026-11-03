@@ -14,7 +14,7 @@ describe('PrismaVipStore', () => {
     const settingsUpsert = vi.fn().mockResolvedValue({});
 
     const tx = {
-      vipSettings: { upsert: settingsUpsert },
+      vipSettings: { upsert: settingsUpsert, update: vi.fn() },
       guildVip: { findMany, deleteMany, upsert },
     };
     const db = {
@@ -47,7 +47,7 @@ describe('PrismaVipStore', () => {
     const guilds = new Map<string, Date | null>([['g1', null]]);
     const findMany = async () => [...guilds].map(([guildId, expiresAt]) => ({ guildId, expiresAt }));
     const tx = {
-      vipSettings: { upsert: async () => ({}) },
+      vipSettings: { upsert: async () => ({}), update: async () => ({}) },
       guildVip: {
         findMany,
         deleteMany: async ({ where }: { where: { guildId: { in: string[] } } }) => {

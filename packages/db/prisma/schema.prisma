@@ -555,6 +555,7 @@ model GuildVip {
 /// Global VIP settings: one row, `default`.
 model VipSettings {
   id        String   @id
+  revision  Int      @default(0)
   /// Module IDs that work only in guilds with VIP (a JSON array).
   modules   Json     @default("[]")
   /// Features outside modules that need VIP (`VipFeature`, a JSON array).
