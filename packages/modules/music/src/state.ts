@@ -47,6 +47,7 @@ export const PlayerState = z.object({
 export type PlayerState = z.infer<typeof PlayerState>;
 
 export const ControlAction = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('enqueue'), query: z.string().trim().min(1).max(1000) }),
   z.object({ action: z.enum(['pause', 'resume', 'skip', 'stop', 'shuffle', 'previous']) }),
   z.object({ action: z.literal('volume'), value: z.number().int().min(0).max(150) }),
   z.object({ action: z.literal('repeat'), value: z.enum(['off', 'track', 'queue']) }),

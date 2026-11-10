@@ -10,11 +10,64 @@ import { announceChannelId, nextRepeatMode, playerButtons, publicPlayerUrl } fro
 import { MusicService } from './service.js';
 import { supportedSources } from './sources.js';
 import { ControlMessage, MusicKeys } from './state.js';
-import { cleanMusicQuery, playableQuery, requesterOf, trackView } from './tracks.js';
+import { cleanMusicQuery, playableQuery, requesterOf, resolveSomaQuery, somaStreamUrl, trackView } from './tracks.js';
 
 const GUILD = '111111111111111111';
 const USER = '222222222222222222';
 const DJ_ROLE = '333333333333333333';
+
+describe('SomaFM links', () => {
+  it('serializes live streams without Lavalink\'s unsafe integer duration', () => {
+    const view = trackView({ info: { title: 'SomaFM', isStream: true, duration: Number.MAX_VALUE } } as never);
+    expect(view.durationMs).toBe(0);
+    expect(view.isStream).toBe(true);
+  });
+  it('resolves only approved stream servers from the official playlist', async () => {
+    const fetcher = vi.fn(async () => new Response('[playlist]\nFile1=https://evil.test/a.mp3\nFile2=http://ice5.somafm.com/groovesalad-128-mp3\n'));
+    vi.stubGlobal('fetch', fetcher);
+    try {
+      expect(await resolveSomaQuery('https://somafm.com/groovesalad.pls')).toBe('https://ice5.somafm.com/groovesalad-128-mp3');
+      expect(fetcher).toHaveBeenCalledWith('https://somafm.com/groovesalad.pls', expect.objectContaining({ redirect: 'error' }));
+      expect(await resolveSomaQuery('https://soundcloud.com/a/b')).toBe('https://soundcloud.com/a/b');
+      expect(fetcher).toHaveBeenCalledOnce();
+    } finally { vi.unstubAllGlobals(); }
+  });
+
+  it('fails when the playlist contains only untrusted links', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('[playlist]\nFile1=https://localhost/audio\nFile2=https://ice5.somafm.com.evil.test/audio\n')));
+    try {
+      await expect(resolveSomaQuery('https://somafm.com/groovesalad.pls')).rejects.toThrow('no supported streams');
+    } finally { vi.unstubAllGlobals(); }
+  });
+  it.each([
+    ['https://somafm.com/groovesalad/', 'https://somafm.com/groovesalad.pls'],
+    ['http://somafm.com/dronezone/index.html', 'https://somafm.com/dronezone.pls'],
+    ['https://somafm.com/groovesalad256.pls', 'https://somafm.com/groovesalad.pls'],
+    ['https://somafm.com/m3u/groovesalad130.m3u', 'https://somafm.com/groovesalad.pls'],
+    ['https://somafm.com/groovesalad2.pls', 'https://somafm.com/groovesalad2.pls'],
+    ['https://somafm.com/player/#/now-playing/dronezone', 'https://somafm.com/dronezone.pls'],
+    ['https://ice5.somafm.com/dronezone-128-mp3', 'https://ice5.somafm.com/dronezone-128-mp3'],
+  ])('normalizes %s to a playable stream', (url, expected) => {
+    expect(somaStreamUrl(url)).toBe(expected);
+    expect(cleanMusicQuery(url)).toBe(expected);
+    expect(playableQuery(url)).toBe(true);
+    expect(playableQuery(expected)).toBe(true);
+  });
+
+  it.each(['https://somafm.com.evil.test/groovesalad/', 'https://user@somafm.com/groovesalad/',
+    'https://somafm.com:2333/groovesalad/', 'https://evil.somafm.com/stream',
+    'https://ice5.somafm.com/path/stream', 'file:///somafm.com/groovesalad'])('rejects %s', (url) => {
+    expect(somaStreamUrl(url)).toBeNull();
+    expect(playableQuery(url)).toBe(false);
+  });
+
+  it('validates enqueue messages and rejects empty or oversized queries', () => {
+    expect(ControlMessage.parse({ guildId: GUILD, userId: USER, action: 'enqueue', query: ' song ' })).toMatchObject({ query: 'song' });
+    for (const query of ['', '   ', 'x'.repeat(1001)]) {
+      expect(ControlMessage.safeParse({ guildId: GUILD, userId: USER, action: 'enqueue', query }).success).toBe(false);
+    }
+  });
+});
 
 describe('formatting', () => {
   it('formats durations and parses timestamps', () => {
@@ -242,6 +295,24 @@ describe('MusicService.control', () => {
     finishSearch({ loadType: 'empty', tracks: [] });
     expect(await pending).toEqual({ kind: 'empty' });
     expect(player.destroy).not.toHaveBeenCalled();
+  });
+
+  it('routes dashboard enqueue through the shared loader using the active channels and requester', async () => {
+    const player = fakePlayer();
+    player.textChannelId = 'text' as never;
+    const s = service(player);
+    const listener = { id: USER, user: { username: 'listener' } };
+    const voice = { id: 'vc', isVoiceBased: () => true };
+    const guild = { channels: { cache: new Map([['vc', voice]]) }, members: { fetch: vi.fn(async () => listener) } };
+    Object.assign(s, { ctx: {
+      getConfig: vi.fn(async () => defaultMusicConfig),
+      client: { guilds: { cache: new Map([[GUILD, guild]]) } },
+      logger: { info: vi.fn(), warn: vi.fn() },
+    } });
+    const enqueue = vi.spyOn(s, 'enqueue').mockResolvedValue({ kind: 'empty' });
+    await (s as unknown as { onControlMessage(raw: string): Promise<void> }).onControlMessage(
+      JSON.stringify({ guildId: GUILD, userId: USER, action: 'enqueue', query: 'song' }));
+    expect(enqueue).toHaveBeenCalledWith(listener, voice, 'text', 'song', defaultMusicConfig);
   });
 });
 

@@ -33,7 +33,7 @@ import {
   type ControlAction,
   type PlayerState,
 } from './state.js';
-import { cleanMusicQuery, playableQuery, trackView, type CleanQueryOptions, type Requester } from './tracks.js';
+import { cleanMusicQuery, playableQuery, resolveSomaQuery, trackView, type CleanQueryOptions, type Requester } from './tracks.js';
 
 type Ctx = BotModuleContext<MusicConfig>;
 
@@ -203,7 +203,8 @@ export class MusicService {
     let result: SearchResult | UnresolvedSearchResult;
     try {
       // A slow provider must not hold the queue lock or delay pause/skip controls.
-      result = await withTimeout(node.search({ query: clean, source: SEARCH_PLATFORMS[config.searchSource] }, requester), SEARCH_TIMEOUT_MS);
+      const resolved = await resolveSomaQuery(clean);
+      result = await withTimeout(node.search({ query: resolved, source: SEARCH_PLATFORMS[config.searchSource] }, requester), SEARCH_TIMEOUT_MS);
     } catch (err) {
       this.ctx.logger.debug({ err, guildId: member.guild.id }, 'Music search failed');
       return { kind: 'failed', message: err instanceof Error ? err.message : String(err) };
@@ -299,6 +300,8 @@ export class MusicService {
     const player = this.getPlayer(guildId);
     if (!player) return false;
     switch (action.action) {
+      case 'enqueue':
+        return false;
       case 'pause':
         if (player.paused) return false;
         await player.pause();
@@ -615,9 +618,27 @@ export class MusicService {
     } catch {
       return;
     }
-    if (!this.getPlayer(message.guildId)) return;
+    const player = this.getPlayer(message.guildId);
+    if (!player) return;
     try {
-      await this.control(message.guildId, message);
+      if (message.action === 'enqueue') {
+        const config = await this.ctx.getConfig(message.guildId);
+        if (!player.voiceChannelId || !player.textChannelId) return;
+        if (config.allowedVoiceChannelIds.length && !config.allowedVoiceChannelIds.includes(player.voiceChannelId)) return;
+        const guild = this.ctx.client.guilds.cache.get(message.guildId);
+        if (!guild) return;
+        const voice = guild.channels.cache.get(player.voiceChannelId);
+        if (!voice?.isVoiceBased()) return;
+        const member = await guild.members.fetch(message.userId);
+        // The API authorizes dashboard controls; enqueue keeps the existing session and its voice channel.
+        if (this.getPlayer(message.guildId) !== player) return;
+        const result = await this.enqueue(member, voice, player.textChannelId, message.query, config);
+        if (result.kind !== 'track' && result.kind !== 'playlist') {
+          this.ctx.logger.info({ guildId: message.guildId, result: result.kind }, 'Dashboard enqueue rejected');
+        }
+      } else {
+        await this.control(message.guildId, message);
+      }
       this.ctx.logger.info({ guildId: message.guildId, userId: message.userId, action: message.action }, 'Player action from the dashboard');
     } catch (err) {
       this.ctx.logger.warn({ err, guildId: message.guildId, action: message.action }, 'Dashboard player action failed');

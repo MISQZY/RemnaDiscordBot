@@ -18,7 +18,7 @@ export function trackView(track: Track | UnresolvedTrack): TrackView {
     author: track.info.author ?? '',
     uri: track.info.uri ?? null,
     artworkUrl: track.info.artworkUrl ?? null,
-    durationMs: track.info.duration ?? 0,
+    durationMs: track.info.isStream ? 0 : (track.info.duration ?? 0),
     isStream: track.info.isStream ?? false,
     requesterId: requesterOf(track)?.id ?? null,
   };
@@ -38,6 +38,37 @@ export interface CleanQueryOptions {
   allowPlaylist?: boolean;
 }
 
+/** Converts station pages and playlists to SomaFM's permanent MP3 playlist endpoint. */
+export function somaStreamUrl(value: string): string | null {
+  let url: URL;
+  try { url = new URL(value); } catch { return null; }
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.port) return null;
+  const host = url.hostname;
+  if (/^ice\d*\.somafm\.com$/.test(host) && /^\/[a-z0-9-]+(?:-\d+-(?:mp3|aac))?$/.test(url.pathname)) {
+    return `https://${host}${url.pathname}`;
+  }
+  if (!['somafm.com', 'www.somafm.com'].includes(host)) return null;
+  const page = /^\/([a-z][a-z0-9-]*)(?:\/(?:index\.html|directstreamlinks\.html)?)?$/.exec(url.pathname);
+  const playlist = /^\/(?:m3u\/)?([a-z][a-z0-9-]*?)(?:16|24|32|64|128|130|256)?\.(?:pls|m3u)$/.exec(url.pathname);
+  const player = url.pathname === '/player/' ? /^#\/now-playing\/([a-z][a-z0-9-]*)$/.exec(url.hash) : null;
+  const station = player?.[1] ?? playlist?.[1] ?? (page?.[1] !== 'player' ? page?.[1] : null);
+  return station ? `https://somafm.com/${station}.pls` : null;
+}
+
+/** Resolves the official playlist without following redirects or loading arbitrary playlist URLs. */
+export async function resolveSomaQuery(query: string): Promise<string> {
+  if (!/^https:\/\/somafm\.com\/[a-z][a-z0-9-]*\.pls$/.test(query)) return query;
+  const response = await fetch(query, { redirect: 'error', signal: AbortSignal.timeout(5000) });
+  if (!response.ok) throw new Error(`SomaFM playlist: HTTP ${response.status}`);
+  const playlist = await response.text();
+  if (playlist.length > 16_384) throw new Error('SomaFM playlist is too large');
+  for (const match of playlist.matchAll(/^File\d+\s*=\s*(https?:\/\/[^\r\n]+)\s*$/gim)) {
+    const stream = somaStreamUrl(match[1]!.trim());
+    if (stream && /^https:\/\/ice\d*\.somafm\.com\//.test(stream)) return stream;
+  }
+  throw new Error('SomaFM playlist has no supported streams');
+}
+
 /**
  * Normalizes user queries before passing them to Lavalink.
  * Strips tracking parameters, and removes unwanted playlist parameters from track links (such as YouTube
@@ -45,6 +76,8 @@ export interface CleanQueryOptions {
  */
 export function cleanMusicQuery(query: string, options: CleanQueryOptions = {}): string {
   const value = query.trim();
+  const soma = somaStreamUrl(value);
+  if (soma) return soma;
   if (!/^[a-z][a-z\d+.-]*:/i.test(value)) return value;
   let url: URL;
   try {
@@ -110,6 +143,7 @@ export function cleanMusicQuery(query: string, options: CleanQueryOptions = {}):
  */
 export function playableQuery(query: string): boolean {
   const value = query.trim();
+  if (somaStreamUrl(value)) return true;
   if (value.startsWith('//') || value.startsWith('\\\\')) return false;
   if (!/^[a-z][a-z\d+.-]*:/i.test(value)) return true;
   let url: URL;

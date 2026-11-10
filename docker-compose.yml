@@ -125,7 +125,7 @@ services:
 
   # Audio node of the music module: COMPOSE_PROFILES=app,music and LAVALINK_NODES in .env.
   lavalink:
-    image: ghcr.io/lavalink-devs/lavalink:4.2.2-alpine
+    build: ./docker/lavalink
     profiles: [music]
     restart: unless-stopped
     # Generic HTTP and local sources are disabled. Keep the audio node off the stack's network as well,

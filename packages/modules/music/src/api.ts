@@ -4,6 +4,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { MusicConfig } from './config.js';
 import { SourcesState } from './sources.js';
+import { playableQuery } from './tracks.js';
 import { ControlAction, MusicKeys, PlayerState, type ControlMessage } from './state.js';
 
 const guildId = (request: FastifyRequest) => (request.params as { guildId: string }).guildId;
@@ -109,6 +110,10 @@ export function musicApi(app: FastifyInstance, ctx: ApiModuleContext<MusicConfig
     async (request, reply) => {
       const id = guildId(request);
       await ctx.requireEnabled(id);
+      const action = request.body as ControlAction;
+      if (action.action === 'enqueue' && !playableQuery(action.query)) {
+        throw HttpError.badRequest('Unsupported music link');
+      }
       if (!(await checkCanControl(request, id))) {
         throw HttpError.forbidden('Only administrators and DJs can control the player');
       }

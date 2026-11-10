@@ -26,6 +26,7 @@ lavalink:
       twitch: true
       vimeo: true
       nico: false
+      # SomaFM uses our dedicated somafm-plugin, built into the image; generic HTTP stays disabled.
       # Arbitrary URLs and redirects bypass application DNS checks; only provider sources may fetch audio.
       http: false
       local: false
