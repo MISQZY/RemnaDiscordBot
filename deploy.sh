@@ -37,7 +37,9 @@ export IMAGE_TAG="${IMAGE_TAG:-latest}"
 export LAVALINK_IMAGE_TAG="${LAVALINK_IMAGE_TAG:-$IMAGE_TAG}"
 APP_SERVICES="bot worker api"
 MUSIC_SERVICES=""
-if docker compose config --services | grep -qx lavalink; then
+# Capture the full output: grep -q in a pipe can make Compose fail with SIGPIPE under pipefail.
+ENABLED_SERVICES=$(docker compose config --services)
+if grep -qx lavalink <<< "$ENABLED_SERVICES"; then
   MUSIC_SERVICES="lavalink yt-cipher"
 fi
 
