@@ -45,7 +45,18 @@ fi
 PREVIOUS_TAG=$(grep -E '^IMAGE_TAG=' .env | cut -d= -f2- | sed 's/[[:space:]]#.*//; s/[[:space:]]*$//' || true)
 
 echo "⬇️  Pulling images $IMAGE_TAG..."
-docker compose pull --quiet $APP_SERVICES migrate $MUSIC_SERVICES
+# Keep registry requests light on small hosts, and retry transient TLS/registry failures before stopping services.
+for attempt in 1 2 3; do
+  if COMPOSE_PARALLEL_LIMIT=1 docker compose pull --quiet $APP_SERVICES migrate $MUSIC_SERVICES; then
+    break
+  fi
+  if [ "$attempt" = 3 ]; then
+    echo "Image download failed after 3 attempts; running services have not been stopped."
+    exit 1
+  fi
+  echo "Retrying image download ($attempt/3)..."
+  sleep 5
+done
 
 # The audio image is built in CI. Update it before stopping the app, so a failed pull or startup cannot stop the bot.
 # Pin it separately: rolling back app migrations must not select an old app tag with no matching audio image.
