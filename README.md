@@ -49,7 +49,7 @@ Slash-команды бот синхронизирует с Discord сам пр�
 > **Server Members** (welcome, autoroles, audit-log) и **Message Content** (audit-log, custom-commands).
 > Иначе бот не подключится к Discord (ошибка «Used disallowed intents»).
 
-Для музыки нужен узел [Lavalink](https://lavalink.dev) 4.2+: `docker compose --profile music up -d --build lavalink` и `LAVALINK_NODES=lavalink://<LAVALINK_PASSWORD>@localhost:2333` в `.env` (в Docker — `@lavalink:2333`, `COMPOSE_PROFILES=app,music`). Источники поиска — плагины в `docker/lavalink/application.yml`: YouTube и YouTube Music (youtube-plugin, включён, `YOUTUBE_ENABLED`), Spotify, Deezer и Яндекс Музыка (LavaSrc, каждый включается своей переменной вместе с ключами, см. `.env.example`; Spotify играет треки с YouTube Music); Bandcamp встроенный. Встроенный SoundCloud сейчас не играет: SoundCloud сменил формат потоков ([lavaplayer#189](https://github.com/lavalink-devs/lavaplayer/issues/189)).
+Для музыки нужен узел [Lavalink](https://lavalink.dev) 4.2+: `docker compose --profile music pull lavalink && docker compose --profile music up -d --no-build lavalink` и `LAVALINK_NODES=lavalink://<LAVALINK_PASSWORD>@localhost:2333` в `.env` (в Docker — `@lavalink:2333`, `COMPOSE_PROFILES=app,music`). Источники поиска — плагины в `docker/lavalink/application.yml`: YouTube и YouTube Music (youtube-plugin, включён, `YOUTUBE_ENABLED`), Spotify, Deezer и Яндекс Музыка (LavaSrc, каждый включается своей переменной вместе с ключами, см. `.env.example`; Spotify играет треки с YouTube Music); Bandcamp встроенный. Встроенный SoundCloud сейчас не играет: SoundCloud сменил формат потоков ([lavaplayer#189](https://github.com/lavalink-devs/lavaplayer/issues/189)).
 
 Ссылки на станции SomaFM (страницы, PLS/M3U, веб-плеер и прямые потоки) поддерживаются в `/play` и карточке добавления над очередью RemnaWeb. Для SomaFM Docker-сборка устанавливает отдельный `somafm-plugin`; произвольный HTTP-источник остаётся выключенным. Для внешнего Lavalink установите JAR этого плагина из `docker/lavalink/somafm/build/libs/` в каталог `plugins` узла. Веб-плеер добавляет треки в активную сессию с текущими правами управления; новую сессию запускают через `/play` в Discord.
 
@@ -120,7 +120,7 @@ pnpm dev                      # бот, воркер и API в watch-режим�
 
 ### CI/CD
 
-`.github/workflows/ci.yml`: на каждый push и PR — `pnpm check` и проверка миграций на Postgres; затем сборка образов `bot`, `worker`, `api`, `migrate` (`docker/app.Dockerfile`). На `main` образы пушатся в GHCR как `ghcr.io/<owner>/<repo>/<образ>:<sha>` и `:latest`. Публикация релиза (или ручной запуск) деплоит этот `<sha>` по SSH.
+`.github/workflows/ci.yml`: на каждый push и PR — `pnpm check` и проверка миграций на Postgres; затем сборка образов `bot`, `worker`, `api`, `migrate` (`docker/app.Dockerfile`) и `lavalink` (`docker/lavalink/Dockerfile`, включая сборку и тесты плагина SomaFM). На `main` образы пушатся в GHCR как `ghcr.io/<owner>/<repo>/<образ>:<sha>` и `:latest`. Публикация релиза (или ручной запуск) деплоит этот `<sha>` по SSH. На сервере образы скачиваются готовыми; Java/Gradle для деплоя не нужны.
 
 Секреты репозитория: `SSH_KEY`, `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `DEPLOY_PATH` (путь к клону на сервере).
 
@@ -133,7 +133,7 @@ cp .env.example .env
 
 В `.env` сервера, кроме токенов: `IMAGE_REPO=ghcr.io/<owner>/<repo>`, `COMPOSE_PROFILES=app`, свои `POSTGRES_PASSWORD` и `SESSION_SECRET`. Первый запуск — `bash deploy.sh`.
 
-`deploy.sh` подтягивает код, скачивает образы, останавливает приложение, делает дамп базы в `backups/pre-deploy.dump`, применяет миграции и ждёт healthy. Если контейнеры не поднялись — восстанавливает дамп и возвращает прошлые образы. Удачный тег закрепляется в `.env` (`IMAGE_TAG`).
+`deploy.sh` подтягивает код, скачивает образы, останавливает приложение, делает дамп базы в `backups/pre-deploy.dump`, применяет миграции и ждёт healthy. Если контейнеры не поднялись — восстанавливает дамп и возвращает прошлые образы. Удачный тег закрепляется в `.env` (`IMAGE_TAG`). При включённом профиле `music` перед остановкой приложения также обновляются Lavalink и yt-cipher: сбой скачивания или запуска аудиоузла останавливает деплой до остановки бота. Версия Lavalink закрепляется отдельно в `LAVALINK_IMAGE_TAG`, поэтому откат приложения не требует аудиообраза со старым тегом приложения.
 
 ### RemnaWeb на том же сервере
 

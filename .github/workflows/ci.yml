@@ -130,6 +130,7 @@ jobs:
           - { image: worker, app: worker, target: runtime, health_port: 3002 }
           - { image: api, app: api, target: runtime, health_port: 3000 }
           - { image: migrate, app: bot, target: migrate, health_port: 3001 }
+          - { image: lavalink, context: docker/lavalink, file: docker/lavalink/Dockerfile, target: runtime }
     outputs:
       # Deploys pull exactly this build, never whatever `latest` is by then.
       tag: ${{ steps.sha.outputs.tag }}
@@ -166,8 +167,8 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          context: .
-          file: docker/app.Dockerfile
+          context: ${{ matrix.context || '.' }}
+          file: ${{ matrix.file || 'docker/app.Dockerfile' }}
           target: ${{ matrix.target }}
           build-args: |
             APP=${{ matrix.app }}

@@ -126,6 +126,7 @@ services:
   # Audio node of the music module: COMPOSE_PROFILES=app,music and LAVALINK_NODES in .env.
   lavalink:
     build: ./docker/lavalink
+    image: ${IMAGE_REPO:-discord-bot}/lavalink:${LAVALINK_IMAGE_TAG:-${IMAGE_TAG:-latest}}
     profiles: [music]
     restart: unless-stopped
     # Generic HTTP and local sources are disabled. Keep the audio node off the stack's network as well,

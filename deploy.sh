@@ -34,13 +34,29 @@ if [ -z "${DEPLOY_CHECKED_OUT:-}" ]; then
 fi
 
 export IMAGE_TAG="${IMAGE_TAG:-latest}"
+export LAVALINK_IMAGE_TAG="${LAVALINK_IMAGE_TAG:-$IMAGE_TAG}"
 APP_SERVICES="bot worker api"
+MUSIC_SERVICES=""
+if docker compose config --services | grep -qx lavalink; then
+  MUSIC_SERVICES="lavalink yt-cipher"
+fi
 
 # The tag the last successful deploy pinned (see the end), which a rollback restores.
 PREVIOUS_TAG=$(grep -E '^IMAGE_TAG=' .env | cut -d= -f2- | sed 's/[[:space:]]#.*//; s/[[:space:]]*$//' || true)
 
 echo "⬇️  Pulling images $IMAGE_TAG..."
-docker compose pull --quiet $APP_SERVICES migrate
+docker compose pull --quiet $APP_SERVICES migrate $MUSIC_SERVICES
+
+# The audio image is built in CI. Update it before stopping the app, so a failed pull or startup cannot stop the bot.
+# Pin it separately: rolling back app migrations must not select an old app tag with no matching audio image.
+if [ -n "$MUSIC_SERVICES" ]; then
+  docker compose up -d --no-build --no-deps --wait --wait-timeout 180 $MUSIC_SERVICES
+  if grep -q '^LAVALINK_IMAGE_TAG=' .env; then
+    sed -i "s|^LAVALINK_IMAGE_TAG=.*|LAVALINK_IMAGE_TAG=$LAVALINK_IMAGE_TAG|" .env
+  else
+    printf '\nLAVALINK_IMAGE_TAG=%s\n' "$LAVALINK_IMAGE_TAG" >> .env
+  fi
+fi
 
 docker compose up -d --wait postgres redis
 
