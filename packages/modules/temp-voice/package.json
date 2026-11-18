@@ -22,13 +22,13 @@
     "@bot/core": "workspace:*",
     "@bot/i18n": "workspace:*",
     "@bot/templates": "workspace:*",
-    "discord.js": "14.27.0",
+    "discord.js": "14.28.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
     "@bot/config": "workspace:*",
     "@bot/logger": "workspace:*",
     "@bot/testing": "workspace:*",
-    "fastify": "5.12.7"
+    "fastify": "5.12.8"
   }
 }
